@@ -20,7 +20,7 @@ Install `.[ml,benchmark]` for real model/benchmark runs and `.[platform]` for SQ
 ## Research workflow
 
 1. Run `python scripts/smoke_search.py` for a deterministic, benchmark-free controller smoke test.
-2. Install the benchmark extras and place checksummed benchmark data under the configured artifact directory.
+2. Install the benchmark extras and acquire only a checksummed dataset manifest; the acquisition command is `python scripts/acquire_dataset.py --manifest <verified-manifest.json> --destination /data/natsbench.pth`.
 3. Run the experiment configs under `research/experiments/` with multiple seeds.
 4. Store raw metrics and provenance manifests; only then generate a report.
 

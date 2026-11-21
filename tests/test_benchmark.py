@@ -1,9 +1,11 @@
 import hashlib
+import json
 
 import pytest
 
 from archai_benchmark.nasbench201 import architecture_from_string, parse_architecture_string
 from archai_benchmark.integrity import acquire_file, sha256_file
+from scripts.acquire_dataset import main as acquire_dataset_main
 from archai_core.schema import TensorSpec
 
 
@@ -33,3 +35,17 @@ def test_integrity_verification(tmp_path):
     assert acquired.read_bytes() == b"archai"
     with pytest.raises(ValueError):
         acquire_file(source.as_uri(), tmp_path / "bad.bin", "0" * 64)
+
+
+def test_dataset_acquisition_cli_requires_and_reports_verified_manifest(tmp_path, monkeypatch, capsys):
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"dataset")
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"dataset_id": "unit", "version": "1", "uri": source.as_uri(),
+        "sha256": hashlib.sha256(b"dataset").hexdigest(), "license": "test",
+        "search_space": "unit", "source": "local"}))
+    destination = tmp_path / "downloaded.bin"
+    monkeypatch.setattr("sys.argv", ["acquire_dataset", "--manifest", str(manifest),
+                                      "--destination", str(destination)])
+    assert acquire_dataset_main() == 0
+    assert json.loads(capsys.readouterr().out)["verified"] is True
