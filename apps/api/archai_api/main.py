@@ -73,6 +73,15 @@ class ExperimentRequest(BaseModel):
     metrics: dict[str, float] = Field(default_factory=dict)
 
 
+class GenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    count: int = Field(default=1, gt=0, le=64)
+    seed: int = Field(default=0, ge=0)
+    condition: list[float] = Field(default_factory=lambda: [0.0] * 8, min_length=8, max_length=8)
+    input_spec: dict[str, int] = Field(default_factory=lambda: {"channels": 3, "height": 32, "width": 32})
+    output_classes: int = Field(default=10, gt=1, le=10000)
+
+
 def require_write_access(api_key: Annotated[str | None, Header(alias="x-api-key")] = None) -> None:
     """Local development is open; deployed writes require ARCHAI_API_KEY."""
     configured = os.getenv("ARCHAI_API_KEY")
@@ -232,8 +241,36 @@ def get_model(model_id: str, version: str | None = None):
 
 
 @app.post("/v1/architectures/generate")
-def generate_unavailable():
-    raise HTTPException(status_code=503, detail="No trained generator checkpoint is configured")
+def generate_architectures(request: GenerateRequest):
+    checkpoint = os.getenv("ARCHAI_GENERATOR_CHECKPOINT")
+    if not checkpoint:
+        raise HTTPException(status_code=503, detail="No trained generator checkpoint is configured")
+    try:
+        import torch
+        from archai_generator.model import ArchitectureGenerator, GeneratorConfig
+        from archai_generator.training import load_checkpoint
+        from archai_core.schema import TensorSpec
+
+        payload = torch.load(checkpoint, map_location="cpu", weights_only=True)
+        saved_config = payload.get("state_dict", {}).get("config", {})
+        config = GeneratorConfig(**saved_config) if saved_config else GeneratorConfig()
+        model = ArchitectureGenerator(config)
+        metadata = load_checkpoint(model, checkpoint)
+        generated = []
+        for offset in range(request.count):
+            candidates = model.sample(seed=request.seed + offset, condition=tuple(request.condition),
+                                      input_spec=TensorSpec.model_validate(request.input_spec),
+                                      output_classes=request.output_classes)
+            if not candidates:
+                raise RuntimeError("generator returned no candidates")
+            generated.append(candidates[-1])
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="configured generator checkpoint is unavailable") from exc
+    except (ImportError, ValueError, KeyError, RuntimeError, OSError) as exc:
+        raise HTTPException(status_code=503, detail=f"generator checkpoint could not be loaded: {exc}") from exc
+    return {"items": [{"architecture": candidate.model_dump(),
+                       "architecture_id": candidate.content_hash()} for candidate in generated],
+            "count": len(generated), "checkpoint": checkpoint, "metadata": metadata}
 
 
 if __name__ == "__main__":

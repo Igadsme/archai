@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from archai_api.main import app
@@ -61,3 +62,28 @@ def test_request_size_limit_is_configurable(monkeypatch):
     monkeypatch.setenv("ARCHAI_MAX_REQUEST_BYTES", "10")
     assert client.post("/v1/architectures/validate", json=payload()).status_code == 413
     monkeypatch.delenv("ARCHAI_MAX_REQUEST_BYTES")
+
+
+def test_generator_endpoint_is_explicitly_unavailable_without_checkpoint(monkeypatch):
+    client = TestClient(app)
+    monkeypatch.delenv("ARCHAI_GENERATOR_CHECKPOINT", raising=False)
+    response = client.post("/v1/architectures/generate", json={})
+    assert response.status_code == 503
+    assert "checkpoint" in response.json()["detail"]
+
+
+def test_generator_endpoint_loads_checkpoint_and_returns_valid_architectures(monkeypatch, tmp_path):
+    torch = pytest.importorskip("torch")
+    from archai_generator.model import ArchitectureGenerator, GeneratorConfig
+    from archai_generator.training import save_checkpoint
+
+    checkpoint = tmp_path / "generator.pt"
+    model = ArchitectureGenerator(GeneratorConfig(max_nodes=2))
+    save_checkpoint(model, checkpoint, {"kind": "generator", "seed": 3})
+    monkeypatch.setenv("ARCHAI_GENERATOR_CHECKPOINT", str(checkpoint))
+    response = TestClient(app).post("/v1/architectures/generate", json={"count": 2, "seed": 7})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 2
+    assert len(body["items"]) == 2
+    assert all(item["architecture_id"] for item in body["items"])

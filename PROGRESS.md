@@ -26,6 +26,7 @@ Updated 2026-11-20.
 - API now exposes lifecycle surfaces for searches and provenance-backed experiments; local job transitions reject invalid terminal-state changes and worker start reports an explicit unconfigured-worker response.
 - API now exposes readiness, worker, and queue status endpoints; documented `x-api-key` enforcement is tested, and Redis status reflects the actual selected backend plus connectivity ping.
 - API architecture comparison and model metadata retrieval routes are now covered, with static-route ordering fixed so `/compare` is not shadowed by the dynamic architecture route.
+- API generator inference now loads a registered-format checkpoint when `ARCHAI_GENERATOR_CHECKPOINT` is configured, samples the requested number of seeded candidates, and returns canonical architecture IDs; the unconfigured path remains an explicit `503`.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
