@@ -75,6 +75,17 @@ CREATE TABLE IF NOT EXISTS experiments (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'experiments_dataset_fk'
+  ) THEN
+    ALTER TABLE experiments
+      ADD CONSTRAINT experiments_dataset_fk
+      FOREIGN KEY (dataset_id, dataset_version) REFERENCES datasets(dataset_id, version);
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS experiments_architecture_idx ON experiments(architecture_id);
 CREATE INDEX IF NOT EXISTS experiments_status_idx ON experiments(status);
 CREATE INDEX IF NOT EXISTS experiments_search_idx ON experiments(search_id);

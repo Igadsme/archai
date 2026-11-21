@@ -16,3 +16,9 @@ def test_alembic_schema_can_upgrade_and_downgrade(tmp_path, monkeypatch):
     assert "uq_model_checkpoints_model_id_version" in {
         index["name"] for index in inspector.get_indexes("model_checkpoints")
     }
+    assert {foreign_key["name"] for foreign_key in inspector.get_foreign_keys("experiments")} >= {
+        "fk_experiments_architecture", "fk_experiments_dataset"
+    }
+    assert "fk_api_credentials_user" in {
+        foreign_key["name"] for foreign_key in inspector.get_foreign_keys("api_credentials")
+    }

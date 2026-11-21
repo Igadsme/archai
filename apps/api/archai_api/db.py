@@ -11,7 +11,8 @@ if TYPE_CHECKING:
 def sqlalchemy_components():
     """Return optional SQLAlchemy primitives without making local API depend on them."""
     try:
-        from sqlalchemy import DateTime, JSON, Integer, String, Text, create_engine
+        from sqlalchemy import (DateTime, ForeignKey, ForeignKeyConstraint, JSON, Integer, String, Text,
+                                create_engine)
         from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError("install the 'platform' extra for SQLAlchemy support") from exc
@@ -41,8 +42,13 @@ def sqlalchemy_components():
 
     class ExperimentRow(Base):
         __tablename__ = "experiments"
+        __table_args__ = (ForeignKeyConstraint(["dataset_id", "dataset_version"],
+                                                ["datasets.dataset_id", "datasets.version"],
+                                                name="fk_experiments_dataset"),)
         experiment_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-        architecture_id: Mapped[str] = mapped_column(String(64), nullable=False)
+        architecture_id: Mapped[str] = mapped_column(String(64), ForeignKey("architectures.architecture_id",
+                                                                              name="fk_experiments_architecture"),
+                                                       nullable=False)
         dataset_id: Mapped[str] = mapped_column(String(128), nullable=False)
         dataset_version: Mapped[str] = mapped_column(String(128), nullable=False)
         evidence_type: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -62,7 +68,8 @@ def sqlalchemy_components():
     class ApiCredentialRow(Base):
         __tablename__ = "api_credentials"
         credential_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-        user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+        user_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.user_id", name="fk_api_credentials_user",
+                                                                      ondelete="CASCADE"), nullable=False)
         key_hash: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
         revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
