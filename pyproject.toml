@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "archai"
+version = "0.1.0"
+description = "Reproducible neural architecture search research platform"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.7,<3",
+  "fastapi>=0.111,<1",
+  "uvicorn[standard]>=0.30,<1",
+]
+
+[project.optional-dependencies]
+ml = ["torch>=2.3,<3", "numpy>=1.26,<3", "scikit-learn>=1.4,<2", "safetensors>=0.4,<1"]
+benchmark = ["nats-bench>=1.8,<2"]
+dev = ["pytest>=8,<9", "httpx>=0.27,<1", "ruff>=0.5,<1"]
+
+[tool.setuptools]
+packages = ["archai_core", "archai_compiler", "archai_search", "archai_predictor", "archai_generator", "archai_benchmark", "archai_api"]
+
+[tool.setuptools.package-dir]
+archai_core = "packages/architecture-core/archai_core"
+archai_compiler = "packages/architecture-compiler/archai_compiler"
+archai_search = "packages/search-engine/archai_search"
+archai_predictor = "packages/performance-predictor/archai_predictor"
+archai_generator = "packages/graph-generator/archai_generator"
+archai_benchmark = "packages/benchmark-engine/archai_benchmark"
+archai_api = "apps/api/archai_api"
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "packages/architecture-core",
+  "packages/architecture-compiler",
+  "packages/search-engine",
+  "packages/performance-predictor",
+  "packages/graph-generator",
+  "packages/benchmark-engine",
+  "apps/api",
+]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100

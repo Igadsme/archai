@@ -1,0 +1,10 @@
+name: smoke
+search_space: nasbench201
+dataset: cifar10
+seed: 7
+budget:
+  evaluations: 3
+  wall_clock_seconds: 60
+evidence_policy:
+  allow_synthetic_metrics: false
+  require_provenance_manifest: true

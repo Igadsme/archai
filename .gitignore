@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.next/
+node_modules/
+.env
+artifacts/**/*.pt
+artifacts/**/*.safetensors
+datasets/raw/
