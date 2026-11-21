@@ -119,6 +119,18 @@ def test_model_registry_api_registers_checksum_manifest(tmp_path):
     assert client.get(f"/v1/models/{model_id}?version=v1").json()["sha256"] == body["sha256"]
 
 
+def test_experiment_api_enforces_evidence_provenance():
+    client = TestClient(app)
+    identifier = client.post("/v1/architectures", json=payload()).json()["hash"]
+    base = {"architecture_id": identifier, "dataset_id": "unit", "dataset_version": "1", "seed": 3}
+    assert client.post("/v1/experiments", json={**base, "evidence_type": "benchmark_lookup"}).status_code == 422
+    assert client.post("/v1/experiments", json={**base, "evidence_type": "measured_training",
+        "dataset_checksum": "a" * 64}).status_code == 422
+    valid = client.post("/v1/experiments", json={**base, "evidence_type": "measured_training",
+        "dataset_checksum": "a" * 64, "model_checkpoint": "b" * 64, "hardware": "cpu"})
+    assert valid.status_code == 200
+
+
 def test_readiness_and_queue_status_are_truthful():
     client = TestClient(app)
     readiness = client.get("/readiness")

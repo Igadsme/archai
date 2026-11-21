@@ -206,11 +206,15 @@ class TrainingJobRequest(BaseModel):
 
 
 class ExperimentRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
     architecture_id: str
-    evidence_type: str
+    evidence_type: Literal["predicted", "benchmark_lookup", "measured_training"]
     dataset_id: str
     dataset_version: str
+    dataset_checksum: str | None = Field(default=None, pattern=r"^[0-9a-fA-F]{64}$")
+    model_checkpoint: str | None = Field(default=None, min_length=1, max_length=256)
+    hardware: str = Field(default="unknown", min_length=1, max_length=256)
+    code_revision: str = Field(default="working-tree", min_length=1, max_length=128)
     seed: int
     metrics: dict[str, float] = Field(default_factory=dict)
 
@@ -470,13 +474,22 @@ def cancel_search(search_id: str):
 def create_experiment(request: ExperimentRequest):
     if _architecture_store.get(request.architecture_id) is None:
         raise HTTPException(status_code=404, detail="architecture not found")
+    if request.evidence_type in {"benchmark_lookup", "measured_training"} and not request.dataset_checksum:
+        raise HTTPException(status_code=422, detail="benchmark and measured evidence require dataset_checksum")
+    if request.evidence_type == "measured_training" and not request.model_checkpoint:
+        raise HTTPException(status_code=422, detail="measured_training evidence requires model_checkpoint")
     try:
         record = ExperimentRecord(experiment_id=_jobs.create("experiment").job_id,
                                   architecture_id=request.architecture_id,
                                   evidence_type=request.evidence_type,
                                   status="created", metrics=request.metrics,
                                   provenance=Provenance(dataset_id=request.dataset_id,
-                                      dataset_version=request.dataset_version, seed=request.seed))
+                                      dataset_version=request.dataset_version,
+                                      dataset_checksum=request.dataset_checksum,
+                                      model_checkpoint=request.model_checkpoint,
+                                      hardware=request.hardware,
+                                      code_revision=request.code_revision,
+                                      seed=request.seed))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     _experiment_store.put(record)
