@@ -60,6 +60,7 @@ Updated 2026-11-21.
 - Local search persistence now records cancellation/status transitions consistently with the SQLAlchemy registry, with an API regression test covering the persisted state.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
+- ArchAI Studio now polls live registries/jobs, displays model and worker state, and provides a validated architecture graph inspector with node/edge details; frontend package compilation remains unverified because the local dependency tree is incomplete.
 - Container images now include the ML runtime required by API/worker handlers, and the web image no longer assumes an untracked package-lock file; static Dockerfile contracts and Compose parsing are verified.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
 - Model artifact registry now stores versioned model manifests with SHA-256 checksums and exposes read-only API listing.
