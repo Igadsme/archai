@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from archai_core.schema import Architecture
+
 
 def sqlalchemy_components():
     """Return optional SQLAlchemy primitives without making local API depend on them."""
@@ -47,7 +52,92 @@ def sqlalchemy_components():
     def make_engine(url: str):
         return create_engine(url, pool_pre_ping=True)
 
-    def make_session_factory(url: str):
-        return sessionmaker(bind=make_engine(url), expire_on_commit=False)
+    def make_session_factory(url: str, engine=None):
+        return sessionmaker(bind=engine or make_engine(url), expire_on_commit=False)
 
     return Base, ArchitectureRow, SearchSessionRow, ExperimentRow, make_engine, make_session_factory
+
+
+class SqlAlchemyArchitectureStore:
+    """Persist canonical architecture documents through the configured database.
+
+    The store deliberately keeps SQLAlchemy imports lazy so the local API can run
+    without the platform extra. Schema creation is opt-in; production deployments
+    should apply the Alembic migrations before starting the API.
+    """
+
+    def __init__(self, session_factory, architecture_row):
+        self._session_factory = session_factory
+        self._row = architecture_row
+
+    @classmethod
+    def from_url(cls, url: str, *, initialize: bool = False) -> "SqlAlchemyArchitectureStore":
+        Base, architecture_row, _search_row, _experiment_row, make_engine, make_session_factory = sqlalchemy_components()
+        engine = make_engine(url)
+        if initialize:
+            Base.metadata.create_all(engine)
+        return cls(make_session_factory(url, engine), architecture_row)
+
+    def put(self, architecture: "Architecture") -> "Architecture":
+        from archai_core.schema import Architecture
+
+        canonical = architecture.with_id()
+        if not isinstance(canonical, Architecture):  # pragma: no cover - defensive typing guard
+            raise TypeError("architecture must be an Architecture")
+        session = self._session_factory()
+        try:
+            row = session.get(self._row, canonical.content_hash())
+            payload = canonical.canonical_dict()
+            if row is None:
+                row = self._row(architecture_id=canonical.content_hash(),
+                                schema_version=canonical.schema_version,
+                                search_space=canonical.search_space,
+                                canonical_json=payload,
+                                generator_version=canonical.generator_version,
+                                seed=canonical.seed)
+                session.add(row)
+            else:
+                row.canonical_json = payload
+                row.schema_version = canonical.schema_version
+                row.search_space = canonical.search_space
+                row.generator_version = canonical.generator_version
+                row.seed = canonical.seed
+            session.commit()
+            return canonical
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def get(self, architecture_id: str) -> "Architecture | None":
+        from archai_core.schema import Architecture
+
+        session = self._session_factory()
+        try:
+            row = session.get(self._row, architecture_id)
+            if row is None:
+                return None
+            architecture = Architecture.model_validate(row.canonical_json).with_id()
+            if architecture.content_hash() != row.architecture_id:
+                raise ValueError("stored architecture hash does not match canonical document")
+            return architecture
+        finally:
+            session.close()
+
+    def list(self, limit: int = 50) -> list["Architecture"]:
+        from archai_core.schema import Architecture
+        from sqlalchemy import select
+
+        session = self._session_factory()
+        try:
+            rows = session.scalars(select(self._row).order_by(self._row.architecture_id).limit(limit)).all()
+            values = []
+            for row in rows:
+                architecture = Architecture.model_validate(row.canonical_json).with_id()
+                if architecture.content_hash() != row.architecture_id:
+                    raise ValueError("stored architecture hash does not match canonical document")
+                values.append(architecture)
+            return values
+        finally:
+            session.close()

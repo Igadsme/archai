@@ -12,13 +12,13 @@ from fastapi.responses import JSONResponse
 from archai_core.schema import Architecture
 from archai_core.validation import ValidationError, validate_architecture
 from archai_compiler.metrics import analytical_metrics
+from archai_api.db import SqlAlchemyArchitectureStore
 from archai_shared.jobs import InMemoryJobStore, RedisJobStore
 from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance
 from archai_shared.registry import ModelRegistry
 from pydantic import BaseModel, ConfigDict, Field
 
 app = FastAPI(title="ArchAI API", version="v1")
-_architectures: dict[str, Architecture] = {}
 _searches: dict[str, dict] = {}
 _experiments: dict[str, ExperimentRecord] = {}
 def _make_job_store():
@@ -35,6 +35,33 @@ _jobs = _make_job_store()
 _artifact_store = ArtifactStore(os.getenv("ARCHAI_ARTIFACT_STORE", "/tmp/archai-experiments.jsonl"))
 _model_registry = ModelRegistry(os.getenv("ARCHAI_MODEL_MANIFEST", "/tmp/archai-models.json"))
 _rate_windows: dict[str, deque[float]] = defaultdict(deque)
+
+
+class _InMemoryArchitectureStore:
+    def __init__(self):
+        self._values: dict[str, Architecture] = {}
+
+    def put(self, architecture: Architecture) -> Architecture:
+        canonical = architecture.with_id()
+        self._values[canonical.content_hash()] = canonical
+        return canonical
+
+    def get(self, architecture_id: str) -> Architecture | None:
+        return self._values.get(architecture_id)
+
+    def list(self, limit: int = 50) -> list[Architecture]:
+        return list(self._values.values())[:limit]
+
+
+def _make_architecture_store():
+    url = os.getenv("DATABASE_URL")
+    if not url:
+        return _InMemoryArchitectureStore()
+    return SqlAlchemyArchitectureStore.from_url(
+        url, initialize=os.getenv("ARCHAI_DB_AUTO_CREATE", "0") == "1")
+
+
+_architecture_store = _make_architecture_store()
 
 
 @app.middleware("http")
@@ -139,30 +166,31 @@ def create_architecture(payload: Architecture):
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     identifier = architecture.content_hash()
-    _architectures[identifier] = architecture
+    architecture = _architecture_store.put(architecture)
     return {"architecture": architecture.model_dump(), "hash": identifier,
             "analytical_metrics": analytical_metrics(architecture).__dict__}
 
 
 @app.get("/v1/architectures")
 def list_architectures(limit: int = Query(default=50, ge=1, le=500)):
-    values = list(_architectures.values())[:limit]
+    values = _architecture_store.list(limit)
     return {"items": [{"architecture_id": value.content_hash(), "search_space": value.search_space,
                        "metrics": analytical_metrics(value).__dict__} for value in values]}
 
 
 @app.get("/v1/architectures/compare")
 def compare_architectures(ids: Annotated[list[str], Query(min_length=1, max_length=20)]):
-    missing = [identifier for identifier in ids if identifier not in _architectures]
+    values = {identifier: _architecture_store.get(identifier) for identifier in ids}
+    missing = [identifier for identifier, architecture in values.items() if architecture is None]
     if missing:
         raise HTTPException(status_code=404, detail={"missing_architectures": missing})
-    return {"items": [{"architecture_id": identifier, "architecture": _architectures[identifier].model_dump(),
-                       "analytical_metrics": analytical_metrics(_architectures[identifier]).__dict__} for identifier in ids]}
+    return {"items": [{"architecture_id": identifier, "architecture": values[identifier].model_dump(),
+                       "analytical_metrics": analytical_metrics(values[identifier]).__dict__} for identifier in ids]}
 
 
 @app.get("/v1/architectures/{architecture_id}")
 def get_architecture(architecture_id: str):
-    architecture = _architectures.get(architecture_id)
+    architecture = _architecture_store.get(architecture_id)
     if architecture is None:
         raise HTTPException(status_code=404, detail="architecture not found")
     return {"architecture": architecture.model_dump(), "hash": architecture_id,
@@ -213,7 +241,7 @@ def cancel_search(search_id: str):
 
 @app.post("/v1/experiments", dependencies=[Depends(require_write_access)])
 def create_experiment(request: ExperimentRequest):
-    if request.architecture_id not in _architectures:
+    if _architecture_store.get(request.architecture_id) is None:
         raise HTTPException(status_code=404, detail="architecture not found")
     try:
         record = ExperimentRecord(experiment_id=_jobs.create("experiment").job_id,
