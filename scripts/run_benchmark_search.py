@@ -1,11 +1,12 @@
-"""Run a validation-selected random baseline on a real NATS-Bench archive."""
+"""Run a validation-selected baseline on a real NATS-Bench archive."""
 from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
 
-from archai_benchmark import BenchmarkCache, BenchmarkEvaluator, IndexRandomSearch, NATSBenchAdapter, QueryBudget
+from archai_benchmark import (BenchmarkCache, BenchmarkEvaluator, IndexRandomSearch,
+                               IndexRegularizedEvolution, NATSBenchAdapter, QueryBudget)
 
 
 def select_best_validation(records):
@@ -22,25 +23,39 @@ def main() -> int:
     parser.add_argument("--dataset", default="cifar10")
     parser.add_argument("--search-space", default="tss")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--algorithm", choices=("random", "evolution"), default="random")
+    parser.add_argument("--population-size", type=int, default=8)
+    parser.add_argument("--sample-size", type=int, default=3)
     parser.add_argument("--cache", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
     indices = [int(value.strip()) for value in args.indices.split(",") if value.strip()]
     if args.budget <= 0:
         parser.error("budget must be positive")
+    if args.algorithm == "evolution" and (args.population_size <= 0 or args.sample_size <= 0):
+        parser.error("population and sample sizes must be positive")
     adapter = NATSBenchAdapter(args.benchmark_path, args.search_space, args.dataset).open()
     evaluator = BenchmarkEvaluator(adapter, QueryBudget(min(args.budget, len(indices))), BenchmarkCache(args.cache))
-    policy = IndexRandomSearch(indices, seed=args.seed)
+    if args.algorithm == "random":
+        policy = IndexRandomSearch(indices, seed=args.seed)
+    else:
+        architecture_strings = {index: adapter.architecture_string(index) for index in indices}
+        policy = IndexRegularizedEvolution(indices, architecture_strings,
+                                           population_size=args.population_size,
+                                           sample_size=args.sample_size, seed=args.seed)
     records = []
     while len(records) < args.budget:
         index = policy.ask()
         if index is None:
             break
-        records.append(evaluator.evaluate_index(index, seed=args.seed))
+        record = evaluator.evaluate_index(index, seed=args.seed)
+        records.append(record)
+        if args.algorithm == "evolution":
+            policy.tell(index, record.validation_accuracy)
     if not records:
         parser.error("no benchmark indices were evaluated")
     best = select_best_validation(records)
-    report = {"algorithm": "random", "dataset": args.dataset, "search_space": args.search_space,
+    report = {"algorithm": args.algorithm, "dataset": args.dataset, "search_space": args.search_space,
               "seed": args.seed, "budget": args.budget, "queries": evaluator.queries,
               "selected_on": "validation_accuracy", "selected_index": best.architecture_index,
               "selected_validation_accuracy": best.validation_accuracy,

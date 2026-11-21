@@ -4,6 +4,7 @@ import json
 import pytest
 
 from archai_benchmark.nasbench201 import architecture_from_string, parse_architecture_string
+from archai_benchmark.search import IndexRegularizedEvolution
 from archai_benchmark.integrity import acquire_file, sha256_file
 from scripts.acquire_dataset import main as acquire_dataset_main
 from archai_core.schema import TensorSpec
@@ -22,6 +23,23 @@ def test_nasbench201_rejects_non_cell_encodings():
         parse_architecture_string("|skip_connect~0|")
     with pytest.raises(ValueError, match="exactly 3 edges"):
         parse_architecture_string("|skip_connect~0|+|skip_connect~0|skip_connect~1|+|skip_connect~0|skip_connect~1|")
+
+
+def test_index_regularized_evolution_mutates_available_cell_and_is_reproducible():
+    encodings = {
+        0: "|skip_connect~0|+|skip_connect~0|skip_connect~1|+|skip_connect~0|skip_connect~1|skip_connect~2|",
+        1: "|none~0|+|skip_connect~0|skip_connect~1|+|skip_connect~0|skip_connect~1|skip_connect~2|",
+        2: "|nor_conv_3x3~0|+|skip_connect~0|skip_connect~1|+|skip_connect~0|skip_connect~1|skip_connect~2|",
+    }
+    left = IndexRegularizedEvolution(list(encodings), encodings, population_size=1, sample_size=1, seed=4)
+    right = IndexRegularizedEvolution(list(encodings), encodings, population_size=1, sample_size=1, seed=4)
+    first = left.ask()
+    assert first == right.ask()
+    left.tell(first, 0.8)
+    right.tell(first, 0.8)
+    second = left.ask()
+    assert second == right.ask()
+    assert second != first
 
 
 def test_integrity_verification(tmp_path):

@@ -10,15 +10,17 @@ from archai_shared.worker import WorkerRunner
 
 
 def benchmark_search(job: Job) -> dict:
-    """Run the configured validation-selected random benchmark search.
+    """Run the configured validation-selected benchmark search.
 
     The archive checksum is mandatory so a worker cannot silently query an
     unverified or stale benchmark file.
     """
-    if job.payload.get("algorithm", "random") != "random":
-        raise RuntimeError("benchmark worker currently supports algorithm=random only")
+    algorithm = job.payload.get("algorithm", "random")
+    if algorithm not in {"random", "evolution"}:
+        raise RuntimeError("benchmark worker supports algorithm=random or evolution")
     try:
-        from archai_benchmark import BenchmarkCache, BenchmarkEvaluator, IndexRandomSearch, NATSBenchAdapter, QueryBudget
+        from archai_benchmark import (BenchmarkCache, BenchmarkEvaluator, IndexRandomSearch,
+                                      IndexRegularizedEvolution, NATSBenchAdapter, QueryBudget)
         from archai_benchmark.integrity import sha256_file
     except ImportError as exc:
         raise RuntimeError("install the benchmark extra for benchmark search workers") from exc
@@ -43,17 +45,29 @@ def benchmark_search(job: Job) -> dict:
     cache_path = os.getenv("ARCHAI_BENCHMARK_CACHE", "/tmp/archai-benchmark-cache.sqlite")
     adapter = NATSBenchAdapter(str(archive), search_space, dataset).open()
     evaluator = BenchmarkEvaluator(adapter, QueryBudget(budget), BenchmarkCache(cache_path))
-    policy = IndexRandomSearch(indices, seed=int(config.get("seed", 0)))
+    if algorithm == "random":
+        policy = IndexRandomSearch(indices, seed=int(config.get("seed", 0)))
+    else:
+        architecture_strings = {index: adapter.architecture_string(index) for index in indices}
+        policy = IndexRegularizedEvolution(
+            indices, architecture_strings,
+            population_size=int(config.get("population_size", 8)),
+            sample_size=int(config.get("sample_size", 3)),
+            seed=int(config.get("seed", 0)),
+        )
     records = []
     while len(records) < budget:
         index = policy.ask()
         if index is None:
             break
-        records.append(evaluator.evaluate_index(index, seed=int(config.get("seed", 0))))
+        record = evaluator.evaluate_index(index, seed=int(config.get("seed", 0)))
+        records.append(record)
+        if algorithm == "evolution":
+            policy.tell(index, record.validation_accuracy)
     if not records:
         raise RuntimeError("benchmark search evaluated no architectures")
     best = max(records, key=lambda record: record.validation_accuracy)
-    return {"algorithm": "random", "dataset": dataset, "search_space": search_space,
+    return {"algorithm": algorithm, "dataset": dataset, "search_space": search_space,
             "seed": int(config.get("seed", 0)), "budget": int(config["budget_evaluations"]),
             "queries": evaluator.queries, "selected_on": "validation_accuracy",
             "selected_index": best.architecture_index,

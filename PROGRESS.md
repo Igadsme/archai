@@ -58,13 +58,14 @@ Updated 2026-11-21.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
 - Model artifact registry now stores versioned model manifests with SHA-256 checksums and exposes read-only API listing.
 - Benchmark baseline now includes seeded random index traversal under the existing query budget abstraction.
+- Benchmark search now also supports finite-pool NAS-Bench-201 regularized evolution, with operation-label mutation, validation-only selection, and worker/CLI coverage under the same query budget.
 - Search acquisition now supports expected improvement, upper-confidence bounds, and uncertainty-aware candidate ranking.
 - Closed-loop learned search now connects proposal batches, predictor uncertainty, acquisition ranking, evaluator evidence, budget limits, and Pareto trace extraction.
 - Search baselines now include parent-based regularized evolution mutations plus dependency-light Bayesian optimization with seeded warmup, kernel/UCB scoring, and finite-pool deduplication.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 75 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 76 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 
