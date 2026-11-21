@@ -33,8 +33,10 @@ class RandomSearch:
 
 class RegularizedEvolution:
     def __init__(self, generator: Callable[[], Architecture], population_size: int = 8,
-                 sample_size: int = 3, seed: int = 0):
+                 sample_size: int = 3, seed: int = 0,
+                 mutator: Callable[[Architecture, random.Random], Architecture] | None = None):
         self.generator, self.population_size, self.sample_size = generator, population_size, sample_size
+        self.mutator = mutator
         self.rng = random.Random(seed)
         self.population: deque[Evaluation] = deque()
         self.architectures: dict[str, Architecture] = {}
@@ -45,8 +47,8 @@ class RegularizedEvolution:
         else:
             sample = self.rng.sample(list(self.population), min(self.sample_size, len(self.population)))
             winner = max(sample, key=lambda x: x.score)
-            candidate = validate_architecture(self.generator())
-            self.architectures.setdefault(winner.architecture_id, self.architectures.get(winner.architecture_id))
+            parent = self.architectures[winner.architecture_id]
+            candidate = validate_architecture(self.mutator(parent, self.rng) if self.mutator else self.generator())
         return candidate
 
     def tell(self, architecture: Architecture, score: float, measured: bool = False) -> None:
