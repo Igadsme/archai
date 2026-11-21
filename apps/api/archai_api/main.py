@@ -155,6 +155,15 @@ _dataset_store = (SqlAlchemyDatasetStore.from_url(
     if os.getenv("DATABASE_URL") else _InMemoryDatasetStore())
 
 
+def _redis_is_ready() -> bool:
+    if not isinstance(_jobs, RedisJobStore):
+        return False
+    try:
+        return bool(_jobs.client.ping())
+    except Exception:
+        return False
+
+
 @app.middleware("http")
 async def request_limits(request: Request, call_next):
     max_bytes = int(os.getenv("ARCHAI_MAX_REQUEST_BYTES", str(1024 * 1024)))
@@ -249,12 +258,7 @@ def health() -> dict[str, str]:
 
 @app.get("/readiness")
 def readiness() -> dict[str, bool | str]:
-    redis_ready = isinstance(_jobs, RedisJobStore)
-    if redis_ready:
-        try:
-            _jobs.client.ping()
-        except Exception:
-            redis_ready = False
+    redis_ready = _redis_is_ready()
     database_configured = bool(os.getenv("DATABASE_URL"))
     database_ready = database_is_ready(os.environ["DATABASE_URL"]) if database_configured else True
     ready = database_ready and (redis_ready or not os.getenv("ARCHAI_REQUIRE_REDIS"))
@@ -264,7 +268,7 @@ def readiness() -> dict[str, bool | str]:
 
 @app.get("/v1/infrastructure/workers")
 def worker_status() -> dict[str, object]:
-    configured = isinstance(_jobs, RedisJobStore)
+    configured = _redis_is_ready()
     return {"configured": configured, "status": "connected" if configured else "not_configured",
             "workers": []}
 
@@ -361,7 +365,7 @@ def start_search(search_id: str):
     job = _jobs.get(search_id)
     if job is None:
         raise HTTPException(status_code=404, detail="search job not found")
-    if not isinstance(_jobs, RedisJobStore):
+    if not _redis_is_ready():
         raise HTTPException(status_code=503, detail="no durable experiment worker is configured")
     return {**search, "status": job.status, "job": job.as_dict()}
 
