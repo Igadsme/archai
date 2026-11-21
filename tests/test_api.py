@@ -85,6 +85,14 @@ def test_database_readiness_probe_is_truthful(monkeypatch, tmp_path):
     monkeypatch.delenv("DATABASE_URL")
 
 
+def test_cors_allows_configured_studio_origin(monkeypatch):
+    client = TestClient(app)
+    response = client.options("/v1/architectures", headers={
+        "Origin": "http://localhost:3000", "Access-Control-Request-Method": "GET"})
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
 def test_write_operations_honor_x_api_key(monkeypatch):
     client = TestClient(app)
     monkeypatch.setenv("ARCHAI_API_KEY", "secret")

@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from archai_core.schema import Architecture
@@ -23,6 +24,11 @@ from archai_shared.registry import ModelRegistry
 from pydantic import BaseModel, ConfigDict, Field
 
 app = FastAPI(title="ArchAI API", version="v1")
+_cors_origins = [origin.strip() for origin in os.getenv(
+    "ARCHAI_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if origin.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=_cors_origins, allow_credentials=False,
+                   allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+                   allow_headers=["Authorization", "Content-Type", "x-api-key"])
 _searches: dict[str, dict] = {}
 _experiments: dict[str, ExperimentRecord] = {}
 def _make_job_store():

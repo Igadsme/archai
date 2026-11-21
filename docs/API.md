@@ -6,4 +6,6 @@
 
 Readiness checks database connectivity when `DATABASE_URL` is set. Set `ARCHAI_REQUIRE_REDIS=1` to make Redis connectivity a readiness requirement as well.
 
+Browser clients are allowed only the origins in `ARCHAI_CORS_ORIGINS` (comma-separated); local defaults are `http://localhost:3000` and `http://127.0.0.1:3000`.
+
 Set `DATABASE_URL` to use the SQLAlchemy-backed architecture, search, experiment, model, and dataset registries. The API expects the Alembic schema to have been applied; set `ARCHAI_DB_AUTO_CREATE=1` only for local development or tests. Without `DATABASE_URL`, the API uses process-local registries and the JSON model manifest.
