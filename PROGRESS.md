@@ -43,6 +43,7 @@ Updated 2026-11-21.
 - Added a database-aware model registration CLI with SHA-256 manifests and a model-card template for reproducibility evidence.
 - ArchAI Studio now reads architecture, search, experiment, and dataset registries and renders live evidence/status counts with explicit unavailable/empty states.
 - Readiness now probes configured database connectivity and supports an explicit `ARCHAI_REQUIRE_REDIS=1` gate for durable deployments.
+- CI now installs the platform extra, verifies a fresh Alembic schema reaches `0003_platform_metadata`, and validates Docker Compose configuration without requiring live services.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
