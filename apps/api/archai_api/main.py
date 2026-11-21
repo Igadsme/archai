@@ -80,6 +80,9 @@ class _InMemorySearchStore:
     def set_status(self, search_id: str, status: str, consumed_evaluations: int | None = None) -> None:
         if search_id not in self._values:
             raise KeyError(search_id)
+        self._values[search_id]["status"] = status
+        if consumed_evaluations is not None:
+            self._values[search_id]["consumed_evaluations"] = consumed_evaluations
 
     def list(self, limit: int = 50) -> list[dict]:
         return list(self._values.values())[:limit]

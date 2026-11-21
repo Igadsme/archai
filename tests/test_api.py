@@ -49,6 +49,7 @@ def test_search_and_experiment_lifecycle_surface():
     assert cancelled.status_code == 200
     assert cancelled.json()["status"] == "cancelled"
     assert client.get(f"/v1/searches/{search_id}").json()["job"]["status"] == "cancelled"
+    assert client.get(f"/v1/searches/{search_id}").json()["status"] == "cancelled"
     experiment = client.post("/v1/experiments", json={"architecture_id": identifier,
         "evidence_type": "predicted", "dataset_id": "unit", "dataset_version": "1", "seed": 7})
     assert experiment.status_code == 200

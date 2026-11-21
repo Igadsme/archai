@@ -52,6 +52,7 @@ Updated 2026-11-21.
 - Worker status and search start now require a successful Redis ping; Compose enables `ARCHAI_REQUIRE_REDIS=1` for durable deployment truthfulness.
 - Redis job serialization, queue claiming, handler execution, and result persistence now have a dependency-free fake-client integration test.
 - Queue status now returns explicit degraded availability and error details when the selected Redis backend cannot be listed.
+- Local search persistence now records cancellation/status transitions consistently with the SQLAlchemy registry, with an API regression test covering the persisted state.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
