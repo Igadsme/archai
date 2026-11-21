@@ -40,6 +40,7 @@ Updated 2026-11-21.
 - The model registry now selects the SQLAlchemy checkpoint table under `DATABASE_URL`, retaining SHA-256 manifests and the existing JSON fallback for local mode.
 - Dataset registry endpoints now require a 64-character SHA-256 checksum and enforce immutable dataset versions in both local and SQLAlchemy-backed stores.
 - Added a dataset acquisition CLI that refuses manifests without a checksum and atomically promotes only verified downloads.
+- Added a database-aware model registration CLI with SHA-256 manifests and a model-card template for reproducibility evidence.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.

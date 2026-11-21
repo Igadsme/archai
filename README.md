@@ -25,3 +25,5 @@ Install `.[ml,benchmark]` for real model/benchmark runs and `.[platform]` for SQ
 4. Store raw metrics and provenance manifests; only then generate a report.
 
 See [ROADMAP.md](ROADMAP.md), [RESEARCH.md](RESEARCH.md), and [SECURITY.md](SECURITY.md).
+
+Register a trained artifact with `python scripts/register_model.py --model-id ArchAI-Predictor --kind predictor --version v1 --artifact checkpoint.pt`; use [the model-card template](docs/MODEL_CARD_TEMPLATE.md) for release evidence.
