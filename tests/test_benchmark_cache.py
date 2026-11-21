@@ -12,6 +12,22 @@ class FakeNATS:
         return {"valid-accuracy": 80.0 + index, "test-accuracy": 79.0 + index, "train-all-time": 1.5}
 
 
+class SeedAwareNATS(FakeNATS):
+    def __init__(self):
+        self.requested_trial_seeds = []
+
+    def query_meta_info_by_index(self, index, hp):
+        class Metadata:
+            @staticmethod
+            def get_dataset_seeds(_dataset):
+                return [777, 888, 999]
+        return Metadata()
+
+    def get_more_info(self, index, dataset, hp, is_random):
+        self.requested_trial_seeds.append(is_random)
+        return super().get_more_info(index, dataset, hp, is_random)
+
+
 def test_adapter_and_cache_preserve_architecture_string(tmp_path):
     adapter = NATSBenchAdapter("unused")
     adapter._api = FakeNATS()
@@ -21,6 +37,16 @@ def test_adapter_and_cache_preserve_architecture_string(tmp_path):
     cache.put(record)
     assert cache.get(2, "cifar10", 1) == record
     cache.close()
+
+
+def test_adapter_maps_run_seed_to_available_benchmark_trial_seed():
+    adapter = NATSBenchAdapter("unused")
+    backend = SeedAwareNATS()
+    adapter._api = backend
+    record = adapter.query(2, seed=4)
+    assert backend.requested_trial_seeds == [888]
+    assert record.benchmark_trial_seed == 888
+    assert record.seed == 4
 
 
 def test_cached_query_does_not_consume_new_budget(tmp_path):
