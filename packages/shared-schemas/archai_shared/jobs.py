@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import socket
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Literal
 from uuid import uuid4
@@ -211,3 +211,35 @@ class RedisJobStore:
             except (KeyError, TypeError, ValueError, json.JSONDecodeError):
                 continue
         return sorted(workers, key=lambda item: item.get("worker_id", ""))
+
+    def recover_stale_jobs(self, *, stale_after_seconds: float = 60.0) -> list[str]:
+        """Requeue running jobs whose worker lease has expired."""
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=stale_after_seconds)
+        active_jobs = {worker.get("active_job_id") for worker in self.list_workers()}
+        recovered = []
+        for key in self.client.scan_iter(match=f"{self.prefix}:job:*"):
+            value = self.client.get(key)
+            if not value:
+                continue
+            try:
+                job = Job.from_dict(json.loads(value))
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if job.status != "running" or job.job_id in active_jobs or job.updated_at > cutoff:
+                continue
+
+            def requeue(current: Job) -> Job:
+                if current.status != "running":
+                    raise ValueError("job is no longer running")
+                current.status = "queued"
+                current.error = "requeued after worker lease expired"
+                current.updated_at = datetime.now(timezone.utc)
+                return current
+
+            try:
+                self._atomic_job_update(job.job_id, requeue)
+            except (KeyError, ValueError):
+                continue
+            self.client.rpush(f"{self.prefix}:queue", job.job_id)
+            recovered.append(job.job_id)
+        return recovered

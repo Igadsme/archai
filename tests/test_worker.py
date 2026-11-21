@@ -1,7 +1,7 @@
 import hashlib
 import json
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -214,6 +214,30 @@ def test_redis_store_uses_transactional_job_writes():
     job = store.create("training", {"seed": 2})
     assert store.transition(job.job_id, "cancelled").status == "cancelled"
     assert store.get(job.job_id).status == "cancelled"
+
+
+def test_redis_store_recovers_only_jobs_without_live_worker_lease():
+    from archai_shared.jobs import RedisJobStore
+
+    client = FakeRedis()
+    store = RedisJobStore(client)
+    stale = store.create("training")
+    store.transition(stale.job_id, "running")
+    raw = json.loads(client.values[store._key(stale.job_id)])
+    raw["updated_at"] = (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat()
+    client.values[store._key(stale.job_id)] = json.dumps(raw)
+    assert store.recover_stale_jobs(stale_after_seconds=30) == [stale.job_id]
+    assert store.get(stale.job_id).status == "queued"
+    assert client.queue[-1] == stale.job_id
+
+    protected = store.create("training")
+    store.transition(protected.job_id, "running")
+    raw = json.loads(client.values[store._key(protected.job_id)])
+    raw["updated_at"] = (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat()
+    client.values[store._key(protected.job_id)] = json.dumps(raw)
+    store.heartbeat("worker-live", active_job_id=protected.job_id)
+    assert store.recover_stale_jobs(stale_after_seconds=30) == []
+    assert store.get(protected.job_id).status == "running"
 
 
 def test_redis_worker_heartbeat_reports_idle_and_active_state():

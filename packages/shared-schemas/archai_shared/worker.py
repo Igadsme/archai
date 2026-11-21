@@ -102,4 +102,6 @@ class WorkerRunner:
     def run_forever(self, *, stop: Event | None = None, timeout: int = 5) -> None:
         stop = stop or Event()
         while not stop.is_set():
+            if isinstance(self.store, RedisJobStore):
+                self.store.recover_stale_jobs()
             self.run_once(timeout=timeout)

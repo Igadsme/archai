@@ -72,6 +72,7 @@ Updated 2026-11-21.
 - Queue status now returns explicit degraded availability and error details when the selected Redis backend cannot be listed.
 - Redis-backed workers now publish liveness heartbeats with active job IDs, and the worker status endpoint filters stale heartbeats for dashboard monitoring.
 - Redis job creation and state/payload updates now use optimistic transactions when supported, preventing concurrent worker/cancellation overwrites while retaining the local test adapter fallback.
+- Durable workers now requeue stale running jobs only after their worker heartbeat lease expires, while protecting jobs claimed by live workers.
 - Local search persistence now records cancellation/status transitions consistently with the SQLAlchemy registry, with an API regression test covering the persisted state.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
@@ -99,7 +100,7 @@ Updated 2026-11-21.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 108 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 109 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 
