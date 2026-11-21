@@ -172,7 +172,7 @@ def get_architecture(architecture_id: str):
 @app.post("/v1/searches", dependencies=[Depends(require_write_access)])
 def create_search(request: SearchRequest):
     job = _jobs.create("search", request.model_dump())
-    _searches[job.job_id] = {"search_id": job.job_id, "status": "created", **request.model_dump()}
+    _searches[job.job_id] = {"search_id": job.job_id, **request.model_dump()}
     return _searches[job.job_id]
 
 
@@ -181,7 +181,10 @@ def get_search(search_id: str):
     search = _searches.get(search_id)
     if search is None:
         raise HTTPException(status_code=404, detail="search not found")
-    return search
+    job = _jobs.get(search_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="search job not found")
+    return {**search, "status": job.status, "job": job.as_dict()}
 
 
 @app.post("/v1/searches/{search_id}/start", dependencies=[Depends(require_write_access)])
@@ -189,6 +192,9 @@ def start_search(search_id: str):
     search = _searches.get(search_id)
     if search is None:
         raise HTTPException(status_code=404, detail="search not found")
+    job = _jobs.get(search_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="search job not found")
     raise HTTPException(status_code=503, detail="no durable experiment worker is configured")
 
 
@@ -197,8 +203,12 @@ def cancel_search(search_id: str):
     search = _searches.get(search_id)
     if search is None:
         raise HTTPException(status_code=404, detail="search not found")
-    search["status"] = "cancelled"
-    return search
+    job = _jobs.get(search_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="search job not found")
+    if job.status in {"queued", "running"}:
+        job = _jobs.transition(search_id, "cancelled")
+    return {**search, "status": job.status, "job": job.as_dict()}
 
 
 @app.post("/v1/experiments", dependencies=[Depends(require_write_access)])

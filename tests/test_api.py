@@ -30,8 +30,12 @@ def test_search_and_experiment_lifecycle_surface():
                                                "budget_evaluations": 2, "seed": 7})
     assert search.status_code == 200
     search_id = search.json()["search_id"]
-    assert client.get(f"/v1/searches/{search_id}").json()["status"] == "created"
+    assert client.get(f"/v1/searches/{search_id}").json()["status"] == "queued"
     assert client.post(f"/v1/searches/{search_id}/start").status_code == 503
+    cancelled = client.post(f"/v1/searches/{search_id}/cancel")
+    assert cancelled.status_code == 200
+    assert cancelled.json()["status"] == "cancelled"
+    assert client.get(f"/v1/searches/{search_id}").json()["job"]["status"] == "cancelled"
     experiment = client.post("/v1/experiments", json={"architecture_id": identifier,
         "evidence_type": "predicted", "dataset_id": "unit", "dataset_version": "1", "seed": 7})
     assert experiment.status_code == 200
