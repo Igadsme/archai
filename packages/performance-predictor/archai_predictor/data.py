@@ -15,6 +15,34 @@ class ArchitectureRecord:
     split: str | None = None
 
 
+class ArchitectureDataset:
+    """Torch-compatible dataset wrapper over provenance-bearing records."""
+    def __init__(self, records: list[ArchitectureRecord]):
+        if not records:
+            raise ValueError("architecture dataset cannot be empty")
+        self.records = list(records)
+
+    def __len__(self) -> int:
+        return len(self.records)
+
+    def __getitem__(self, index: int) -> ArchitectureRecord:
+        return self.records[index]
+
+
+def make_loader(records: list[ArchitectureRecord], *, batch_size: int = 32, shuffle: bool = False,
+                seed: int = 0):
+    try:
+        import torch
+        from torch.utils.data import DataLoader
+    except ImportError as exc:  # pragma: no cover
+        raise RuntimeError("install the 'ml' extra to use predictor loaders") from exc
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+    generator = torch.Generator().manual_seed(seed)
+    return DataLoader(ArchitectureDataset(records), batch_size=batch_size, shuffle=shuffle,
+                      generator=generator, collate_fn=collate_records)
+
+
 def split_records(records: list[ArchitectureRecord], seed: int = 0,
                   fractions: tuple[float, float, float] = (0.8, 0.1, 0.1)) -> dict[str, list[ArchitectureRecord]]:
     """Split by architecture hash, making repeated benchmark observations inseparable."""
