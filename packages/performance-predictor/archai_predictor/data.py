@@ -20,13 +20,18 @@ def split_records(records: list[ArchitectureRecord], seed: int = 0,
     """Split by architecture hash, making repeated benchmark observations inseparable."""
     if abs(sum(fractions) - 1.0) > 1e-9 or any(f <= 0 for f in fractions):
         raise ValueError("fractions must be positive and sum to one")
-    ordered = sorted(records, key=lambda r: r.architecture.content_hash())
+    groups: dict[str, list[ArchitectureRecord]] = {}
+    for record in records:
+        groups.setdefault(record.architecture.content_hash(), []).append(record)
+    ordered = sorted(groups.values(), key=lambda group: group[0].architecture.content_hash())
     rng = random.Random(seed)
     rng.shuffle(ordered)
     n = len(ordered)
     first = int(n * fractions[0])
     second = first + int(n * fractions[1])
-    result = {"train": ordered[:first], "validation": ordered[first:second], "test": ordered[second:]}
+    result = {"train": [item for group in ordered[:first] for item in group],
+              "validation": [item for group in ordered[first:second] for item in group],
+              "test": [item for group in ordered[second:] for item in group]}
     return {name: [record.__class__(record.architecture, record.target, record.task_features, record.source, name) for record in values]
             for name, values in result.items()}
 

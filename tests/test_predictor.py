@@ -24,6 +24,16 @@ def test_split_is_hash_disjoint():
     assert sum(map(len, hashes)) == len(records)
 
 
+def test_duplicate_architecture_observations_stay_in_one_split():
+    architecture = make_architecture(8)
+    records = [ArchitectureRecord(architecture, 0.7, (0.0,) * 8, "seed-1"),
+               ArchitectureRecord(architecture, 0.8, (0.0,) * 8, "seed-2")] + \
+              [ArchitectureRecord(make_architecture(channels), channels / 100, (0.0,) * 8, "unit") for channels in range(4, 14)]
+    splits = split_records(records, seed=3, fractions=(0.5, 0.25, 0.25))
+    locations = [name for name, values in splits.items() if any(item.source.startswith("seed-") for item in values)]
+    assert len(locations) == 1
+
+
 def test_regression_metrics():
     result = regression_metrics([1.0, 2.0, 3.0], [1.0, 2.5, 2.5])
     assert result["mae"] == pytest.approx(1 / 3)
