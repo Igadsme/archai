@@ -53,6 +53,35 @@ def sqlalchemy_components():
         started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
         completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    class UserRow(Base):
+        __tablename__ = "users"
+        user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
+
+    class ApiCredentialRow(Base):
+        __tablename__ = "api_credentials"
+        credential_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+        key_hash: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+        revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    class DatasetRow(Base):
+        __tablename__ = "datasets"
+        dataset_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+        version: Mapped[str] = mapped_column(String(128), primary_key=True)
+        checksum: Mapped[str] = mapped_column(String(128), nullable=False)
+        uri: Mapped[str] = mapped_column(Text, nullable=False)
+        license: Mapped[str | None] = mapped_column(String(256))
+
+    class ModelCheckpointRow(Base):
+        __tablename__ = "model_checkpoints"
+        checkpoint_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        model_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+        version: Mapped[str] = mapped_column(String(128), nullable=False)
+        artifact_uri: Mapped[str] = mapped_column(Text, nullable=False)
+        checksum: Mapped[str] = mapped_column(String(128), nullable=False)
+        metadata_json: Mapped[dict] = mapped_column("metadata", JSON, nullable=False, default=dict)
+
     def make_engine(url: str):
         return create_engine(url, pool_pre_ping=True)
 

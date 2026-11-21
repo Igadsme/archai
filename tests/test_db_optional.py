@@ -6,6 +6,7 @@ def test_sqlalchemy_model_factory_is_dependency_gated():
     from archai_api.db import sqlalchemy_components
     Base, ArchitectureRow, SearchSessionRow, ExperimentRow, make_engine, make_session_factory = sqlalchemy_components()
     assert {ArchitectureRow.__tablename__, SearchSessionRow.__tablename__, ExperimentRow.__tablename__} == {"architectures", "search_sessions", "experiments"}
+    assert {"users", "api_credentials", "datasets", "model_checkpoints"}.issubset(Base.metadata.tables)
 
 
 def test_sqlalchemy_architecture_store_round_trips_canonical_document(tmp_path):
