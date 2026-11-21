@@ -42,6 +42,12 @@ def test_duplicate_edges_and_fanin_mismatch_are_rejected():
         validate_architecture(mismatch)
 
 
+def test_identity_metadata_must_match_tensor_channels():
+    value = arch().model_copy(update={"nodes": [arch().nodes[0], arch().nodes[1], Node(id="output", op="output", channels=16)]})
+    with pytest.raises(ValidationError, match="output node channels"):
+        validate_architecture(value)
+
+
 def test_analytical_metrics_use_upstream_channels():
     value = Architecture(
         nodes=[Node(id="input", op="input", channels=3), Node(id="a", op="conv3x3", channels=8),

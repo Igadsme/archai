@@ -85,7 +85,9 @@ def compile_architecture(architecture: Architecture, *, input_channels: int | No
                 value = values[sources[0]]
                 if len(sources) > 1:
                     value = sum(values[s] for s in sources) / len(sources)
-                if node.op not in {"output", "skip", "none"}:
+                if node.op == "none":
+                    value = torch.zeros_like(value)
+                elif node.op not in {"output", "skip"}:
                     value = self.layers[node.id](value)
                 values[node.id] = value
             out = values[next(n.id for n in architecture.nodes if n.op == "output")]

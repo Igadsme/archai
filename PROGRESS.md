@@ -4,7 +4,7 @@ Updated 2026-11-20.
 
 ## Verified in this checkout
 
-- Foundation schemas validate unique, acyclic, reachable DAGs, reject duplicate edges, and reject incompatible fan-in channels.
+- Foundation schemas validate unique, acyclic, reachable DAGs, reject duplicate edges, reject incompatible fan-in channels, and enforce typed identity/input/output metadata.
 - Compiler tests execute a real forward and backward pass when PyTorch is installed; compilation is topological-order independent and supports convolution, pooling, skip, none, and output nodes.
 - Analytical metrics propagate upstream channel counts instead of assuming every operation reads the image input.
 - Predictor training supports edge-aware message passing, masked variable-size graph batches, Gaussian NLL uncertainty, deterministic hash-disjoint splits, checkpoint save/load, and MAE/RMSE/Spearman/Kendall/interval coverage metrics.
@@ -23,7 +23,8 @@ Updated 2026-11-20.
 - Benchmark baseline now includes seeded random index traversal under the existing query budget abstraction.
 - Search acquisition now supports expected improvement, upper-confidence bounds, and uncertainty-aware candidate ranking.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
-- Test suite: 31 passing tests.
+- NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
+- Test suite: 33 passing tests.
 
 ## Evidence boundaries
 

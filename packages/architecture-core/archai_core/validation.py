@@ -41,6 +41,8 @@ def validate_architecture(architecture: Architecture) -> Architecture:
         errors.append("architecture must contain exactly one input and one output")
     if roots and incoming[roots[0]]:
         errors.append("input node cannot have incoming edges")
+    if roots and by_id[roots[0]].channels != architecture.input_spec.channels:
+        errors.append("input node channels must match input_spec.channels")
     if sinks and outgoing[sinks[0]]:
         errors.append("output node cannot have outgoing edges")
     if any(node.op not in {"input", "output"} and incoming[node.id] == 0 for node in architecture.nodes):
@@ -67,6 +69,9 @@ def validate_architecture(architecture: Architecture) -> Architecture:
         for node_id, parents in ((node_id, [edge.source for edge in architecture.edges if edge.target == node_id]) for node_id in by_id):
             if len(parents) > 1 and len({by_id[parent].channels for parent in parents}) > 1:
                 errors.append(f"fanin channel mismatch at {node_id}")
+            if parents and by_id[node_id].op in {"skip", "none", "avg_pool3x3", "output"}:
+                if by_id[node_id].channels != by_id[parents[0]].channels:
+                    errors.append(f"{by_id[node_id].op} node channels must match its input at {node_id}")
     if roots and sinks and not errors:
         seen = set()
         stack = [roots[0]]

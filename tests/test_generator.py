@@ -15,6 +15,20 @@ def test_generator_samples_valid_compilable_graphs():
     assert compiled(torch.randn(1, 3, 32, 32)).shape == (1, 10)
 
 
+def test_none_operation_is_zero_not_identity():
+    torch = pytest.importorskip("torch")
+    from archai_core.schema import Architecture, Edge, Node, TensorSpec
+    from archai_core.validation import validate_architecture
+    from archai_compiler.pytorch_compiler import compile_architecture
+    architecture = validate_architecture(Architecture(
+        nodes=[Node(id="input", op="input", channels=3), Node(id="none", op="none", channels=3), Node(id="output", op="output", channels=3)],
+        edges=[Edge(source="input", target="none"), Edge(source="none", target="output")],
+        input_spec=TensorSpec(channels=3, height=4, width=4), output_classes=2))
+    model = compile_architecture(architecture)
+    output = model(torch.randn(1, 3, 4, 4))
+    assert output.shape == (1, 2)
+
+
 def test_generator_training_and_checkpoint(tmp_path):
     torch = pytest.importorskip("torch")
     model = ArchitectureGenerator(GeneratorConfig(max_nodes=3))
