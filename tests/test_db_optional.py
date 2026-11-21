@@ -53,3 +53,17 @@ def test_sqlalchemy_search_and_experiment_stores_round_trip(tmp_path):
     experiment_store.put(updated)
     assert experiment_store.get("experiment-1").status == "completed"
     assert experiment_store.get("experiment-1").metrics == {"accuracy": 0.7}
+
+
+def test_sqlalchemy_model_registry_round_trips_checksum_manifest(tmp_path):
+    pytest.importorskip("sqlalchemy")
+    from archai_api.db import SqlAlchemyModelRegistry
+
+    artifact = tmp_path / "model.bin"
+    artifact.write_bytes(b"checkpoint")
+    registry = SqlAlchemyModelRegistry.from_url(
+        f"sqlite:///{tmp_path / 'models.sqlite'}", initialize=True)
+    registered = registry.register(model_id="predictor", kind="predictor", version="v1",
+                                   artifact_path=artifact, metadata={"seed": 4})
+    assert registry.get("predictor", "v1").sha256 == registered.sha256
+    assert registry.list()[0].metadata == {"seed": 4}

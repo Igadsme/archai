@@ -14,7 +14,8 @@ from fastapi.responses import JSONResponse
 from archai_core.schema import Architecture
 from archai_core.validation import ValidationError, validate_architecture
 from archai_compiler.metrics import analytical_metrics
-from archai_api.db import SqlAlchemyArchitectureStore, SqlAlchemyExperimentStore, SqlAlchemySearchStore
+from archai_api.db import (SqlAlchemyArchitectureStore, SqlAlchemyExperimentStore,
+                           SqlAlchemyModelRegistry, SqlAlchemySearchStore)
 from archai_shared.jobs import InMemoryJobStore, RedisJobStore
 from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance
 from archai_shared.registry import ModelRegistry
@@ -35,7 +36,9 @@ def _make_job_store():
 
 _jobs = _make_job_store()
 _artifact_store = ArtifactStore(os.getenv("ARCHAI_ARTIFACT_STORE", "/tmp/archai-experiments.jsonl"))
-_model_registry = ModelRegistry(os.getenv("ARCHAI_MODEL_MANIFEST", "/tmp/archai-models.json"))
+_model_registry = (SqlAlchemyModelRegistry.from_url(
+    os.environ["DATABASE_URL"], initialize=os.getenv("ARCHAI_DB_AUTO_CREATE", "0") == "1")
+    if os.getenv("DATABASE_URL") else ModelRegistry(os.getenv("ARCHAI_MODEL_MANIFEST", "/tmp/archai-models.json")))
 _rate_windows: dict[str, deque[float]] = defaultdict(deque)
 
 

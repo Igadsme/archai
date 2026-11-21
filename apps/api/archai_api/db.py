@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+from pathlib import Path
 
 if TYPE_CHECKING:
     from archai_core.schema import Architecture
@@ -81,6 +82,8 @@ def sqlalchemy_components():
         artifact_uri: Mapped[str] = mapped_column(Text, nullable=False)
         checksum: Mapped[str] = mapped_column(String(128), nullable=False)
         metadata_json: Mapped[dict] = mapped_column("metadata", JSON, nullable=False, default=dict)
+
+    Base._archai_model_checkpoint_row = ModelCheckpointRow
 
     def make_engine(url: str):
         return create_engine(url, pool_pre_ping=True)
@@ -321,3 +324,70 @@ class SqlAlchemyExperimentStore:
             return values
         finally:
             session.close()
+
+
+class SqlAlchemyModelRegistry:
+    """Store versioned model manifests in the relational checkpoint table."""
+
+    def __init__(self, session_factory, checkpoint_row):
+        self._session_factory = session_factory
+        self._row = checkpoint_row
+
+    @classmethod
+    def from_url(cls, url: str, *, initialize: bool = False) -> "SqlAlchemyModelRegistry":
+        Base, _architecture_row, _search_row, _experiment_row, make_engine, make_session_factory = sqlalchemy_components()
+        engine = make_engine(url)
+        if initialize:
+            Base.metadata.create_all(engine)
+        checkpoint_row = getattr(Base, "_archai_model_checkpoint_row", None)
+        if checkpoint_row is None:  # pragma: no cover - defensive metadata guard
+            raise RuntimeError("model checkpoint mapping is unavailable")
+        return cls(make_session_factory(url, engine), checkpoint_row)
+
+    def register(self, *, model_id: str, kind: str, version: str, artifact_path: str | Path,
+                 metadata: dict | None = None):
+        from archai_shared.registry import ModelArtifact, sha256_file
+        from uuid import uuid4
+
+        artifact_path = Path(artifact_path).resolve()
+        if not artifact_path.is_file():
+            raise FileNotFoundError(artifact_path)
+        if model_id != kind:
+            raise ValueError("database model registry uses kind as model_id")
+        session = self._session_factory()
+        try:
+            from sqlalchemy import select
+            if session.scalar(select(self._row).where(self._row.model_kind == kind,
+                                                      self._row.version == version)) is not None:
+                raise ValueError("model version already registered")
+            artifact = ModelArtifact(model_id, kind, version, str(artifact_path),
+                                     sha256_file(artifact_path), metadata or {})
+            session.add(self._row(checkpoint_id=uuid4().hex, model_kind=kind, version=version,
+                                  artifact_uri=str(artifact_path), checksum=artifact.sha256,
+                                  metadata_json=artifact.metadata))
+            session.commit()
+            return artifact
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def list(self):
+        from archai_shared.registry import ModelArtifact
+        from sqlalchemy import select
+
+        session = self._session_factory()
+        try:
+            rows = session.scalars(select(self._row).order_by(self._row.model_kind, self._row.version)).all()
+            return [ModelArtifact(row.model_kind, row.model_kind, row.version, row.artifact_uri,
+                                  row.checksum, row.metadata_json or {}) for row in rows]
+        finally:
+            session.close()
+
+    def get(self, model_id: str, version: str | None = None):
+        values = [item for item in self.list() if item.model_id == model_id]
+        if version is not None:
+            values = [item for item in values if item.version == version]
+        return values[-1] if values else None
+
