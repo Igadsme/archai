@@ -9,6 +9,67 @@ from archai_shared.jobs import Job
 from archai_shared.worker import WorkerRunner
 
 
+def candidate_training(job: Job) -> dict:
+    """Compile and train one candidate from an explicit worker payload.
+
+    The durable worker currently supports only an in-memory synthetic dataset.
+    This is intentional: real datasets must be acquired and registered before
+    a handler is allowed to claim them, so a missing dataset can never be
+    silently replaced by synthetic data.
+    """
+    config = job.payload
+    if config.get("dataset", "synthetic") != "synthetic":
+        raise RuntimeError("training worker currently supports dataset=synthetic only")
+    architecture_payload = config.get("architecture")
+    if not isinstance(architecture_payload, dict):
+        raise RuntimeError("training jobs require an architecture object")
+    try:
+        import torch
+        from torch.utils.data import DataLoader, TensorDataset
+        from archai_core.schema import Architecture
+        from archai_training.candidate import train_candidate
+        from archai_training.engine import TrainingConfig
+    except ImportError as exc:
+        raise RuntimeError("install the ml extra for training workers") from exc
+
+    architecture = Architecture.model_validate(architecture_payload)
+    seed = int(config.get("seed", 0))
+    train_samples = int(config.get("train_samples", 16))
+    validation_samples = int(config.get("validation_samples", 8))
+    batch_size = int(config.get("batch_size", 4))
+    if min(train_samples, validation_samples, batch_size) <= 0:
+        raise RuntimeError("training sample counts and batch_size must be positive")
+    shape = (architecture.input_spec.channels, architecture.input_spec.height,
+             architecture.input_spec.width)
+    generator = torch.Generator().manual_seed(seed)
+    train_inputs = torch.randn((train_samples, *shape), generator=generator)
+    train_targets = torch.randint(0, architecture.output_classes, (train_samples,), generator=generator)
+    validation_inputs = torch.randn((validation_samples, *shape), generator=generator)
+    validation_targets = torch.randint(0, architecture.output_classes, (validation_samples,), generator=generator)
+    train_loader = DataLoader(TensorDataset(train_inputs, train_targets), batch_size=batch_size, shuffle=True,
+                              generator=torch.Generator().manual_seed(seed))
+    validation_loader = DataLoader(TensorDataset(validation_inputs, validation_targets), batch_size=batch_size)
+    training_config = TrainingConfig(
+        epochs=int(config.get("epochs", 1)),
+        learning_rate=float(config.get("learning_rate", 1e-3)),
+        weight_decay=float(config.get("weight_decay", 0.0)),
+        gradient_accumulation_steps=int(config.get("gradient_accumulation_steps", 1)),
+        early_stopping_patience=int(config.get("early_stopping_patience", 0)),
+        mixed_precision=bool(config.get("mixed_precision", False)),
+        seed=seed,
+        device=str(config.get("device", "cpu")),
+    )
+    checkpoint = config.get("checkpoint_path")
+    result = train_candidate(architecture, train_loader, validation_loader, training_config,
+                             checkpoint_path=checkpoint)
+    return {"status": result.status, "architecture_id": architecture.content_hash(),
+            "best_validation_loss": result.best_validation_loss,
+            "epochs_completed": result.epochs_completed,
+            "wall_clock_seconds": result.wall_clock_seconds,
+            "history": list(result.history), "checkpoint_path": result.checkpoint_path,
+            "evidence_type": "synthetic_training", "seed": seed}
+
+
 def benchmark_search(job: Job) -> dict:
     """Run the configured validation-selected benchmark search.
 
@@ -84,7 +145,7 @@ def main() -> int:
         raise SystemExit("ARCHAI_REDIS_URL is required for the durable worker")
     store = RedisJobStore.from_url(url)
     store.client.ping()
-    WorkerRunner(store, {"search": benchmark_search}).run_forever()
+    WorkerRunner(store, {"search": benchmark_search, "training": candidate_training}).run_forever()
     return 0
 
 

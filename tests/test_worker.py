@@ -40,6 +40,34 @@ def test_benchmark_handler_requires_verified_archive_configuration(monkeypatch):
         benchmark_search(job)
 
 
+def test_training_handler_compiles_and_trains_explicit_synthetic_candidate(tmp_path):
+    pytest.importorskip("torch")
+    from archai_api.worker import candidate_training
+    from archai_core.schema import Architecture, Edge, Node, TensorSpec
+
+    architecture = Architecture(nodes=[Node(id="input", op="input", channels=3),
+                                       Node(id="conv", op="conv3x3", channels=4),
+                                       Node(id="output", op="output", channels=4)],
+        edges=[Edge(source="input", target="conv"), Edge(source="conv", target="output")],
+        input_spec=TensorSpec(channels=3, height=4, width=4), output_classes=2)
+    job = InMemoryJobStore().create("training", {"architecture": architecture.model_dump(),
+        "dataset": "synthetic", "train_samples": 4, "validation_samples": 4,
+        "batch_size": 2, "epochs": 1, "seed": 7,
+        "checkpoint_path": str(tmp_path / "candidate.pt")})
+    result = candidate_training(job)
+    assert result["status"] == "completed"
+    assert result["evidence_type"] == "synthetic_training"
+    assert (tmp_path / "candidate.pt").exists()
+
+
+def test_training_handler_rejects_implicit_real_dataset_substitution():
+    from archai_api.worker import candidate_training
+
+    job = InMemoryJobStore().create("training", {"dataset": "cifar10"})
+    with pytest.raises(RuntimeError, match="dataset=synthetic"):
+        candidate_training(job)
+
+
 def test_benchmark_handler_does_not_mislabel_unsupported_algorithm(monkeypatch):
     from archai_api.worker import benchmark_search
 
