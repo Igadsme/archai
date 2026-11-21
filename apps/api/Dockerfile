@@ -1,9 +1,10 @@
 FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /opt/archai
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md alembic.ini ./
 COPY packages ./packages
 COPY apps/api ./apps/api
+COPY scripts ./scripts
 RUN pip install --no-cache-dir '.[ml,platform,benchmark]'
 USER 10001
 EXPOSE 8000

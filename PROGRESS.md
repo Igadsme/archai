@@ -73,6 +73,7 @@ Updated 2026-11-21.
 - ArchAI Studio now polls live registries/jobs, displays model and worker state, and provides a validated architecture graph inspector with node/edge details; frontend package compilation remains unverified because the local dependency tree is incomplete.
 - The Hugging Face Space status view now verifies configured generator/model artifact hashes and reports unavailable or mismatched evidence explicitly.
 - Container images now include the ML runtime required by API/worker handlers, and the web image no longer assumes an untracked package-lock file; static Dockerfile contracts and Compose parsing are verified.
+- API images now include the root Alembic configuration and worker training scripts required by migration startup and predictor/generator handlers.
 - Compose now mounts benchmark data read-only into the worker and uses an explicit in-container archive path, preventing host/container path mismatches.
 - Added a root Docker build-context policy that excludes local dependencies, raw datasets, checkpoints, caches, and VCS metadata from container builds.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
