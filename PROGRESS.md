@@ -11,7 +11,7 @@ Updated 2026-11-20.
 - Generator training supports a constrained valid-chain decoder, deterministic sampling, generation quality metrics, and checkpoint boundaries.
 - Benchmark integration supports checksum-gated acquisition, NAS-Bench-201 encoding conversion, and an explicit query budget.
 - Autonomous search control supports validation, deduplication, injected evaluation, atomic JSON persistence, cancellation requests, budget enforcement, and resume with an expanded budget.
-- Test suite: 13 passing tests.
+- Test suite: 14 passing tests.
 
 ## Evidence boundaries
 
@@ -26,4 +26,4 @@ No NATS-Bench archive, trained research checkpoint, benchmark table, GPU run, re
 
 ## Repository state
 
-The supplied directory was not a Git repository, so changes could not be committed to an existing history. The working tree remains directly inspectable under `/Volumes/PX4DRIVE/archai`.
+The supplied directory was not a Git repository; a local Git history was initialized for this continuation. The working tree remains directly inspectable under `/Volumes/PX4DRIVE/archai`.
