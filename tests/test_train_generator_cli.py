@@ -2,7 +2,7 @@ import json
 
 from archai_core.schema import Architecture, Edge, Node, TensorSpec
 from archai_generator.training import fit_generator
-from scripts.train_generator import load_examples
+from scripts.train_generator import load_examples, main as train_generator_main
 
 
 def architecture():
@@ -17,3 +17,20 @@ def test_generator_corpus_loader_reads_conditions(tmp_path):
     examples = load_examples(corpus)
     assert len(examples) == 1
     assert examples[0][1][0] == 1.0
+
+
+def test_generator_training_cli_writes_checkpoint_and_report(tmp_path, monkeypatch):
+    import pytest
+    pytest.importorskip("torch")
+    corpus = tmp_path / "corpus.jsonl"
+    corpus.write_text(json.dumps({"architecture": architecture().model_dump(),
+        "condition": [1.0] + [0.0] * 7}) + "\n")
+    checkpoint = tmp_path / "generator.pt"
+    report = tmp_path / "report.json"
+    monkeypatch.setattr("sys.argv", ["train_generator", "--corpus", str(corpus),
+        "--checkpoint", str(checkpoint), "--report", str(report), "--epochs", "1", "--seed", "5"])
+    assert train_generator_main() == 0
+    assert checkpoint.exists()
+    payload = json.loads(report.read_text())
+    assert payload["metadata"]["conditional"] is True
+    assert payload["generation_metrics"]["validity"] == 1.0
