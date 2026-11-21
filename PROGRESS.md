@@ -14,6 +14,7 @@ Updated 2026-11-20.
 - Training engine supports reproducible classification loops, gradient accumulation, optional AMP, early stopping, safe state-dict checkpoints, and resume.
 - Provenance records and an append-only artifact store preserve evidence type and dataset/checkpoint/hardware/seed metadata.
 - Local API registry supports architecture create/list/retrieve/validate with optional API-key protection for writes.
+- Job infrastructure now includes a Redis adapter, local state adapter, legal transitions, queue claim, and terminal failure capture for worker handlers.
 - First normalized PostgreSQL schema migration is present for users, credentials, datasets, architectures, checkpoints, searches, and experiments.
 - Benchmark access now records architecture encodings, caches queries with a uniqueness constraint, and refuses acquisition until a verified checksum is supplied.
 - API now exposes lifecycle surfaces for searches and provenance-backed experiments; local job transitions reject invalid terminal-state changes and worker start reports an explicit unconfigured-worker response.
@@ -24,7 +25,7 @@ Updated 2026-11-20.
 - Search acquisition now supports expected improvement, upper-confidence bounds, and uncertainty-aware candidate ranking.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
-- Test suite: 33 passing tests.
+- Test suite: 34 passing tests.
 
 ## Evidence boundaries
 

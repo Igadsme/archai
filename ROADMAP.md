@@ -9,7 +9,7 @@
 - [ ] M6 trained generator + predictor checkpoints with provenance
 - [partial] M6 controller loop, persistence, acquisition ranking, validation, and budget enforcement; trained closed-loop benchmark run pending
 - [partial] M7 seeded benchmark-index random baseline and research summaries; matched real-data comparisons pending
-- [ ] M8 durable workers and real candidate training on configured hardware
+- [partial] M8 safe training engine and Redis job adapter/runner; deployed worker and real candidate training pending
 - [partial] M9 schema, local job/API lifecycle, model registry, and container definitions; PostgreSQL/Redis runtime wiring pending
 - [partial] M10 connected ArchAI Studio frontend shell and API reads; package installation/build pending environment network
 - [ ] M11 repeated-seed research report and ablations
