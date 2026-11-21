@@ -6,7 +6,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Callable, Iterable
 
-from archai_core.schema import Architecture
+from archai_core.schema import Architecture, OP_TYPES
 from archai_core.validation import validate_architecture
 
 
@@ -15,6 +15,18 @@ class Evaluation:
     architecture_id: str
     score: float
     measured: bool = False
+
+
+def mutate_architecture(parent: Architecture, rng: random.Random) -> Architecture:
+    """Apply one validity-preserving mutation to a supported graph."""
+    mutable = [node for node in parent.nodes if node.op not in {"input", "output"}]
+    if not mutable:
+        return parent
+    target = rng.choice(mutable)
+    choices = sorted(OP_TYPES - {"input", "output"} - {target.op})
+    replacement = rng.choice(choices)
+    nodes = [node.model_copy(update={"op": replacement}) if node.id == target.id else node for node in parent.nodes]
+    return parent.model_copy(update={"nodes": nodes, "generator_version": "regularized-evolution"})
 
 
 class RandomSearch:
@@ -35,7 +47,7 @@ class RandomSearch:
 class RegularizedEvolution:
     def __init__(self, generator: Callable[[], Architecture], population_size: int = 8,
                  sample_size: int = 3, seed: int = 0,
-                 mutator: Callable[[Architecture, random.Random], Architecture] | None = None):
+                 mutator: Callable[[Architecture, random.Random], Architecture] | None = mutate_architecture):
         self.generator, self.population_size, self.sample_size = generator, population_size, sample_size
         self.mutator = mutator
         self.rng = random.Random(seed)
