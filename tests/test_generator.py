@@ -1,7 +1,7 @@
 import pytest
 
 from archai_generator.model import ArchitectureGenerator, GeneratorConfig
-from archai_generator.training import fit_generator, generation_metrics
+from archai_generator.training import fit_generator, generation_metrics, load_checkpoint, save_checkpoint
 
 
 def test_generator_samples_valid_compilable_graphs():
@@ -36,6 +36,17 @@ def test_generator_training_and_checkpoint(tmp_path):
     history = fit_generator(model, architectures, epochs=2, seed=2)
     assert len(history) == 2
     assert all(torch.isfinite(torch.tensor(history)))
+
+
+def test_generator_checkpoint_roundtrip(tmp_path):
+    torch = pytest.importorskip("torch")
+    model = ArchitectureGenerator(GeneratorConfig(max_nodes=3))
+    path = tmp_path / "generator.pt"
+    save_checkpoint(model, path, {"kind": "unit", "seed": 2})
+    restored = ArchitectureGenerator(GeneratorConfig(max_nodes=3))
+    metadata = load_checkpoint(restored, path)
+    assert metadata["kind"] == "unit"
+    assert [item.content_hash() for item in restored.sample(seed=2)] == [item.content_hash() for item in model.sample(seed=2)]
 
 
 def test_generator_training_consumes_condition_vector():
