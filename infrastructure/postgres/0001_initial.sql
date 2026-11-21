@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS model_checkpoints (
   checksum TEXT NOT NULL,
   metadata JSONB NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (model_kind, version)
+  UNIQUE (model_id, version)
 );
 
 CREATE TABLE IF NOT EXISTS search_sessions (
@@ -70,8 +70,6 @@ CREATE TABLE IF NOT EXISTS experiments (
   metrics JSONB NOT NULL DEFAULT '{}',
   failure_detail TEXT,
   provenance JSONB NOT NULL DEFAULT '{}',
-  started_at TIMESTAMPTZ,
-  completed_at TIMESTAMPTZ,
   started_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
