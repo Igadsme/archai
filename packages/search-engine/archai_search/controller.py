@@ -13,6 +13,7 @@ from archai_core.validation import validate_architecture
 class SearchConfig:
     max_evaluations: int
     seed: int = 0
+    max_duplicate_attempts: int = 100
 
 
 @dataclass
@@ -32,6 +33,8 @@ class SearchController:
     def __init__(self, config: SearchConfig, state_path: str | Path):
         if config.max_evaluations <= 0:
             raise ValueError("max_evaluations must be positive")
+        if config.max_duplicate_attempts <= 0:
+            raise ValueError("max_duplicate_attempts must be positive")
         self.config, self.state_path = config, Path(state_path)
         self.state = self._load()
         self._cancel_requested = False
@@ -58,11 +61,18 @@ class SearchController:
         self.state.status = "running"
         self._persist()
         seen = set(self.state.seen)
+        duplicate_attempts = 0
         while self.state.evaluations < self.config.max_evaluations and not self._cancel_requested:
             candidate = validate_architecture(proposer())
             architecture_id = candidate.content_hash()
             if architecture_id in seen:
+                duplicate_attempts += 1
+                if duplicate_attempts >= self.config.max_duplicate_attempts:
+                    self.state.status = "exhausted"
+                    self._persist()
+                    return self.state
                 continue
+            duplicate_attempts = 0
             result = dict(evaluator(candidate))
             result.setdefault("architecture_id", architecture_id)
             result.setdefault("evidence_type", "measured")

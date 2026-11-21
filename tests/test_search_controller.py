@@ -20,3 +20,11 @@ def test_controller_persists_budget_and_resumes(tmp_path):
     final = resumed.run(lambda: candidate(32), lambda item: {"score": 0.32})
     assert final.evaluations == 3
     assert len(final.seen) == 3
+
+
+def test_controller_terminates_when_proposer_exhausts_candidates(tmp_path):
+    controller = SearchController(SearchConfig(max_evaluations=4, max_duplicate_attempts=2),
+                                  tmp_path / "state.json")
+    result = controller.run(lambda: candidate(4), lambda item: {"score": 0.04})
+    assert result.status == "exhausted"
+    assert result.evaluations == 1
