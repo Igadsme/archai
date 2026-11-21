@@ -74,6 +74,7 @@ def test_readiness_and_queue_status_are_truthful():
     assert readiness.json()["durable_worker_configured"] is False
     queue = client.get("/v1/infrastructure/queue").json()
     assert queue["backend"] == "in_memory"
+    assert queue["available"] is True
 
 
 def test_database_readiness_probe_is_truthful(monkeypatch, tmp_path):

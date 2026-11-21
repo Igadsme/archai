@@ -275,8 +275,12 @@ def worker_status() -> dict[str, object]:
 
 @app.get("/v1/infrastructure/queue")
 def queue_status() -> dict[str, object]:
-    jobs = _jobs.list()
-    return {"backend": "redis" if isinstance(_jobs, RedisJobStore) else "in_memory",
+    backend = "redis" if isinstance(_jobs, RedisJobStore) else "in_memory"
+    try:
+        jobs = _jobs.list()
+    except Exception as exc:
+        return {"backend": backend, "available": False, "error": f"{type(exc).__name__}: {exc}"}
+    return {"backend": backend, "available": True,
             "queued": sum(job.status == "queued" for job in jobs),
             "running": sum(job.status == "running" for job in jobs),
             "terminal": sum(job.status in {"succeeded", "failed", "cancelled"} for job in jobs)}
