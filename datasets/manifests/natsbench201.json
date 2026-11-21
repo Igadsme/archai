@@ -1,0 +1,9 @@
+{
+  "dataset_id": "natsbench201",
+  "version": "unresolved",
+  "uri": "https://github.com/D-X-Y/NATS-Bench",
+  "sha256": null,
+  "license": "verify upstream license before download",
+  "search_space": "tss",
+  "source": "NATS-Bench upstream repository"
+}

@@ -16,6 +16,7 @@ class BenchmarkRecord:
     test_accuracy: float
     training_time_seconds: float | None
     source: str = "NATS-Bench"
+    architecture_string: str | None = None
 
 
 class NATSBenchAdapter:
@@ -35,6 +36,15 @@ class NATSBenchAdapter:
         if self._api is None:
             raise BenchmarkUnavailable("adapter is not open")
         info = self._api.get_more_info(architecture_index, self.dataset, hp=200, is_random=seed)
+        architecture_string = self.architecture_string(architecture_index)
         return BenchmarkRecord(architecture_index, self.dataset, seed,
                                float(info["valid-accuracy"]), float(info["test-accuracy"]),
-                               float(info.get("train-all-time", 0.0)))
+                               float(info.get("train-all-time", 0.0)), architecture_string=architecture_string)
+
+    def architecture_string(self, architecture_index: int) -> str:
+        if self._api is None:
+            raise BenchmarkUnavailable("adapter is not open")
+        value = self._api.arch(architecture_index)
+        if not isinstance(value, str):
+            raise TypeError("NATS-Bench backend returned a non-string architecture encoding")
+        return value

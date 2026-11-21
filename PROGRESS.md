@@ -15,7 +15,8 @@ Updated 2026-11-20.
 - Provenance records and an append-only artifact store preserve evidence type and dataset/checkpoint/hardware/seed metadata.
 - Local API registry supports architecture create/list/retrieve/validate with optional API-key protection for writes.
 - First normalized PostgreSQL schema migration is present for users, credentials, datasets, architectures, checkpoints, searches, and experiments.
-- Test suite: 17 passing tests.
+- Benchmark access now records architecture encodings, caches queries with a uniqueness constraint, and refuses acquisition until a verified checksum is supplied.
+- Test suite: 20 passing tests.
 
 ## Evidence boundaries
 
