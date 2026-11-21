@@ -70,6 +70,7 @@ Updated 2026-11-21.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
 - ArchAI Studio now polls live registries/jobs, displays model and worker state, and provides a validated architecture graph inspector with node/edge details; frontend package compilation remains unverified because the local dependency tree is incomplete.
+- The Hugging Face Space status view now verifies configured generator/model artifact hashes and reports unavailable or mismatched evidence explicitly.
 - Container images now include the ML runtime required by API/worker handlers, and the web image no longer assumes an untracked package-lock file; static Dockerfile contracts and Compose parsing are verified.
 - Compose now mounts benchmark data read-only into the worker and uses an explicit in-container archive path, preventing host/container path mismatches.
 - Added a root Docker build-context policy that excludes local dependencies, raw datasets, checkpoints, caches, and VCS metadata from container builds.
@@ -87,7 +88,7 @@ Updated 2026-11-21.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 97 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 98 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 
