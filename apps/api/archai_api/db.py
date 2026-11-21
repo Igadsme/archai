@@ -206,6 +206,16 @@ class SqlAlchemySearchStore:
         finally:
             session.close()
 
+    def list(self, limit: int = 50) -> list[dict]:
+        from sqlalchemy import select
+
+        session = self._session_factory()
+        try:
+            rows = session.scalars(select(self._row).order_by(self._row.search_id).limit(limit)).all()
+            return [{"search_id": row.search_id, **row.config} for row in rows]
+        finally:
+            session.close()
+
 
 class SqlAlchemyExperimentStore:
     """Persist evidence-aware experiment records in the relational store."""
@@ -260,5 +270,25 @@ class SqlAlchemyExperimentStore:
                                     evidence_type=row.evidence_type, status=row.status, metrics=row.metrics or {},
                                     provenance=provenance, started_at=row.started_at or datetime.now(timezone.utc),
                                     completed_at=row.completed_at, failure_detail=row.failure_detail)
+        finally:
+            session.close()
+
+    def list(self, limit: int = 50):
+        from sqlalchemy import select
+        from archai_shared.records import ExperimentRecord, Provenance
+
+        session = self._session_factory()
+        try:
+            rows = session.scalars(select(self._row).order_by(self._row.experiment_id).limit(limit)).all()
+            values = []
+            for row in rows:
+                provenance = Provenance.model_validate(
+                    row.provenance or {"dataset_id": row.dataset_id, "dataset_version": row.dataset_version, "seed": row.seed})
+                values.append(ExperimentRecord(
+                    experiment_id=row.experiment_id, architecture_id=row.architecture_id,
+                    evidence_type=row.evidence_type, status=row.status, metrics=row.metrics or {},
+                    provenance=provenance, started_at=row.started_at or datetime.now(timezone.utc),
+                    completed_at=row.completed_at, failure_detail=row.failure_detail))
+            return values
         finally:
             session.close()

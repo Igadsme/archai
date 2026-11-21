@@ -31,6 +31,7 @@ def test_search_and_experiment_lifecycle_surface():
     assert search.status_code == 200
     search_id = search.json()["search_id"]
     assert client.get(f"/v1/searches/{search_id}").json()["status"] == "queued"
+    assert client.get("/v1/searches").json()["items"]
     assert client.post(f"/v1/searches/{search_id}/start").status_code == 503
     cancelled = client.post(f"/v1/searches/{search_id}/cancel")
     assert cancelled.status_code == 200
@@ -41,6 +42,7 @@ def test_search_and_experiment_lifecycle_surface():
     assert experiment.status_code == 200
     experiment_id = experiment.json()["experiment_id"]
     assert client.get(f"/v1/experiments/{experiment_id}").status_code == 200
+    assert client.get("/v1/experiments").json()["items"]
     updated = client.patch(f"/v1/experiments/{experiment_id}",
                             json={"status": "running", "metrics": {"loss": 0.4}})
     assert updated.status_code == 200

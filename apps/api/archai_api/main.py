@@ -71,6 +71,9 @@ class _InMemorySearchStore:
         if search_id not in self._values:
             raise KeyError(search_id)
 
+    def list(self, limit: int = 50) -> list[dict]:
+        return list(self._values.values())[:limit]
+
 
 class _InMemoryExperimentStore:
     def __init__(self):
@@ -82,6 +85,9 @@ class _InMemoryExperimentStore:
 
     def get(self, experiment_id: str) -> ExperimentRecord | None:
         return self._values.get(experiment_id)
+
+    def list(self, limit: int = 50) -> list[ExperimentRecord]:
+        return list(self._values.values())[:limit]
 
 
 def _make_architecture_store():
@@ -289,6 +295,16 @@ def get_search(search_id: str):
     return {**search, "status": job.status, "job": job.as_dict()}
 
 
+@app.get("/v1/searches")
+def list_searches(limit: int = Query(default=50, ge=1, le=500)):
+    items = []
+    for search in _search_store.list(limit):
+        job = _jobs.get(search["search_id"])
+        if job is not None:
+            items.append({**search, "status": job.status, "job": job.as_dict()})
+    return {"items": items}
+
+
 @app.post("/v1/searches/{search_id}/start", dependencies=[Depends(require_write_access)])
 def start_search(search_id: str):
     search = _search_store.get(search_id)
@@ -340,6 +356,11 @@ def get_experiment(experiment_id: str):
     if record is None:
         raise HTTPException(status_code=404, detail="experiment not found")
     return record.model_dump(mode="json")
+
+
+@app.get("/v1/experiments")
+def list_experiments(limit: int = Query(default=50, ge=1, le=500)):
+    return {"items": [record.model_dump(mode="json") for record in _experiment_store.list(limit)]}
 
 
 @app.patch("/v1/experiments/{experiment_id}", dependencies=[Depends(require_write_access)])
