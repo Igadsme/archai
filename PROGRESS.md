@@ -28,9 +28,10 @@ Updated 2026-11-20.
 - Benchmark baseline now includes seeded random index traversal under the existing query budget abstraction.
 - Search acquisition now supports expected improvement, upper-confidence bounds, and uncertainty-aware candidate ranking.
 - Closed-loop learned search now connects proposal batches, predictor uncertainty, acquisition ranking, evaluator evidence, budget limits, and Pareto trace extraction.
+- Search baselines now include dependency-light Bayesian optimization with seeded warmup, kernel/UCB scoring, and finite-pool deduplication.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
-- Test suite: 44 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 45 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import math
 from collections import deque
 from dataclasses import dataclass
 from typing import Callable, Iterable
@@ -57,6 +58,49 @@ class RegularizedEvolution:
         self.population.append(Evaluation(architecture.content_hash(), score, measured))
         while len(self.population) > self.population_size:
             self.population.popleft()
+
+
+class BayesianOptimization:
+    """Dependency-light kernel/UCB baseline over a finite candidate pool."""
+    def __init__(self, candidates: Iterable[Architecture], *, feature_fn: Callable[[Architecture], list[float]] | None = None,
+                 seed: int = 0, warmup: int = 3, beta: float = 2.0):
+        self.rng = random.Random(seed)
+        self.candidates = [validate_architecture(candidate) for candidate in candidates]
+        self.feature_fn = feature_fn or (lambda candidate: [float(len(candidate.nodes)), float(len(candidate.edges)),
+                                                            float(sum(node.channels for node in candidate.nodes))])
+        self.features = {candidate.content_hash(): self.feature_fn(candidate) for candidate in self.candidates}
+        self.observations: dict[str, float] = {}
+        self.warmup, self.beta = warmup, beta
+
+    @staticmethod
+    def _kernel(left: list[float], right: list[float]) -> float:
+        return math.exp(-sum((a - b) ** 2 for a, b in zip(left, right)) / 2.0)
+
+    def ask(self) -> Architecture | None:
+        remaining = [candidate for candidate in self.candidates if candidate.content_hash() not in self.observations]
+        if not remaining:
+            return None
+        if len(self.observations) < self.warmup:
+            return self.rng.choice(remaining)
+        scored = []
+        for candidate in remaining:
+            feature = self.features[candidate.content_hash()]
+            weights = [(self._kernel(feature, self.features[observed_id]), value)
+                       for observed_id, value in self.observations.items()]
+            total_weight = sum(weight for weight, _ in weights)
+            mean_prediction = sum(weight * value for weight, value in weights) / total_weight if total_weight else 0.0
+            uncertainty = 1.0 / math.sqrt(1.0 + total_weight)
+            scored.append((mean_prediction + self.beta * uncertainty, candidate))
+        return max(scored, key=lambda item: item[0])[1]
+
+    def tell(self, candidate: Architecture, score: float) -> None:
+        candidate = validate_architecture(candidate)
+        identifier = candidate.content_hash()
+        if identifier not in self.features:
+            raise ValueError("candidate was not part of this finite search pool")
+        if identifier in self.observations:
+            raise ValueError("candidate has already been evaluated")
+        self.observations[identifier] = float(score)
 
 
 def pareto_frontier(rows: Iterable[dict[str, float]], maximize: tuple[str, ...], minimize: tuple[str, ...]) -> list[dict[str, float]]:
