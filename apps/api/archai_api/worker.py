@@ -8,6 +8,7 @@ from pathlib import Path
 
 from archai_shared.jobs import RedisJobStore
 from archai_shared.jobs import Job
+from archai_shared.paths import allowed_path
 from archai_shared.worker import WorkerRunner
 
 
@@ -76,6 +77,8 @@ def candidate_training(job: Job) -> dict:
         device=str(config.get("device", "cpu")),
     )
     checkpoint = config.get("checkpoint_path")
+    if checkpoint:
+        allowed_path(str(checkpoint), field="checkpoint_path")
     result = train_candidate(architecture, train_loader, validation_loader, training_config,
                              checkpoint_path=checkpoint)
     checkpoint_sha256 = _sha256_file(result.checkpoint_path) if result.checkpoint_path else None
@@ -96,8 +99,10 @@ def generator_training(job: Job) -> dict:
     checkpoint_path = config.get("checkpoint_path")
     if not corpus_path or not checkpoint_path:
         raise RuntimeError("generator jobs require corpus_path and checkpoint_path")
+    allowed_path(str(checkpoint_path), field="checkpoint_path")
     from pathlib import Path
     corpus = Path(corpus_path)
+    allowed_path(str(corpus), field="corpus_path")
     if not corpus.is_file():
         raise RuntimeError(f"generator corpus is unavailable: {corpus}")
     try:
@@ -138,6 +143,8 @@ def predictor_training(job: Job) -> dict:
         raise RuntimeError("predictor jobs require at least three indices for train/validation/test")
     from pathlib import Path
     archive = Path(benchmark_path)
+    allowed_path(str(archive), field="benchmark_path")
+    allowed_path(str(checkpoint_path), field="checkpoint_path")
     if not archive.is_file():
         raise RuntimeError(f"benchmark archive is unavailable: {archive}")
     try:

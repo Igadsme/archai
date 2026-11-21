@@ -21,6 +21,7 @@ from archai_api.db import (SqlAlchemyArchitectureStore, SqlAlchemyExperimentStor
                            SqlAlchemyDatasetStore, SqlAlchemyModelRegistry, SqlAlchemySearchStore,
                            database_is_ready)
 from archai_shared.jobs import InMemoryJobStore, RedisJobStore
+from archai_shared.paths import allowed_path
 from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance
 from archai_shared.registry import ModelRegistry, sha256_file
 from pydantic import BaseModel, ConfigDict, Field
@@ -389,6 +390,13 @@ def create_training_job(request: TrainingJobRequest):
         checksum = request.payload.get("benchmark_sha256")
         if not isinstance(checksum, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", checksum):
             raise HTTPException(status_code=422, detail="predictor worker requires a 64-character SHA-256 checksum")
+    path_fields = {"generator": ("corpus_path", "checkpoint_path"),
+                   "predictor": ("benchmark_path", "checkpoint_path")}.get(request.kind, ())
+    for field_name in path_fields:
+        try:
+            allowed_path(request.payload[field_name], field=field_name)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     limits = {"epochs": 1000, "train_samples": 100_000, "validation_samples": 100_000,
               "batch_size": 4096, "sample_count": 64, "population_size": 10_000, "sample_size": 10_000}
     for field_name, upper_bound in limits.items():

@@ -105,6 +105,16 @@ def test_training_job_api_enforces_schema_and_resource_limits():
     assert invalid_checksum.status_code == 422
 
 
+def test_training_job_api_enforces_allowed_worker_paths(monkeypatch):
+    client = TestClient(app)
+    monkeypatch.setenv("ARCHAI_ALLOWED_PATHS", "/var/lib/archai")
+    request = {"kind": "generator", "payload": {"corpus_path": "/tmp/corpus.jsonl",
+        "checkpoint_path": "/var/lib/archai/model.pt", "epochs": 1}}
+    response = client.post("/v1/training", json=request)
+    assert response.status_code == 422
+    assert "outside allowed worker paths" in response.json()["detail"]
+
+
 def test_model_registry_api_registers_checksum_manifest(tmp_path):
     client = TestClient(app)
     artifact = tmp_path / "predictor.pt"

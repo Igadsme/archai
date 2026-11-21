@@ -76,6 +76,7 @@ Updated 2026-11-21.
 - Container images now include the ML runtime required by API/worker handlers, and the web image no longer assumes an untracked package-lock file; static Dockerfile contracts and Compose parsing are verified.
 - API images now include the root Alembic configuration and worker training scripts required by migration startup and predictor/generator handlers.
 - Compose now passes the supported SHA-256 API-key configuration, allowing deployed API authentication without placing the plaintext key in the service environment.
+- Training jobs now enforce an explicit allowed-path policy shared by API validation and workers, with Compose restricted to the mounted `/var/lib/archai` root.
 - Compose now mounts benchmark data read-only into the worker and uses an explicit in-container archive path, preventing host/container path mismatches.
 - Added a root Docker build-context policy that excludes local dependencies, raw datasets, checkpoints, caches, and VCS metadata from container builds.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
@@ -94,7 +95,7 @@ Updated 2026-11-21.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 104 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 105 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 

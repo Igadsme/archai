@@ -11,6 +11,7 @@ services:
       ARCHAI_REDIS_URL: redis://redis:6379/0
       ARCHAI_REQUIRE_REDIS: "1"
       ARCHAI_ARTIFACT_STORE: /var/lib/archai/experiments.jsonl
+      ARCHAI_ALLOWED_PATHS: /var/lib/archai
     volumes:
       - archai-artifacts:/var/lib/archai
     ports: ["8000:8000"]
@@ -35,6 +36,7 @@ services:
       ARCHAI_NATS_BENCH_INDICES: ${ARCHAI_NATS_BENCH_INDICES:-}
       ARCHAI_NATS_BENCH_SEARCH_SPACE: ${ARCHAI_NATS_BENCH_SEARCH_SPACE:-tss}
       ARCHAI_BENCHMARK_CACHE: /var/lib/archai/benchmark-cache.sqlite
+      ARCHAI_ALLOWED_PATHS: /var/lib/archai
     volumes:
       - archai-artifacts:/var/lib/archai
       - ../../datasets/raw:/var/lib/archai/datasets:ro
