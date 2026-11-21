@@ -1,3 +1,5 @@
+import pytest
+
 from archai_shared.jobs import InMemoryJobStore
 from archai_shared.worker import WorkerRunner, run_job
 
@@ -25,3 +27,13 @@ def test_worker_runner_claims_jobs_and_records_missing_handlers():
     assert result.job_id == unsupported.job_id
     assert result.status == "failed"
     assert "no handler registered" in result.error
+
+
+def test_benchmark_handler_requires_verified_archive_configuration(monkeypatch):
+    from archai_api.worker import benchmark_search
+
+    monkeypatch.delenv("ARCHAI_NATS_BENCH_PATH", raising=False)
+    monkeypatch.delenv("ARCHAI_NATS_BENCH_SHA256", raising=False)
+    job = InMemoryJobStore().create("search", {"budget_evaluations": 1})
+    with pytest.raises(RuntimeError, match="ARCHAI_NATS_BENCH_PATH"):
+        benchmark_search(job)

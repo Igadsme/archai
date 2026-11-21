@@ -135,6 +135,7 @@ class SearchRequest(BaseModel):
     dataset_id: str = Field(min_length=1, max_length=128)
     budget_evaluations: int = Field(gt=0, le=1_000_000)
     seed: int = 0
+    indices: list[int] = Field(default_factory=list, max_length=100_000)
 
 
 class ExperimentRequest(BaseModel):

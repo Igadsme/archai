@@ -60,6 +60,13 @@ class InMemoryJobStore:
             job.status, job.error, job.updated_at = status, error, datetime.now(timezone.utc)
             return job
 
+    def update_payload(self, job_id: str, payload: dict) -> Job:
+        with self._lock:
+            job = self._jobs[job_id]
+            job.payload = dict(payload)
+            job.updated_at = datetime.now(timezone.utc)
+            return job
+
     def list(self) -> list[Job]:
         with self._lock:
             return list(self._jobs.values())
@@ -108,6 +115,15 @@ class RedisJobStore:
         if status not in _TRANSITIONS[job.status]:
             raise ValueError(f"invalid job transition {job.status}->{status}")
         job.status, job.error, job.updated_at = status, error, datetime.now(timezone.utc)
+        self.client.set(self._key(job_id), json.dumps(job.as_dict()))
+        return job
+
+    def update_payload(self, job_id: str, payload: dict) -> Job:
+        job = self.get(job_id)
+        if job is None:
+            raise KeyError(job_id)
+        job.payload = dict(payload)
+        job.updated_at = datetime.now(timezone.utc)
         self.client.set(self._key(job_id), json.dumps(job.as_dict()))
         return job
 

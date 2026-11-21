@@ -31,6 +31,7 @@ Updated 2026-11-20.
 - The architecture registry now has a SQLAlchemy-backed implementation selected by `DATABASE_URL`, with canonical-document hash verification on reads and an SQLite round-trip test; process-local storage remains the explicit default.
 - Search configurations and evidence-aware experiment records now persist through SQLAlchemy when `DATABASE_URL` is configured; migration `0002_experiment_provenance` preserves provenance and lifecycle timestamps.
 - Durable worker infrastructure now has an atomic local claim path, Redis claim/execute loop, explicit handler registration, terminal failure capture for unsupported kinds, and a container entry point; the API only accepts search starts when Redis is selected.
+- The worker now has an explicit NATS-Bench random-search handler with mandatory archive SHA-256 verification, seeded indices, query budgets, validation-selected reporting, and held-out test recording; missing benchmark configuration fails the job instead of fabricating results.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.

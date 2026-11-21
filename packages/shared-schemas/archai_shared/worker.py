@@ -9,7 +9,7 @@ JobStore = InMemoryJobStore | RedisJobStore
 
 
 class JobHandler(Protocol):
-    def __call__(self, job: Job) -> None: ...
+    def __call__(self, job: Job) -> dict | None: ...
 
 
 def run_job(store: JobStore, job_id: str, handler: JobHandler) -> Job:
@@ -50,7 +50,9 @@ class WorkerRunner:
         if handler is None:
             return self.store.transition(job.job_id, "failed", error=f"no handler registered for job kind: {job.kind}")
         try:
-            handler(job)
+            result = handler(job)
+            if result is not None:
+                self.store.update_payload(job.job_id, {**job.payload, "result": result})
         except Exception as exc:
             return self.store.transition(job.job_id, "failed", error=f"{type(exc).__name__}: {exc}")
         return self.store.transition(job.job_id, "succeeded")
