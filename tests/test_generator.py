@@ -36,3 +36,11 @@ def test_generator_training_and_checkpoint(tmp_path):
     history = fit_generator(model, architectures, epochs=2, seed=2)
     assert len(history) == 2
     assert all(torch.isfinite(torch.tensor(history)))
+
+
+def test_generator_training_consumes_condition_vector():
+    pytest.importorskip("torch")
+    model = ArchitectureGenerator(GeneratorConfig(max_nodes=2))
+    architectures = model.sample(seed=4)
+    history = fit_generator(model, [(architectures[0], (1.0,) + (0.0,) * 7)], epochs=1, seed=4)
+    assert len(history) == 1

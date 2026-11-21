@@ -4,7 +4,7 @@
 - [x] M2 architecture graph validation, hashing, and restricted compiler interface
 - [x] M3 deterministic random search, evolution policy, Pareto frontier, and budget primitives
 - [x] M4 predictor training/evaluation interface with uncertainty head, checkpoints, baselines, and real-data CLI
-- [x] M5 constrained trainable generator with valid sampling and checkpoint boundary
+- [x] M5 constrained conditional trainable generator with valid sampling, checkpoint boundary, and corpus CLI
 - [partial] M1 checksum-gated acquisition, NAS-Bench-201 parser, and budgeted adapter; real archive query pending
 - [ ] M6 trained generator + predictor checkpoints with provenance
 - [partial] M6 controller loop, persistence, acquisition ranking, validation, and budget enforcement; trained closed-loop benchmark run pending

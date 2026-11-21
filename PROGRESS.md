@@ -9,7 +9,7 @@ Updated 2026-11-20.
 - Compiler exports canonical architecture JSON, state-dict fingerprints, dependency-gated Safetensors, and an ONNX export hook.
 - Analytical metrics propagate upstream channel counts instead of assuming every operation reads the image input.
 - Predictor training supports edge-aware message passing, masked variable-size graph batches, Gaussian NLL uncertainty, deterministic hash-disjoint splits, checkpoint save/load, MAE/RMSE/Spearman/Kendall/interval coverage, calibration error, and embedding OOD scores.
-- Generator training supports a constrained valid-chain autoregressive decoder, teacher forcing, deterministic token-by-token sampling, generation quality metrics, and checkpoint boundaries.
+- Generator training supports a constrained valid-chain autoregressive decoder, teacher forcing, task/constraint condition vectors, deterministic token-by-token sampling, generation quality metrics, checkpoint boundaries, and a JSONL-corpus CLI.
 - Benchmark integration supports checksum-gated acquisition, NAS-Bench-201 encoding conversion, and an explicit query budget.
 - Autonomous search control supports validation, deduplication, injected evaluation, atomic JSON persistence, cancellation requests, budget enforcement, and resume with an expanded budget.
 - Training engine supports reproducible classification loops, gradient accumulation, optional AMP, early stopping, safe state-dict checkpoints, and resume.
@@ -28,7 +28,7 @@ Updated 2026-11-20.
 - Closed-loop learned search now connects proposal batches, predictor uncertainty, acquisition ranking, evaluator evidence, budget limits, and Pareto trace extraction.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
-- Test suite: 38 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 40 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 

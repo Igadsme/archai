@@ -9,7 +9,8 @@ def architecture_tokens(architecture):
     return [GENERATABLE_OPS.index(node.op) for node in architecture.nodes if node.op in GENERATABLE_OPS]
 
 
-def fit_generator(model: ArchitectureGenerator, architectures, *, epochs: int = 20, lr: float = 1e-3, seed: int = 0):
+def fit_generator(model: ArchitectureGenerator, architectures, *, conditions=None, epochs: int = 20,
+                  lr: float = 1e-3, seed: int = 0):
     import torch
     import torch.nn.functional as F
     torch.manual_seed(seed)
@@ -17,7 +18,12 @@ def fit_generator(model: ArchitectureGenerator, architectures, *, epochs: int = 
     history = []
     for _ in range(epochs):
         losses = []
-        for architecture in architectures:
+        for index, example in enumerate(architectures):
+            if isinstance(example, tuple):
+                architecture, condition_values = example
+            else:
+                architecture = example
+                condition_values = conditions[index] if conditions is not None else (0.0,) * model.config.condition_dim
             tokens = architecture_tokens(architecture)
             if not tokens:
                 continue
@@ -25,7 +31,9 @@ def fit_generator(model: ArchitectureGenerator, architectures, *, epochs: int = 
             one_hot = F.one_hot(target, num_classes=len(GENERATABLE_OPS)).float()
             _, hidden = model.encoder(one_hot)
             latent = model.latent_projection(hidden[-1])
-            condition = torch.zeros(1, model.config.condition_dim)
+            if len(condition_values) != model.config.condition_dim:
+                raise ValueError("every generator condition must match config.condition_dim")
+            condition = torch.tensor([condition_values], dtype=torch.float32)
             sequence_logits = model.forward(latent, condition, teacher_tokens=target).transpose(1, 2)
             loss = F.cross_entropy(sequence_logits, target)
             losses.append(loss)
