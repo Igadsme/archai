@@ -6,7 +6,7 @@ Redis workers publish heartbeats used by `/v1/infrastructure/workers`, including
 
 `ARCHAI_MAX_REQUEST_BYTES` and `ARCHAI_RATE_LIMIT_PER_MINUTE` configure local request guards. In production, enforce these limits at the gateway and/or use a distributed rate-limit store.
 
-Training path fields are constrained by `ARCHAI_ALLOWED_PATHS`, a colon-separated list of absolute roots. Local mode defaults to `/tmp` plus Python's temporary directory; Compose sets `/var/lib/archai` so queued workers cannot read or write arbitrary host paths.
+Training, model-artifact, and generator-checkpoint paths are constrained by `ARCHAI_ALLOWED_PATHS`, a colon-separated list of absolute roots. Local mode defaults to `/tmp` plus Python's temporary directory; Compose sets `/var/lib/archai` so API and workers cannot read or write arbitrary host paths.
 
 Readiness checks database connectivity when `DATABASE_URL` is set. Set `ARCHAI_REQUIRE_REDIS=1` to make Redis connectivity a readiness requirement as well.
 

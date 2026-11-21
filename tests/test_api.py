@@ -136,6 +136,17 @@ def test_model_registry_api_registers_checksum_manifest(tmp_path):
     assert client.get(f"/v1/models/{model_id}?version=v1").json()["integrity_verified"] is False
 
 
+def test_model_registration_rejects_artifacts_outside_allowed_root(monkeypatch, tmp_path):
+    client = TestClient(app)
+    artifact = tmp_path / "outside.pt"
+    artifact.write_bytes(b"model")
+    monkeypatch.setenv("ARCHAI_ALLOWED_PATHS", "/var/lib/archai")
+    response = client.post("/v1/models", json={"model_id": "outside", "kind": "predictor",
+        "version": "v1", "artifact_path": str(artifact)})
+    assert response.status_code == 422
+    assert "outside allowed worker paths" in response.json()["detail"]
+
+
 def test_experiment_api_enforces_evidence_provenance():
     client = TestClient(app)
     identifier = client.post("/v1/architectures", json=payload()).json()["hash"]

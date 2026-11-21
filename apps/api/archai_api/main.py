@@ -563,6 +563,10 @@ def _model_response(item):
 @app.post("/v1/models", dependencies=[Depends(require_write_access)])
 def register_model(request: ModelRequest):
     try:
+        allowed_path(request.artifact_path, field="artifact_path")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
         artifact = _model_registry.register(model_id=request.model_id, kind=request.kind,
                                             version=request.version, artifact_path=request.artifact_path,
                                             metadata=request.metadata)
@@ -608,6 +612,7 @@ def generate_architectures(request: GenerateRequest):
     if not checkpoint:
         raise HTTPException(status_code=503, detail="No trained generator checkpoint is configured")
     try:
+        allowed_path(checkpoint, field="generator checkpoint")
         import torch
         from archai_generator.model import ArchitectureGenerator, GeneratorConfig
         from archai_generator.training import load_checkpoint
