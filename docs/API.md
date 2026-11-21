@@ -4,4 +4,4 @@
 
 `ARCHAI_MAX_REQUEST_BYTES` and `ARCHAI_RATE_LIMIT_PER_MINUTE` configure local request guards. In production, enforce these limits at the gateway and/or use a distributed rate-limit store.
 
-Set `DATABASE_URL` to use the SQLAlchemy-backed architecture, search, experiment, and model registries. The API expects the Alembic schema to have been applied; set `ARCHAI_DB_AUTO_CREATE=1` only for local development or tests. Without `DATABASE_URL`, the API uses process-local registries and the JSON model manifest.
+Set `DATABASE_URL` to use the SQLAlchemy-backed architecture, search, experiment, model, and dataset registries. The API expects the Alembic schema to have been applied; set `ARCHAI_DB_AUTO_CREATE=1` only for local development or tests. Without `DATABASE_URL`, the API uses process-local registries and the JSON model manifest.

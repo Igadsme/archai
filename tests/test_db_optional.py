@@ -67,3 +67,14 @@ def test_sqlalchemy_model_registry_round_trips_checksum_manifest(tmp_path):
                                    artifact_path=artifact, metadata={"seed": 4})
     assert registry.get("predictor", "v1").sha256 == registered.sha256
     assert registry.list()[0].metadata == {"seed": 4}
+
+
+def test_sqlalchemy_dataset_store_enforces_checksum_and_immutability(tmp_path):
+    pytest.importorskip("sqlalchemy")
+    from archai_api.db import SqlAlchemyDatasetStore
+
+    store = SqlAlchemyDatasetStore.from_url(f"sqlite:///{tmp_path / 'datasets.sqlite'}", initialize=True)
+    value = store.put(dataset_id="unit", version="1", checksum="b" * 64, uri="file:///unit")
+    assert store.get("unit", "1") == value
+    with pytest.raises(ValueError, match="immutable"):
+        store.put(dataset_id="unit", version="1", checksum="b" * 64, uri="file:///other")

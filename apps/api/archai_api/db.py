@@ -84,6 +84,7 @@ def sqlalchemy_components():
         metadata_json: Mapped[dict] = mapped_column("metadata", JSON, nullable=False, default=dict)
 
     Base._archai_model_checkpoint_row = ModelCheckpointRow
+    Base._archai_dataset_row = DatasetRow
 
     def make_engine(url: str):
         return create_engine(url, pool_pre_ping=True)
@@ -390,4 +391,67 @@ class SqlAlchemyModelRegistry:
         if version is not None:
             values = [item for item in values if item.version == version]
         return values[-1] if values else None
+
+
+class SqlAlchemyDatasetStore:
+    """Persist immutable dataset version and checksum metadata."""
+
+    def __init__(self, session_factory, dataset_row):
+        self._session_factory = session_factory
+        self._row = dataset_row
+
+    @classmethod
+    def from_url(cls, url: str, *, initialize: bool = False) -> "SqlAlchemyDatasetStore":
+        Base, _architecture_row, _search_row, _experiment_row, make_engine, make_session_factory = sqlalchemy_components()
+        engine = make_engine(url)
+        if initialize:
+            Base.metadata.create_all(engine)
+        dataset_row = getattr(Base, "_archai_dataset_row", None)
+        if dataset_row is None:  # pragma: no cover - defensive metadata guard
+            raise RuntimeError("dataset mapping is unavailable")
+        return cls(make_session_factory(url, engine), dataset_row)
+
+    def put(self, *, dataset_id: str, version: str, checksum: str, uri: str,
+            license: str | None = None) -> dict:
+        import re
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", checksum):
+            raise ValueError("dataset checksum must be a 64-character SHA-256 hex digest")
+        session = self._session_factory()
+        try:
+            row = session.get(self._row, (dataset_id, version))
+            values = {"dataset_id": dataset_id, "version": version, "checksum": checksum.lower(),
+                      "uri": uri, "license": license}
+            if row is None:
+                row = self._row(**values)
+                session.add(row)
+            else:
+                if row.checksum != checksum.lower() or row.uri != uri:
+                    raise ValueError("dataset version is immutable once registered")
+            session.commit()
+            return values
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def get(self, dataset_id: str, version: str):
+        session = self._session_factory()
+        try:
+            row = session.get(self._row, (dataset_id, version))
+            return None if row is None else {"dataset_id": row.dataset_id, "version": row.version,
+                "checksum": row.checksum, "uri": row.uri, "license": row.license}
+        finally:
+            session.close()
+
+    def list(self, limit: int = 50):
+        from sqlalchemy import select
+
+        session = self._session_factory()
+        try:
+            rows = session.scalars(select(self._row).order_by(self._row.dataset_id, self._row.version).limit(limit)).all()
+            return [{"dataset_id": row.dataset_id, "version": row.version, "checksum": row.checksum,
+                     "uri": row.uri, "license": row.license} for row in rows]
+        finally:
+            session.close()
 

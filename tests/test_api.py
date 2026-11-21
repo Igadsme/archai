@@ -23,6 +23,17 @@ def test_architecture_registry_api():
     assert client.get("/v1/architectures/compare?ids=missing").status_code == 404
 
 
+def test_dataset_registry_requires_checksum_and_is_immutable():
+    client = TestClient(app)
+    dataset = {"dataset_id": "unit", "version": "1", "checksum": "a" * 64,
+               "uri": "file:///tmp/unit.bin", "license": "test"}
+    assert client.post("/v1/datasets", json={**dataset, "checksum": "bad"}).status_code == 422
+    assert client.post("/v1/datasets", json=dataset).status_code == 200
+    assert client.get("/v1/datasets").json()["items"]
+    assert client.get("/v1/datasets/unit?version=1").json()["checksum"] == "a" * 64
+    assert client.post("/v1/datasets", json={**dataset, "uri": "file:///tmp/other.bin"}).status_code == 409
+
+
 def test_search_and_experiment_lifecycle_surface():
     client = TestClient(app)
     identifier = client.post("/v1/architectures", json=payload()).json()["hash"]

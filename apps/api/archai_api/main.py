@@ -15,7 +15,7 @@ from archai_core.schema import Architecture
 from archai_core.validation import ValidationError, validate_architecture
 from archai_compiler.metrics import analytical_metrics
 from archai_api.db import (SqlAlchemyArchitectureStore, SqlAlchemyExperimentStore,
-                           SqlAlchemyModelRegistry, SqlAlchemySearchStore)
+                           SqlAlchemyDatasetStore, SqlAlchemyModelRegistry, SqlAlchemySearchStore)
 from archai_shared.jobs import InMemoryJobStore, RedisJobStore
 from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance
 from archai_shared.registry import ModelRegistry
@@ -93,6 +93,29 @@ class _InMemoryExperimentStore:
         return list(self._values.values())[:limit]
 
 
+class _InMemoryDatasetStore:
+    def __init__(self):
+        self._values: dict[tuple[str, str], dict] = {}
+
+    def put(self, *, dataset_id: str, version: str, checksum: str, uri: str, license: str | None = None) -> dict:
+        import re
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", checksum):
+            raise ValueError("dataset checksum must be a 64-character SHA-256 hex digest")
+        key = (dataset_id, version)
+        value = {"dataset_id": dataset_id, "version": version, "checksum": checksum.lower(),
+                 "uri": uri, "license": license}
+        if key in self._values and self._values[key] != value:
+            raise ValueError("dataset version is immutable once registered")
+        self._values[key] = value
+        return value
+
+    def get(self, dataset_id: str, version: str):
+        return self._values.get((dataset_id, version))
+
+    def list(self, limit: int = 50):
+        return list(self._values.values())[:limit]
+
+
 def _make_architecture_store():
     url = os.getenv("DATABASE_URL")
     if not url:
@@ -120,6 +143,9 @@ def _make_experiment_store():
 
 _search_store = _make_search_store()
 _experiment_store = _make_experiment_store()
+_dataset_store = (SqlAlchemyDatasetStore.from_url(
+    os.environ["DATABASE_URL"], initialize=os.getenv("ARCHAI_DB_AUTO_CREATE", "0") == "1")
+    if os.getenv("DATABASE_URL") else _InMemoryDatasetStore())
 
 
 @app.middleware("http")
@@ -177,6 +203,15 @@ class GenerateRequest(BaseModel):
     condition: list[float] = Field(default_factory=lambda: [0.0] * 8, min_length=8, max_length=8)
     input_spec: dict[str, int] = Field(default_factory=lambda: {"channels": 3, "height": 32, "width": 32})
     output_classes: int = Field(default=10, gt=1, le=10000)
+
+
+class DatasetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    dataset_id: str = Field(min_length=1, max_length=128)
+    version: str = Field(min_length=1, max_length=128)
+    checksum: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
+    uri: str = Field(min_length=1, max_length=2048)
+    license: str | None = Field(default=None, max_length=256)
 
 
 def require_write_access(api_key: Annotated[str | None, Header(alias="x-api-key")] = None,
@@ -399,6 +434,27 @@ def get_model(model_id: str, version: str | None = None):
     if artifact is None:
         raise HTTPException(status_code=404, detail="model not found")
     return artifact.__dict__
+
+
+@app.post("/v1/datasets", dependencies=[Depends(require_write_access)])
+def register_dataset(request: DatasetRequest):
+    try:
+        return _dataset_store.put(**request.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.get("/v1/datasets")
+def list_datasets(limit: int = Query(default=50, ge=1, le=500)):
+    return {"items": _dataset_store.list(limit)}
+
+
+@app.get("/v1/datasets/{dataset_id}")
+def get_dataset(dataset_id: str, version: str = Query(..., min_length=1, max_length=128)):
+    dataset = _dataset_store.get(dataset_id, version)
+    if dataset is None:
+        raise HTTPException(status_code=404, detail="dataset not found")
+    return dataset
 
 
 @app.post("/v1/architectures/generate")

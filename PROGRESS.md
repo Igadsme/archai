@@ -38,6 +38,7 @@ Updated 2026-11-21.
 - Compose deployment now wires API containers to PostgreSQL and Redis, installs the required platform/benchmark extras, and runs Alembic before serving.
 - Alembic migration `0003_platform_metadata` now covers users, API credentials, datasets, and model-checkpoint metadata in the same SQLAlchemy metadata used by deployment.
 - The model registry now selects the SQLAlchemy checkpoint table under `DATABASE_URL`, retaining SHA-256 manifests and the existing JSON fallback for local mode.
+- Dataset registry endpoints now require a 64-character SHA-256 checksum and enforce immutable dataset versions in both local and SQLAlchemy-backed stores.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
