@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import TYPE_CHECKING
 from pathlib import Path
 
@@ -57,7 +57,8 @@ def sqlalchemy_components():
         metrics: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
         failure_detail: Mapped[str | None] = mapped_column(Text)
         provenance: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-        started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+        started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                      server_default="CURRENT_TIMESTAMP", nullable=False)
         completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     class UserRow(Base):
@@ -323,7 +324,7 @@ class SqlAlchemyExperimentStore:
                 "dataset_id": row.dataset_id, "dataset_version": row.dataset_version, "seed": row.seed})
             return ExperimentRecord(experiment_id=row.experiment_id, architecture_id=row.architecture_id,
                                     evidence_type=row.evidence_type, status=row.status, metrics=row.metrics or {},
-                                    provenance=provenance, started_at=row.started_at or datetime.now(timezone.utc),
+                                    provenance=provenance, started_at=row.started_at,
                                     completed_at=row.completed_at, failure_detail=row.failure_detail)
         finally:
             session.close()
@@ -342,7 +343,7 @@ class SqlAlchemyExperimentStore:
                 values.append(ExperimentRecord(
                     experiment_id=row.experiment_id, architecture_id=row.architecture_id,
                     evidence_type=row.evidence_type, status=row.status, metrics=row.metrics or {},
-                    provenance=provenance, started_at=row.started_at or datetime.now(timezone.utc),
+                    provenance=provenance, started_at=row.started_at,
                     completed_at=row.completed_at, failure_detail=row.failure_detail))
             return values
         finally:

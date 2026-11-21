@@ -22,3 +22,5 @@ def test_alembic_schema_can_upgrade_and_downgrade(tmp_path, monkeypatch):
     assert "fk_api_credentials_user" in {
         foreign_key["name"] for foreign_key in inspector.get_foreign_keys("api_credentials")
     }
+    started_at = next(column for column in inspector.get_columns("experiments") if column["name"] == "started_at")
+    assert started_at["nullable"] is False

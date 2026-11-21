@@ -54,6 +54,7 @@ Updated 2026-11-21.
 - Corrected the raw PostgreSQL schema artifact’s duplicate experiment timestamp declarations and aligned model uniqueness with named model IDs.
 - Alembic 0004 now enforces named model/version uniqueness at the database layer with a portable unique index, closing concurrent registration races.
 - Alembic 0005 now enforces API-credential ownership and experiment architecture/dataset foreign keys, with SQLite upgrade/downgrade coverage.
+- Alembic 0006 backfills and enforces non-null experiment start timestamps, eliminating read-time timestamp fabrication in the SQL store.
 - API CORS is now explicit and environment-configured, with local Studio origins enabled by default and preflight coverage.
 - Generator checkpoint save/load is now verified with deterministic post-reload sampling, matching predictor checkpoint evidence.
 - Generator CLI execution is now covered end-to-end from conditional JSONL corpus through checkpoint/report generation.
