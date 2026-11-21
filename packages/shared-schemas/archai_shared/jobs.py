@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import socket
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from threading import Lock
@@ -98,6 +99,9 @@ class RedisJobStore:
     def _key(self, job_id: str) -> str:
         return f"{self.prefix}:job:{job_id}"
 
+    def _worker_key(self, worker_id: str) -> str:
+        return f"{self.prefix}:worker:{worker_id}"
+
     def create(self, kind: str, payload: dict | None = None) -> Job:
         job = Job(uuid4().hex, kind, payload=payload or {})
         self.client.set(self._key(job.job_id), json.dumps(job.as_dict()))
@@ -141,3 +145,33 @@ class RedisJobStore:
             if value:
                 jobs.append(Job.from_dict(json.loads(value)))
         return jobs
+
+    def heartbeat(self, worker_id: str, *, active_job_id: str | None = None) -> dict:
+        """Record a worker liveness signal and the job currently being handled."""
+        value = {
+            "worker_id": worker_id,
+            "hostname": socket.gethostname(),
+            "pid": __import__("os").getpid(),
+            "status": "running" if active_job_id else "idle",
+            "active_job_id": active_job_id,
+            "last_seen": datetime.now(timezone.utc).isoformat(),
+        }
+        self.client.set(self._worker_key(worker_id), json.dumps(value))
+        return value
+
+    def list_workers(self, *, stale_after_seconds: float = 30.0) -> list[dict]:
+        """Return workers whose latest heartbeat is recent enough to be live."""
+        now = datetime.now(timezone.utc)
+        workers = []
+        for key in self.client.scan_iter(match=f"{self.prefix}:worker:*"):
+            value = self.client.get(key)
+            if not value:
+                continue
+            try:
+                worker = json.loads(value)
+                last_seen = datetime.fromisoformat(worker["last_seen"])
+                if (now - last_seen).total_seconds() <= stale_after_seconds:
+                    workers.append(worker)
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                continue
+        return sorted(workers, key=lambda item: item.get("worker_id", ""))

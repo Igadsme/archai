@@ -145,6 +145,13 @@ def test_readiness_and_queue_status_are_truthful():
     assert queue["available"] is True
 
 
+def test_worker_status_is_empty_for_local_backend():
+    client = TestClient(app)
+    response = client.get("/v1/infrastructure/workers")
+    assert response.status_code == 200
+    assert response.json()["workers"] == []
+
+
 def test_database_readiness_probe_is_truthful(monkeypatch, tmp_path):
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'ready.sqlite'}")
     from archai_api import main as api_main

@@ -293,8 +293,9 @@ def readiness() -> dict[str, bool | str]:
 @app.get("/v1/infrastructure/workers")
 def worker_status() -> dict[str, object]:
     configured = _redis_is_ready()
+    workers = _jobs.list_workers() if configured and isinstance(_jobs, RedisJobStore) else []
     return {"configured": configured, "status": "connected" if configured else "not_configured",
-            "workers": []}
+            "workers": workers}
 
 
 @app.get("/v1/infrastructure/queue")

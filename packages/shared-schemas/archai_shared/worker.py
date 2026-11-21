@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import socket
 from threading import Event
 from typing import Protocol
+from uuid import uuid4
 
 from .jobs import InMemoryJobStore, Job, RedisJobStore
 
@@ -37,9 +39,18 @@ class WorkerRunner:
     terminal failure, which keeps unsupported work visible to operators.
     """
 
-    def __init__(self, store: JobStore, handlers: dict[str, JobHandler]):
+    def __init__(self, store: JobStore, handlers: dict[str, JobHandler], *, worker_id: str | None = None):
         self.store = store
         self.handlers = handlers
+        self.worker_id = worker_id or f"{socket.gethostname()}-{uuid4().hex[:12]}"
+
+    def _heartbeat(self, active_job_id: str | None = None) -> None:
+        if isinstance(self.store, RedisJobStore):
+            try:
+                self.store.heartbeat(self.worker_id, active_job_id=active_job_id)
+            except Exception:
+                # Liveness reporting must not turn a successful job into a failure.
+                pass
 
     def claim(self, timeout: int = 0) -> Job | None:
         if isinstance(self.store, RedisJobStore):
@@ -51,13 +62,15 @@ class WorkerRunner:
         return self.store.pop_queued()
 
     def run_once(self, timeout: int = 0) -> Job | None:
+        self._heartbeat()
         job = self.claim(timeout=timeout)
         if job is None:
             return None
-        handler = self.handlers.get(job.kind)
-        if handler is None:
-            return self.store.transition(job.job_id, "failed", error=f"no handler registered for job kind: {job.kind}")
+        self._heartbeat(job.job_id)
         try:
+            handler = self.handlers.get(job.kind)
+            if handler is None:
+                return self.store.transition(job.job_id, "failed", error=f"no handler registered for job kind: {job.kind}")
             result = handler(job)
             latest = self.store.get(job.job_id)
             if latest is not None and latest.status == "cancelled":
@@ -69,6 +82,8 @@ class WorkerRunner:
             if latest is not None and latest.status == "cancelled":
                 return latest
             return self.store.transition(job.job_id, "failed", error=f"{type(exc).__name__}: {exc}")
+        finally:
+            self._heartbeat()
         return self.store.transition(job.job_id, "succeeded")
 
     def run_forever(self, *, stop: Event | None = None, timeout: int = 5) -> None:

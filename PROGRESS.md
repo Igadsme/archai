@@ -67,6 +67,7 @@ Updated 2026-11-21.
 - FastAPI now exposes validated training-job creation plus generic job listing, retrieval, and cancellation for the durable worker handlers.
 - Training-job API requests now validate candidate graph schemas, benchmark checksum format, and bounded resource parameters before queueing work.
 - Queue status now returns explicit degraded availability and error details when the selected Redis backend cannot be listed.
+- Redis-backed workers now publish liveness heartbeats with active job IDs, and the worker status endpoint filters stale heartbeats for dashboard monitoring.
 - Local search persistence now records cancellation/status transitions consistently with the SQLAlchemy registry, with an API regression test covering the persisted state.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
@@ -93,7 +94,7 @@ Updated 2026-11-21.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 100 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 103 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 

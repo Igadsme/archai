@@ -1,5 +1,6 @@
 import hashlib
 import json
+from datetime import datetime, timezone
 
 import pytest
 
@@ -169,3 +170,32 @@ def test_redis_worker_round_trip_persists_result():
     result = runner.run_once()
     assert result.status == "succeeded"
     assert store.get(job.job_id).payload["result"] == {"accuracy": 0.9}
+
+
+def test_redis_worker_heartbeat_reports_idle_and_active_state():
+    from archai_shared.jobs import RedisJobStore
+
+    client = FakeRedis()
+    store = RedisJobStore(client)
+    store.heartbeat("worker-a")
+    idle = store.list_workers()
+    assert idle[0]["worker_id"] == "worker-a"
+    assert idle[0]["status"] == "idle"
+
+    store.heartbeat("worker-a", active_job_id="job-1")
+    active = store.list_workers()
+    assert active[0]["status"] == "running"
+    assert active[0]["active_job_id"] == "job-1"
+
+
+def test_worker_runner_emits_redis_heartbeats():
+    from archai_shared.jobs import RedisJobStore
+
+    store = RedisJobStore(FakeRedis())
+    job = store.create("training")
+    runner = WorkerRunner(store, {"training": lambda _job: {"ok": True}}, worker_id="worker-test")
+    assert runner.run_once().status == "succeeded"
+    worker = store.list_workers()[0]
+    assert worker["worker_id"] == "worker-test"
+    assert worker["status"] == "idle"
+    assert datetime.fromisoformat(worker["last_seen"]).tzinfo == timezone.utc
