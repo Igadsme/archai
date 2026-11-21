@@ -1,12 +1,21 @@
 """Durable worker entry point for the API job queue."""
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 
 from archai_shared.jobs import RedisJobStore
 from archai_shared.jobs import Job
 from archai_shared.worker import WorkerRunner
+
+
+def _sha256_file(path: str | Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def candidate_training(job: Job) -> dict:
@@ -62,11 +71,13 @@ def candidate_training(job: Job) -> dict:
     checkpoint = config.get("checkpoint_path")
     result = train_candidate(architecture, train_loader, validation_loader, training_config,
                              checkpoint_path=checkpoint)
+    checkpoint_sha256 = _sha256_file(result.checkpoint_path) if result.checkpoint_path else None
     return {"status": result.status, "architecture_id": architecture.content_hash(),
             "best_validation_loss": result.best_validation_loss,
             "epochs_completed": result.epochs_completed,
             "wall_clock_seconds": result.wall_clock_seconds,
             "history": list(result.history), "checkpoint_path": result.checkpoint_path,
+            "checkpoint_sha256": checkpoint_sha256,
             "evidence_type": "synthetic_training", "seed": seed}
 
 
@@ -97,9 +108,11 @@ def generator_training(job: Job) -> dict:
                 "corpus_examples": len(examples), "conditional": True,
                 "test_selection": "not applicable", "evidence_type": "generator_training"}
     save_checkpoint(model, checkpoint_path, metadata)
+    checkpoint_sha256 = _sha256_file(checkpoint_path)
     return {"status": "completed", "checkpoint_path": str(checkpoint_path),
             "corpus_examples": len(examples), "training_loss": history,
-            "generation_metrics": metrics, "evidence_type": "generator_training", "seed": seed}
+            "generation_metrics": metrics, "checkpoint_sha256": checkpoint_sha256,
+            "evidence_type": "generator_training", "seed": seed}
 
 
 def predictor_training(job: Job) -> dict:
@@ -148,10 +161,12 @@ def predictor_training(job: Job) -> dict:
                 "test_used_for_selection": False, "archive_sha256": actual_checksum,
                 "evidence_type": "benchmark_training"}
     save_checkpoint(model, checkpoint_path, metadata)
+    checkpoint_sha256 = _sha256_file(checkpoint_path)
     return {"status": "completed", "checkpoint_path": str(checkpoint_path),
             "training_loss": history, "validation": validation, "test": test,
             "evidence_type": "benchmark_training", "seed": seed,
-            "archive_sha256": actual_checksum, "test_used_for_selection": False}
+            "archive_sha256": actual_checksum, "checkpoint_sha256": checkpoint_sha256,
+            "test_used_for_selection": False}
 
 
 def benchmark_search(job: Job) -> dict:

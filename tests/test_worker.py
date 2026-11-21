@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import pytest
@@ -60,6 +61,7 @@ def test_training_handler_compiles_and_trains_explicit_synthetic_candidate(tmp_p
     result = candidate_training(job)
     assert result["status"] == "completed"
     assert result["evidence_type"] == "synthetic_training"
+    assert result["checkpoint_sha256"] == hashlib.sha256((tmp_path / "candidate.pt").read_bytes()).hexdigest()
     assert (tmp_path / "candidate.pt").exists()
 
 
@@ -89,6 +91,7 @@ def test_generator_training_handler_writes_checkpoint(tmp_path):
     result = generator_training(job)
     assert result["status"] == "completed"
     assert result["evidence_type"] == "generator_training"
+    assert result["checkpoint_sha256"] == hashlib.sha256(checkpoint.read_bytes()).hexdigest()
     assert checkpoint.exists()
 
 
