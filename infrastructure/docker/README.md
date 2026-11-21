@@ -6,7 +6,7 @@ Set `POSTGRES_PASSWORD` and optionally `ARCHAI_API_KEY`, then run:
 docker compose -f infrastructure/docker/docker-compose.yml up --build api web postgres redis
 ```
 
-The API image installs the ML, platform, and benchmark extras, runs Alembic against PostgreSQL on startup, and connects to Redis for durable jobs. The benchmark worker additionally requires `ARCHAI_NATS_BENCH_PATH` and `ARCHAI_NATS_BENCH_SHA256`.
+The API image installs the ML, platform, and benchmark extras, runs Alembic against PostgreSQL on startup, and connects to Redis for durable jobs. The benchmark worker mounts `datasets/raw` read-only at `/var/lib/archai/datasets`; place the verified archive there or set `ARCHAI_NATS_BENCH_PATH` to an in-container path, and provide its `ARCHAI_NATS_BENCH_SHA256`.
 
 Enable the durable queue worker with:
 

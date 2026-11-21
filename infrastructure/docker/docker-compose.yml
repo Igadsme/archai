@@ -29,13 +29,14 @@ services:
     command: ["python", "-m", "archai_api.worker"]
     environment:
       ARCHAI_REDIS_URL: redis://redis:6379/0
-      ARCHAI_NATS_BENCH_PATH: ${ARCHAI_NATS_BENCH_PATH:-}
+      ARCHAI_NATS_BENCH_PATH: ${ARCHAI_NATS_BENCH_PATH:-/var/lib/archai/datasets/natsbench.tfrecord}
       ARCHAI_NATS_BENCH_SHA256: ${ARCHAI_NATS_BENCH_SHA256:-}
       ARCHAI_NATS_BENCH_INDICES: ${ARCHAI_NATS_BENCH_INDICES:-}
       ARCHAI_NATS_BENCH_SEARCH_SPACE: ${ARCHAI_NATS_BENCH_SEARCH_SPACE:-tss}
       ARCHAI_BENCHMARK_CACHE: /var/lib/archai/benchmark-cache.sqlite
     volumes:
       - archai-artifacts:/var/lib/archai
+      - ../../datasets/raw:/var/lib/archai/datasets:ro
     depends_on:
       redis: {condition: service_healthy}
     profiles: ["worker"]

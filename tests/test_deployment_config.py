@@ -19,3 +19,9 @@ def test_postgres_schema_has_no_duplicate_experiment_columns_and_named_model_uni
     assert schema.count("started_at TIMESTAMPTZ") == 1
     assert schema.count("completed_at TIMESTAMPTZ") == 1
     assert "UNIQUE (model_id, version)" in schema
+
+
+def test_worker_compose_mounts_benchmark_data_and_uses_container_path():
+    compose = (ROOT / "infrastructure/docker/docker-compose.yml").read_text()
+    assert "../../datasets/raw:/var/lib/archai/datasets:ro" in compose
+    assert "/var/lib/archai/datasets/natsbench.tfrecord" in compose
