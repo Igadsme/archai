@@ -63,9 +63,9 @@ def test_sqlalchemy_model_registry_round_trips_checksum_manifest(tmp_path):
     artifact.write_bytes(b"checkpoint")
     registry = SqlAlchemyModelRegistry.from_url(
         f"sqlite:///{tmp_path / 'models.sqlite'}", initialize=True)
-    registered = registry.register(model_id="predictor", kind="predictor", version="v1",
+    registered = registry.register(model_id="ArchAI-Predictor", kind="predictor", version="v1",
                                    artifact_path=artifact, metadata={"seed": 4})
-    assert registry.get("predictor", "v1").sha256 == registered.sha256
+    assert registry.get("ArchAI-Predictor", "v1").sha256 == registered.sha256
     assert registry.list()[0].metadata == {"seed": 4}
 
 

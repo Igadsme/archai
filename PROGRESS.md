@@ -38,6 +38,7 @@ Updated 2026-11-21.
 - Compose deployment now wires API containers to PostgreSQL and Redis, installs the required platform/benchmark extras, and runs Alembic before serving.
 - Alembic migration `0003_platform_metadata` now covers users, API credentials, datasets, and model-checkpoint metadata in the same SQLAlchemy metadata used by deployment.
 - The model registry now selects the SQLAlchemy checkpoint table under `DATABASE_URL`, retaining SHA-256 manifests and the existing JSON fallback for local mode.
+- Model checkpoints now retain a named `model_id` independent of model kind through Alembic migration `0004_model_identifiers`.
 - Dataset registry endpoints now require a 64-character SHA-256 checksum and enforce immutable dataset versions in both local and SQLAlchemy-backed stores.
 - Added a dataset acquisition CLI that refuses manifests without a checksum and atomically promotes only verified downloads.
 - Added a database-aware model registration CLI with SHA-256 manifests and a model-card template for reproducibility evidence.

@@ -77,6 +77,7 @@ def sqlalchemy_components():
     class ModelCheckpointRow(Base):
         __tablename__ = "model_checkpoints"
         checkpoint_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        model_id: Mapped[str | None] = mapped_column(String(128))
         model_kind: Mapped[str] = mapped_column(String(32), nullable=False)
         version: Mapped[str] = mapped_column(String(128), nullable=False)
         artifact_uri: Mapped[str] = mapped_column(Text, nullable=False)
@@ -367,17 +368,15 @@ class SqlAlchemyModelRegistry:
         artifact_path = Path(artifact_path).resolve()
         if not artifact_path.is_file():
             raise FileNotFoundError(artifact_path)
-        if model_id != kind:
-            raise ValueError("database model registry uses kind as model_id")
         session = self._session_factory()
         try:
             from sqlalchemy import select
-            if session.scalar(select(self._row).where(self._row.model_kind == kind,
+            if session.scalar(select(self._row).where(self._row.model_id == model_id,
                                                       self._row.version == version)) is not None:
                 raise ValueError("model version already registered")
             artifact = ModelArtifact(model_id, kind, version, str(artifact_path),
                                      sha256_file(artifact_path), metadata or {})
-            session.add(self._row(checkpoint_id=uuid4().hex, model_kind=kind, version=version,
+            session.add(self._row(checkpoint_id=uuid4().hex, model_id=model_id, model_kind=kind, version=version,
                                   artifact_uri=str(artifact_path), checksum=artifact.sha256,
                                   metadata_json=artifact.metadata))
             session.commit()
@@ -395,7 +394,7 @@ class SqlAlchemyModelRegistry:
         session = self._session_factory()
         try:
             rows = session.scalars(select(self._row).order_by(self._row.model_kind, self._row.version)).all()
-            return [ModelArtifact(row.model_kind, row.model_kind, row.version, row.artifact_uri,
+            return [ModelArtifact(row.model_id or row.model_kind, row.model_kind, row.version, row.artifact_uri,
                                   row.checksum, row.metadata_json or {}) for row in rows]
         finally:
             session.close()

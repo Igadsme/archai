@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS architectures (
 
 CREATE TABLE IF NOT EXISTS model_checkpoints (
   checkpoint_id UUID PRIMARY KEY,
+  model_id TEXT NOT NULL,
   model_kind TEXT NOT NULL CHECK (model_kind IN ('generator', 'predictor', 'candidate')),
   version TEXT NOT NULL,
   artifact_uri TEXT NOT NULL,
