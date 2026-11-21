@@ -12,7 +12,7 @@
 - [partial] M8 safe training engine and Redis job adapter/runner; deployed worker and real candidate training pending
 - [partial] M9 schema, local job/API lifecycle, model registry, and container definitions; PostgreSQL/Redis runtime wiring pending
 - [partial] M10 connected ArchAI Studio frontend shell and API reads; package installation/build pending environment network
-- [ ] M11 repeated-seed research report and ablations
+- [partial] M11 repeated-seed report builder with leakage checks; real repeated-seed results and ablations pending
 - [ ] M12 authorized Hugging Face publication
 
 Unchecked milestones are intentionally not represented as complete capabilities.

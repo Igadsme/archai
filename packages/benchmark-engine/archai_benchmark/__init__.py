@@ -5,5 +5,6 @@ from .search import BenchmarkEvaluator, IndexRandomSearch, QueryBudget
 from .cache import BenchmarkCache
 from .manifest import DatasetManifest, load_manifest
 from .research_metrics import bootstrap_interval, hypervolume_2d, search_regret, summarize_seeds
+from .reporting import build_research_report, validate_run_records
 
-__all__ = ["BenchmarkRecord", "BenchmarkUnavailable", "NATSBenchAdapter", "acquire_file", "sha256_file", "architecture_from_string", "BenchmarkEvaluator", "IndexRandomSearch", "QueryBudget", "BenchmarkCache", "DatasetManifest", "load_manifest", "bootstrap_interval", "hypervolume_2d", "search_regret", "summarize_seeds"]
+__all__ = ["BenchmarkRecord", "BenchmarkUnavailable", "NATSBenchAdapter", "acquire_file", "sha256_file", "architecture_from_string", "BenchmarkEvaluator", "IndexRandomSearch", "QueryBudget", "BenchmarkCache", "DatasetManifest", "load_manifest", "bootstrap_interval", "hypervolume_2d", "search_regret", "summarize_seeds", "build_research_report", "validate_run_records"]

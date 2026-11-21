@@ -18,6 +18,7 @@ Updated 2026-11-20.
 - Job infrastructure now includes a Redis adapter, local state adapter, legal transitions, queue claim, and terminal failure capture for worker handlers.
 - Added a real NATS-Bench predictor training CLI that requires explicit archive/index inputs and writes checkpoint/report provenance with test-leakage metadata.
 - Added `scripts/run_benchmark_search.py` for seeded, budgeted random search that selects on validation accuracy and reports held-out test accuracy separately.
+- Added `scripts/build_report.py` and leakage-aware research reporting that aggregates repeated seeds with confidence intervals and rejects test-selected runs.
 - First normalized PostgreSQL schema migration is present for users, credentials, datasets, architectures, checkpoints, searches, and experiments.
 - Benchmark access now records architecture encodings, caches queries with a uniqueness constraint, and refuses acquisition until a verified checksum is supplied.
 - API now exposes lifecycle surfaces for searches and provenance-backed experiments; local job transitions reject invalid terminal-state changes and worker start reports an explicit unconfigured-worker response.
@@ -29,7 +30,7 @@ Updated 2026-11-20.
 - Closed-loop learned search now connects proposal batches, predictor uncertainty, acquisition ranking, evaluator evidence, budget limits, and Pareto trace extraction.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
-- Test suite: 42 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 44 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 
