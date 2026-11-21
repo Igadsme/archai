@@ -269,7 +269,9 @@ def start_search(search_id: str):
     job = _jobs.get(search_id)
     if job is None:
         raise HTTPException(status_code=404, detail="search job not found")
-    raise HTTPException(status_code=503, detail="no durable experiment worker is configured")
+    if not isinstance(_jobs, RedisJobStore):
+        raise HTTPException(status_code=503, detail="no durable experiment worker is configured")
+    return {**search, "status": job.status, "job": job.as_dict()}
 
 
 @app.post("/v1/searches/{search_id}/cancel", dependencies=[Depends(require_write_access)])

@@ -21,7 +21,11 @@ services:
     build:
       context: ../..
       dockerfile: apps/api/Dockerfile
-    command: ["python", "-c", "raise SystemExit('worker image placeholder: configure the durable worker implementation before enabling')"]
+    command: ["python", "-m", "archai_api.worker"]
+    environment:
+      ARCHAI_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis: {condition: service_healthy}
     profiles: ["worker"]
   web:
     build:

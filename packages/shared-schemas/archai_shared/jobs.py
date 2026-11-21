@@ -64,6 +64,16 @@ class InMemoryJobStore:
         with self._lock:
             return list(self._jobs.values())
 
+    def pop_queued(self) -> Job | None:
+        """Claim one queued job atomically for a local worker."""
+        with self._lock:
+            for job in self._jobs.values():
+                if job.status == "queued":
+                    job.status = "running"
+                    job.updated_at = datetime.now(timezone.utc)
+                    return job
+        return None
+
 
 class RedisJobStore:
     """Redis adapter for the same job contract; dependency is optional and lazy."""
