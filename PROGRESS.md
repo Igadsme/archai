@@ -65,11 +65,12 @@ Updated 2026-11-21.
 - Benchmark search now also supports finite-pool NAS-Bench-201 regularized evolution, with operation-label mutation, validation-only selection, and worker/CLI coverage under the same query budget.
 - Search acquisition now supports expected improvement, upper-confidence bounds, and uncertainty-aware candidate ranking.
 - Closed-loop learned search now connects proposal batches, predictor uncertainty, acquisition ranking, evaluator evidence, budget limits, and Pareto trace extraction.
+- Learned closed-loop search now atomically persists observations/deduplication state and supports cancellation plus explicit resume with an expanded budget.
 - Search baselines now include parent-based regularized evolution mutations plus dependency-light Bayesian optimization with seeded warmup, kernel/UCB scoring, and finite-pool deduplication.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 81 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 83 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 

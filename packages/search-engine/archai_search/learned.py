@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
+from pathlib import Path
 from typing import Callable
 
 from archai_core.schema import Architecture
@@ -23,17 +25,70 @@ class LearnedSearch:
     """Connect proposal, predictor, acquisition, evaluation, and Pareto trace."""
     def __init__(self, proposer: Callable[[int], list[Architecture]],
                  predictor: Callable[[list[Architecture]], list[tuple[float, float]]],
-                 evaluator: Callable[[Architecture], dict[str, float]], *, budget: int):
+                 evaluator: Callable[[Architecture], dict[str, float]], *, budget: int,
+                 state_path: str | Path | None = None):
         if budget <= 0:
             raise ValueError("budget must be positive")
         self.proposer, self.predictor, self.evaluator, self.budget = proposer, predictor, evaluator, budget
+        self.state_path = Path(state_path) if state_path is not None else None
         self.observations: list[SearchObservation] = []
         self.seen: set[str] = set()
         self.status = "created"
+        self._cancel_requested = False
+        self._load()
+
+    def _persist(self) -> None:
+        if self.state_path is None:
+            return
+        payload = {"status": self.status, "seen": sorted(self.seen),
+                   "observations": [{"architecture_id": item.architecture_id,
+                                     "predicted_mean": item.predicted_mean,
+                                     "predicted_std": item.predicted_std,
+                                     "measured_score": item.measured_score,
+                                     "evidence_type": item.evidence_type,
+                                     "metrics": item.metrics} for item in self.observations]}
+        self.state_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.state_path.with_suffix(self.state_path.suffix + ".partial")
+        temporary.write_text(json.dumps(payload, sort_keys=True, indent=2))
+        temporary.replace(self.state_path)
+
+    def _load(self) -> None:
+        if self.state_path is None or not self.state_path.exists():
+            return
+        payload = json.loads(self.state_path.read_text())
+        self.observations = [SearchObservation(
+            architecture_id=str(item["architecture_id"]),
+            predicted_mean=float(item["predicted_mean"]),
+            predicted_std=float(item["predicted_std"]),
+            measured_score=float(item["measured_score"]),
+            evidence_type=str(item["evidence_type"]),
+            metrics={str(key): float(value) for key, value in item.get("metrics", {}).items()},
+        ) for item in payload.get("observations", [])]
+        self.seen = set(str(identifier) for identifier in payload.get("seen", []))
+        self.status = str(payload.get("status", "created"))
+        if self.status == "cancel_requested":
+            self._cancel_requested = True
+
+    def cancel(self) -> None:
+        self._cancel_requested = True
+        self.status = "cancel_requested"
+        self._persist()
+
+    def resume(self) -> None:
+        if self.status in {"completed", "cancelled"} and len(self.observations) >= self.budget:
+            return
+        self._cancel_requested = False
+        self.status = "created"
+        self._persist()
 
     def step(self, pool_size: int = 8) -> SearchObservation | None:
+        if self._cancel_requested:
+            self.status = "cancelled"
+            self._persist()
+            return None
         if len(self.observations) >= self.budget:
             self.status = "completed"
+            self._persist()
             return None
         candidates = []
         for candidate in self.proposer(pool_size):
@@ -43,6 +98,7 @@ class LearnedSearch:
                 candidates.append(candidate)
         if not candidates:
             self.status = "completed"
+            self._persist()
             return None
         incumbent = max((item.measured_score for item in self.observations), default=float("-inf"))
         predictions = self.predictor(candidates)
@@ -58,15 +114,25 @@ class LearnedSearch:
                                         str(result.get("evidence_type", "measured")),
                                         {key: float(value) for key, value in result.items() if isinstance(value, (int, float))})
         self.observations.append(observation)
+        self._persist()
         self.status = "completed" if len(self.observations) >= self.budget else "running"
+        self._persist()
         return observation
 
     def run(self, pool_size: int = 8) -> list[SearchObservation]:
+        if self._cancel_requested:
+            self.status = "cancelled"
+            self._persist()
+            return list(self.observations)
         self.status = "running"
+        self._persist()
         while len(self.observations) < self.budget and self.step(pool_size) is not None:
             pass
-        if len(self.observations) >= self.budget or self.status == "completed":
+        if self._cancel_requested:
+            self.status = "cancelled"
+        elif len(self.observations) >= self.budget or self.status == "completed":
             self.status = "completed"
+        self._persist()
         return list(self.observations)
 
     def pareto_frontier(self) -> list[dict[str, float]]:

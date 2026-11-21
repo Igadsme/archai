@@ -17,3 +17,29 @@ def test_learned_search_connects_prediction_and_evaluation():
     assert len(observations) == 2
     assert search.status == "completed"
     assert len(search.pareto_frontier()) >= 1
+
+
+def test_learned_search_persists_and_resumes(tmp_path):
+    candidates = [candidate(4), candidate(8), candidate(16)]
+    batches = iter([[candidates[0]], [candidates[1]], [candidates[2]]])
+    state = tmp_path / "learned.json"
+    search = LearnedSearch(lambda _size: next(batches, []),
+        lambda values: [(0.5, 0.1) for _ in values],
+        lambda item: {"score": item.nodes[1].channels / 100}, budget=1, state_path=state)
+    assert len(search.run()) == 1
+    resumed = LearnedSearch(lambda _size: next(batches, []),
+        lambda values: [(0.5, 0.1) for _ in values],
+        lambda item: {"score": item.nodes[1].channels / 100}, budget=2, state_path=state)
+    assert len(resumed.run()) == 2
+    assert resumed.status == "completed"
+
+
+def test_learned_search_cancellation_is_persisted_and_resumable(tmp_path):
+    state = tmp_path / "cancelled.json"
+    search = LearnedSearch(lambda _size: [], lambda values: [], lambda item: {}, budget=1, state_path=state)
+    search.cancel()
+    assert search.run() == []
+    assert search.status == "cancelled"
+    resumed = LearnedSearch(lambda _size: [], lambda values: [], lambda item: {}, budget=1, state_path=state)
+    resumed.resume()
+    assert resumed.status == "created"
