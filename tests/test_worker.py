@@ -1,5 +1,6 @@
 import hashlib
 import json
+import time
 from datetime import datetime, timezone
 
 import pytest
@@ -199,3 +200,21 @@ def test_worker_runner_emits_redis_heartbeats():
     assert worker["worker_id"] == "worker-test"
     assert worker["status"] == "idle"
     assert datetime.fromisoformat(worker["last_seen"]).tzinfo == timezone.utc
+
+
+def test_worker_runner_refreshes_heartbeat_during_long_handler():
+    from archai_shared.jobs import RedisJobStore
+
+    store = RedisJobStore(FakeRedis())
+    job = store.create("training")
+    observed = []
+
+    def slow_handler(_job):
+        time.sleep(0.03)
+        observed.extend(store.list_workers())
+        return None
+
+    runner = WorkerRunner(store, {"training": slow_handler}, worker_id="worker-long", heartbeat_interval=0.005)
+    assert runner.run_once().status == "succeeded"
+    assert observed and observed[0]["status"] == "running"
+    assert observed[0]["active_job_id"] == job.job_id

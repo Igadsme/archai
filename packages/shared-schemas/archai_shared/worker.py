@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import socket
-from threading import Event
+from threading import Event, Thread
 from typing import Protocol
 from uuid import uuid4
 
@@ -39,10 +39,14 @@ class WorkerRunner:
     terminal failure, which keeps unsupported work visible to operators.
     """
 
-    def __init__(self, store: JobStore, handlers: dict[str, JobHandler], *, worker_id: str | None = None):
+    def __init__(self, store: JobStore, handlers: dict[str, JobHandler], *, worker_id: str | None = None,
+                 heartbeat_interval: float = 5.0):
         self.store = store
         self.handlers = handlers
         self.worker_id = worker_id or f"{socket.gethostname()}-{uuid4().hex[:12]}"
+        if heartbeat_interval <= 0:
+            raise ValueError("heartbeat_interval must be positive")
+        self.heartbeat_interval = heartbeat_interval
 
     def _heartbeat(self, active_job_id: str | None = None) -> None:
         if isinstance(self.store, RedisJobStore):
@@ -51,6 +55,10 @@ class WorkerRunner:
             except Exception:
                 # Liveness reporting must not turn a successful job into a failure.
                 pass
+
+    def _heartbeat_loop(self, active_job_id: str, stop: Event) -> None:
+        while not stop.wait(self.heartbeat_interval):
+            self._heartbeat(active_job_id)
 
     def claim(self, timeout: int = 0) -> Job | None:
         if isinstance(self.store, RedisJobStore):
@@ -67,6 +75,9 @@ class WorkerRunner:
         if job is None:
             return None
         self._heartbeat(job.job_id)
+        heartbeat_stop = Event()
+        heartbeat_thread = Thread(target=self._heartbeat_loop, args=(job.job_id, heartbeat_stop), daemon=True)
+        heartbeat_thread.start()
         try:
             handler = self.handlers.get(job.kind)
             if handler is None:
@@ -83,6 +94,8 @@ class WorkerRunner:
                 return latest
             return self.store.transition(job.job_id, "failed", error=f"{type(exc).__name__}: {exc}")
         finally:
+            heartbeat_stop.set()
+            heartbeat_thread.join(timeout=max(1.0, self.heartbeat_interval))
             self._heartbeat()
         return self.store.transition(job.job_id, "succeeded")
 
