@@ -25,3 +25,16 @@ def test_report_rejects_duplicate_seeds_and_mismatched_budgets():
         build_research_report([base, dict(base)])
     with pytest.raises(ValueError, match="matched-budget"):
         build_research_report([base, {**base, "algorithm": "evolution", "seed": 2, "budget": 20}])
+
+
+def test_report_can_require_matched_baselines_and_repeated_seeds():
+    records = [
+        {"algorithm": algorithm, "seed": seed, "best_validation_accuracy": 0.8,
+         "selected_on": "validation", "budget": 10}
+        for algorithm in ("random", "evolution") for seed in (1, 2)
+    ]
+    report = build_research_report(records, required_algorithms=("random", "evolution"), min_seeds=2)
+    assert report["required_algorithms"] == ["random", "evolution"]
+    assert report["minimum_seeds"] == 2
+    with pytest.raises(ValueError, match="required algorithms"):
+        build_research_report(records[:2], required_algorithms=("random", "evolution"), min_seeds=1)

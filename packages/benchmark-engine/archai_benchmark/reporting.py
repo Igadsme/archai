@@ -24,13 +24,18 @@ def validate_run_records(records: list[dict]) -> None:
         raise ValueError("matched-budget comparison requires one declared budget")
 
 
-def build_research_report(records: list[dict], *, seed: int = 0) -> dict:
+def build_research_report(records: list[dict], *, seed: int = 0,
+                          required_algorithms: tuple[str, ...] = (), min_seeds: int = 1) -> dict:
+    if min_seeds <= 0:
+        raise ValueError("min_seeds must be positive")
     validate_run_records(records)
     grouped = defaultdict(list)
     for record in records:
         grouped[str(record["algorithm"])].append(record)
     algorithms = {}
     for algorithm, runs in sorted(grouped.items()):
+        if len({int(run["seed"]) for run in runs}) < min_seeds:
+            raise ValueError(f"algorithm {algorithm} has fewer than {min_seeds} independent seeds")
         summary = {"best_validation_accuracy": summarize_seeds([float(run["best_validation_accuracy"]) for run in runs], seed=seed)}
         if all("final_test_accuracy" in run for run in runs):
             summary["final_test_accuracy"] = summarize_seeds([float(run["final_test_accuracy"]) for run in runs], seed=seed)
@@ -43,4 +48,9 @@ def build_research_report(records: list[dict], *, seed: int = 0) -> dict:
               "test_selection_policy": "validation_only"}
     if budget is not None:
         report["matched_budget"] = budget
+    missing = sorted(set(required_algorithms) - set(grouped))
+    if missing:
+        raise ValueError(f"required algorithms are missing: {', '.join(missing)}")
+    report["required_algorithms"] = list(required_algorithms)
+    report["minimum_seeds"] = min_seeds
     return report

@@ -77,6 +77,7 @@ Updated 2026-11-21.
 - Added a root Docker build-context policy that excludes local dependencies, raw datasets, checkpoints, caches, and VCS metadata from container builds.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
 - Research report aggregation now rejects duplicate algorithm/seed records and mismatched declared budgets before producing comparison summaries.
+- Report generation can now require named baselines and a minimum independent-seed count, making random/evolution comparison protocol checks explicit at the CLI boundary.
 - Model artifact registry now stores versioned model manifests with SHA-256 checksums and exposes read-only API listing.
 - The model registry now also supports authenticated API registration with artifact existence checks, immutable model/version enforcement, and checksum-backed retrieval.
 - Model registry reads now re-hash locally accessible artifacts and expose explicit existence/integrity status, detecting post-registration tampering.
@@ -90,7 +91,7 @@ Updated 2026-11-21.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 98 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 99 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 
