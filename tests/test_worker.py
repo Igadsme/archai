@@ -38,3 +38,13 @@ def test_benchmark_handler_requires_verified_archive_configuration(monkeypatch):
     job = InMemoryJobStore().create("search", {"budget_evaluations": 1})
     with pytest.raises(RuntimeError, match="ARCHAI_NATS_BENCH_PATH"):
         benchmark_search(job)
+
+
+def test_benchmark_handler_does_not_mislabel_unsupported_algorithm(monkeypatch):
+    from archai_api.worker import benchmark_search
+
+    monkeypatch.setenv("ARCHAI_NATS_BENCH_PATH", "/tmp/archive")
+    monkeypatch.setenv("ARCHAI_NATS_BENCH_SHA256", "a" * 64)
+    job = InMemoryJobStore().create("search", {"algorithm": "evolution", "budget_evaluations": 1})
+    with pytest.raises(RuntimeError, match="algorithm=random only"):
+        benchmark_search(job)

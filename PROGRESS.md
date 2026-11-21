@@ -47,6 +47,7 @@ Updated 2026-11-21.
 - API CORS is now explicit and environment-configured, with local Studio origins enabled by default and preflight coverage.
 - Generator checkpoint save/load is now verified with deterministic post-reload sampling, matching predictor checkpoint evidence.
 - Generator CLI execution is now covered end-to-end from conditional JSONL corpus through checkpoint/report generation.
+- Benchmark worker rejects unsupported algorithm names instead of silently recording them as random search.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
