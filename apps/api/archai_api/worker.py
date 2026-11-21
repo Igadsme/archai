@@ -70,6 +70,90 @@ def candidate_training(job: Job) -> dict:
             "evidence_type": "synthetic_training", "seed": seed}
 
 
+def generator_training(job: Job) -> dict:
+    """Train and checkpoint the conditional generator from an explicit JSONL corpus."""
+    config = job.payload
+    corpus_path = config.get("corpus_path")
+    checkpoint_path = config.get("checkpoint_path")
+    if not corpus_path or not checkpoint_path:
+        raise RuntimeError("generator jobs require corpus_path and checkpoint_path")
+    from pathlib import Path
+    corpus = Path(corpus_path)
+    if not corpus.is_file():
+        raise RuntimeError(f"generator corpus is unavailable: {corpus}")
+    try:
+        from archai_generator.model import ArchitectureGenerator, GeneratorConfig
+        from archai_generator.training import fit_generator, generation_metrics, save_checkpoint
+        from scripts.train_generator import load_examples
+    except ImportError as exc:
+        raise RuntimeError("install the ml extra for generator workers") from exc
+    seed = int(config.get("seed", 0))
+    examples = load_examples(corpus)
+    model = ArchitectureGenerator(GeneratorConfig(condition_dim=8))
+    history = fit_generator(model, examples, epochs=int(config.get("epochs", 20)), seed=seed)
+    candidates = model.sample(seed=seed, condition=examples[0][1])[:int(config.get("sample_count", 8))]
+    metrics = generation_metrics(candidates)
+    metadata = {"model": "ArchAI-V1", "kind": "generator", "seed": seed,
+                "corpus_examples": len(examples), "conditional": True,
+                "test_selection": "not applicable", "evidence_type": "generator_training"}
+    save_checkpoint(model, checkpoint_path, metadata)
+    return {"status": "completed", "checkpoint_path": str(checkpoint_path),
+            "corpus_examples": len(examples), "training_loss": history,
+            "generation_metrics": metrics, "evidence_type": "generator_training", "seed": seed}
+
+
+def predictor_training(job: Job) -> dict:
+    """Train the predictor only from a checksum-verified NATS-Bench archive."""
+    config = job.payload
+    benchmark_path = config.get("benchmark_path")
+    expected_checksum = config.get("benchmark_sha256")
+    checkpoint_path = config.get("checkpoint_path")
+    raw_indices = config.get("indices")
+    if not benchmark_path or not expected_checksum or not checkpoint_path or not raw_indices:
+        raise RuntimeError("predictor jobs require benchmark_path, benchmark_sha256, indices, and checkpoint_path")
+    if len(raw_indices) < 3:
+        raise RuntimeError("predictor jobs require at least three indices for train/validation/test")
+    from pathlib import Path
+    archive = Path(benchmark_path)
+    if not archive.is_file():
+        raise RuntimeError(f"benchmark archive is unavailable: {archive}")
+    try:
+        from archai_benchmark.adapter import NATSBenchAdapter
+        from archai_benchmark.integrity import sha256_file
+        from archai_core.schema import TensorSpec
+        from archai_predictor.data import split_records
+        from archai_predictor.model import PerformancePredictor, PredictorConfig
+        from archai_predictor.training import evaluate_predictor, fit_predictor, save_checkpoint
+        from scripts.train_predictor import collect_records
+    except ImportError as exc:
+        raise RuntimeError("install the benchmark and ml extras for predictor workers") from exc
+    actual_checksum = sha256_file(archive)
+    if actual_checksum != str(expected_checksum).lower():
+        raise RuntimeError("benchmark archive checksum mismatch")
+    dataset = str(config.get("dataset", "cifar10"))
+    search_space = str(config.get("search_space", "tss"))
+    seed = int(config.get("seed", 0))
+    adapter = NATSBenchAdapter(str(archive), search_space, dataset).open()
+    records = collect_records(adapter, [int(index) for index in raw_indices], seed, dataset)
+    splits = split_records(records, seed=seed)
+    if not all(splits.values()):
+        raise RuntimeError("predictor split produced an empty partition")
+    model = PerformancePredictor(PredictorConfig())
+    history = fit_predictor(model, splits["train"], epochs=int(config.get("epochs", 20)), seed=seed)
+    validation = evaluate_predictor(model, splits["validation"])
+    test = evaluate_predictor(model, splits["test"])
+    metadata = {"model": "ArchAI-Predictor", "dataset": dataset,
+                "search_space": search_space, "seed": seed,
+                "split_sizes": {key: len(value) for key, value in splits.items()},
+                "test_used_for_selection": False, "archive_sha256": actual_checksum,
+                "evidence_type": "benchmark_training"}
+    save_checkpoint(model, checkpoint_path, metadata)
+    return {"status": "completed", "checkpoint_path": str(checkpoint_path),
+            "training_loss": history, "validation": validation, "test": test,
+            "evidence_type": "benchmark_training", "seed": seed,
+            "archive_sha256": actual_checksum, "test_used_for_selection": False}
+
+
 def benchmark_search(job: Job) -> dict:
     """Run the configured validation-selected benchmark search.
 
@@ -145,7 +229,9 @@ def main() -> int:
         raise SystemExit("ARCHAI_REDIS_URL is required for the durable worker")
     store = RedisJobStore.from_url(url)
     store.client.ping()
-    WorkerRunner(store, {"search": benchmark_search, "training": candidate_training}).run_forever()
+    WorkerRunner(store, {"search": benchmark_search, "training": candidate_training,
+                         "generator_training": generator_training,
+                         "predictor_training": predictor_training}).run_forever()
     return 0
 
 

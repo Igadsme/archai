@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from archai_shared.jobs import InMemoryJobStore
@@ -66,6 +68,35 @@ def test_training_handler_rejects_implicit_real_dataset_substitution():
     job = InMemoryJobStore().create("training", {"dataset": "cifar10"})
     with pytest.raises(RuntimeError, match="dataset=synthetic"):
         candidate_training(job)
+
+
+def test_generator_training_handler_writes_checkpoint(tmp_path):
+    pytest.importorskip("torch")
+    from archai_api.worker import generator_training
+    from archai_core.schema import Architecture, Edge, Node, TensorSpec
+
+    architecture = Architecture(nodes=[Node(id="input", op="input", channels=3),
+                                       Node(id="conv", op="conv3x3", channels=4),
+                                       Node(id="output", op="output", channels=4)],
+        edges=[Edge(source="input", target="conv"), Edge(source="conv", target="output")],
+        input_spec=TensorSpec(channels=3, height=4, width=4), output_classes=2)
+    corpus = tmp_path / "corpus.jsonl"
+    corpus.write_text(json.dumps({"architecture": architecture.model_dump(), "condition": [0.0] * 8}) + "\n")
+    checkpoint = tmp_path / "generator.pt"
+    job = InMemoryJobStore().create("generator_training", {"corpus_path": str(corpus),
+        "checkpoint_path": str(checkpoint), "epochs": 1, "seed": 3, "sample_count": 2})
+    result = generator_training(job)
+    assert result["status"] == "completed"
+    assert result["evidence_type"] == "generator_training"
+    assert checkpoint.exists()
+
+
+def test_predictor_training_handler_requires_verified_archive_configuration():
+    from archai_api.worker import predictor_training
+
+    job = InMemoryJobStore().create("predictor_training", {"indices": [1, 2, 3]})
+    with pytest.raises(RuntimeError, match="benchmark_path"):
+        predictor_training(job)
 
 
 def test_benchmark_handler_does_not_mislabel_unsupported_algorithm(monkeypatch):
