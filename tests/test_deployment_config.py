@@ -16,6 +16,13 @@ def test_web_image_does_not_require_untracked_lockfile():
     assert "package-lock.json" not in dockerfile
 
 
+def test_web_ci_exposes_source_typecheck():
+    package = (ROOT / "apps/web/package.json").read_text()
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+    assert '"typecheck":"tsc --noEmit"' in package
+    assert "npm run typecheck" in workflow
+
+
 def test_postgres_schema_has_no_duplicate_experiment_columns_and_named_model_uniqueness():
     schema = (ROOT / "infrastructure/postgres/0001_initial.sql").read_text()
     assert schema.count("started_at TIMESTAMPTZ") == 1
