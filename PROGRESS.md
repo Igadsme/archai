@@ -44,7 +44,7 @@ Updated 2026-11-21.
 - Added a database-aware model registration CLI with SHA-256 manifests and a model-card template for reproducibility evidence.
 - ArchAI Studio now reads architecture, search, experiment, and dataset registries and renders live evidence/status counts with explicit unavailable/empty states.
 - Readiness now probes configured database connectivity and supports an explicit `ARCHAI_REQUIRE_REDIS=1` gate for durable deployments.
-- CI now installs the platform extra, verifies a fresh Alembic schema reaches `0003_platform_metadata`, and validates Docker Compose configuration without requiring live services.
+- CI now installs the platform extra, verifies a fresh Alembic schema reaches `0004_model_identifiers`, and validates Docker Compose configuration without requiring live services.
 - API CORS is now explicit and environment-configured, with local Studio origins enabled by default and preflight coverage.
 - Generator checkpoint save/load is now verified with deterministic post-reload sampling, matching predictor checkpoint evidence.
 - Generator CLI execution is now covered end-to-end from conditional JSONL corpus through checkpoint/report generation.
@@ -63,7 +63,7 @@ Updated 2026-11-21.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 73 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 75 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 
