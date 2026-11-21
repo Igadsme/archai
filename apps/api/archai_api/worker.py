@@ -15,6 +15,8 @@ def benchmark_search(job: Job) -> dict:
     The archive checksum is mandatory so a worker cannot silently query an
     unverified or stale benchmark file.
     """
+    if job.payload.get("algorithm", "random") != "random":
+        raise RuntimeError("benchmark worker currently supports algorithm=random only")
     try:
         from archai_benchmark import BenchmarkCache, BenchmarkEvaluator, IndexRandomSearch, NATSBenchAdapter, QueryBudget
         from archai_benchmark.integrity import sha256_file
@@ -31,8 +33,6 @@ def benchmark_search(job: Job) -> dict:
     if actual_checksum != expected_checksum.lower():
         raise RuntimeError("benchmark archive checksum mismatch")
     config = job.payload
-    if config.get("algorithm", "random") != "random":
-        raise RuntimeError("benchmark worker currently supports algorithm=random only")
     raw_indices = config.get("indices") or [int(value) for value in os.getenv("ARCHAI_NATS_BENCH_INDICES", "").split(",") if value.strip()]
     indices = [int(value) for value in raw_indices]
     if not indices:
