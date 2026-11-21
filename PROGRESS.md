@@ -13,6 +13,7 @@ Updated 2026-11-20.
 - Benchmark integration supports checksum-gated acquisition, NAS-Bench-201 encoding conversion, and an explicit query budget.
 - Autonomous search control supports validation, deduplication, injected evaluation, atomic JSON persistence, cancellation requests, budget enforcement, and resume with an expanded budget.
 - Training engine supports reproducible classification loops, gradient accumulation, optional AMP, early stopping, safe state-dict checkpoints, and resume.
+- Candidate training now compiles a canonical architecture into PyTorch and runs it through the training engine; CIFAR-10/CIFAR-100 adapters require explicit download opt-in.
 - Provenance records and an append-only artifact store preserve evidence type and dataset/checkpoint/hardware/seed metadata.
 - Local API registry supports architecture create/list/retrieve/validate with optional API-key protection for writes.
 - Job infrastructure now includes a Redis adapter, local state adapter, legal transitions, queue claim, and terminal failure capture for worker handlers.
@@ -31,7 +32,7 @@ Updated 2026-11-20.
 - Search baselines now include parent-based regularized evolution mutations plus dependency-light Bayesian optimization with seeded warmup, kernel/UCB scoring, and finite-pool deduplication.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
-- Test suite: 48 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 49 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 
