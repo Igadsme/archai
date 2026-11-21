@@ -116,7 +116,11 @@ def test_model_registry_api_registers_checksum_manifest(tmp_path):
     assert registered.status_code == 200
     body = registered.json()
     assert body["sha256"] == hashlib.sha256(artifact.read_bytes()).hexdigest()
+    assert body["artifact_exists"] is True
+    assert body["integrity_verified"] is True
     assert client.get(f"/v1/models/{model_id}?version=v1").json()["sha256"] == body["sha256"]
+    artifact.write_bytes(b"tampered")
+    assert client.get(f"/v1/models/{model_id}?version=v1").json()["integrity_verified"] is False
 
 
 def test_experiment_api_enforces_evidence_provenance():

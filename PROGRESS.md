@@ -79,6 +79,7 @@ Updated 2026-11-21.
 - Research report aggregation now rejects duplicate algorithm/seed records and mismatched declared budgets before producing comparison summaries.
 - Model artifact registry now stores versioned model manifests with SHA-256 checksums and exposes read-only API listing.
 - The model registry now also supports authenticated API registration with artifact existence checks, immutable model/version enforcement, and checksum-backed retrieval.
+- Model registry reads now re-hash locally accessible artifacts and expose explicit existence/integrity status, detecting post-registration tampering.
 - Benchmark baseline now includes seeded random index traversal under the existing query budget abstraction.
 - Benchmark search now also supports finite-pool NAS-Bench-201 regularized evolution, with operation-label mutation, validation-only selection, and worker/CLI coverage under the same query budget.
 - Search acquisition now supports expected improvement, upper-confidence bounds, and uncertainty-aware candidate ranking.

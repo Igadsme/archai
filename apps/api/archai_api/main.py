@@ -7,6 +7,7 @@ import re
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
@@ -21,7 +22,7 @@ from archai_api.db import (SqlAlchemyArchitectureStore, SqlAlchemyExperimentStor
                            database_is_ready)
 from archai_shared.jobs import InMemoryJobStore, RedisJobStore
 from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance
-from archai_shared.registry import ModelRegistry
+from archai_shared.registry import ModelRegistry, sha256_file
 from pydantic import BaseModel, ConfigDict, Field
 
 app = FastAPI(title="ArchAI API", version="v1")
@@ -534,7 +535,15 @@ def update_experiment(experiment_id: str, request: ExperimentUpdate):
 
 @app.get("/v1/models")
 def list_models():
-    return {"items": [item.__dict__ for item in _model_registry.list()]}
+    return {"items": [_model_response(item) for item in _model_registry.list()]}
+
+
+def _model_response(item):
+    value = item.__dict__.copy()
+    artifact = Path(item.path)
+    value["artifact_exists"] = artifact.is_file()
+    value["integrity_verified"] = artifact.is_file() and sha256_file(artifact) == item.sha256
+    return value
 
 
 @app.post("/v1/models", dependencies=[Depends(require_write_access)])
@@ -547,7 +556,7 @@ def register_model(request: ModelRequest):
         raise HTTPException(status_code=404, detail=f"model artifact not found: {exc}") from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return artifact.__dict__
+    return _model_response(artifact)
 
 
 @app.get("/v1/models/{model_id}")
@@ -555,7 +564,7 @@ def get_model(model_id: str, version: str | None = None):
     artifact = _model_registry.get(model_id, version)
     if artifact is None:
         raise HTTPException(status_code=404, detail="model not found")
-    return artifact.__dict__
+    return _model_response(artifact)
 
 
 @app.post("/v1/datasets", dependencies=[Depends(require_write_access)])
