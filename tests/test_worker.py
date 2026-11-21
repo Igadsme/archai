@@ -48,3 +48,38 @@ def test_benchmark_handler_does_not_mislabel_unsupported_algorithm(monkeypatch):
     job = InMemoryJobStore().create("search", {"algorithm": "evolution", "budget_evaluations": 1})
     with pytest.raises(RuntimeError, match="algorithm=random only"):
         benchmark_search(job)
+
+
+class FakeRedis:
+    def __init__(self):
+        self.values = {}
+        self.queue = []
+
+    def ping(self):
+        return True
+
+    def set(self, key, value):
+        self.values[key] = value
+
+    def get(self, key):
+        return self.values.get(key)
+
+    def rpush(self, _key, value):
+        self.queue.append(value)
+
+    def blpop(self, _key, timeout=0):
+        return ("archai:queue", self.queue.pop(0)) if self.queue else None
+
+    def scan_iter(self, match=None):
+        return iter(self.values)
+
+
+def test_redis_worker_round_trip_persists_result():
+    from archai_shared.jobs import RedisJobStore
+
+    store = RedisJobStore(FakeRedis())
+    job = store.create("training", {"seed": 4})
+    runner = WorkerRunner(store, {"training": lambda _job: {"accuracy": 0.9}})
+    result = runner.run_once()
+    assert result.status == "succeeded"
+    assert store.get(job.job_id).payload["result"] == {"accuracy": 0.9}
