@@ -11,7 +11,7 @@
 - [ ] M7 matched multi-objective baseline studies
 - [ ] M8 durable workers and real candidate training on configured hardware
 - [ ] M9 PostgreSQL/Redis production deployment and authenticated job APIs
-- [ ] M10 connected ArchAI Studio frontend
+- [partial] M10 connected ArchAI Studio frontend shell and API reads; package installation/build pending environment network
 - [ ] M11 repeated-seed research report and ablations
 - [ ] M12 authorized Hugging Face publication
 

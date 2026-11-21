@@ -17,6 +17,7 @@ Updated 2026-11-20.
 - First normalized PostgreSQL schema migration is present for users, credentials, datasets, architectures, checkpoints, searches, and experiments.
 - Benchmark access now records architecture encodings, caches queries with a uniqueness constraint, and refuses acquisition until a verified checksum is supplied.
 - API now exposes lifecycle surfaces for searches and provenance-backed experiments; local job transitions reject invalid terminal-state changes and worker start reports an explicit unconfigured-worker response.
+- ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
 - Test suite: 22 passing tests.
 
 ## Evidence boundaries
@@ -29,6 +30,7 @@ No NATS-Bench archive, trained research checkpoint, benchmark table, GPU run, re
 2. The full NAS-Bench-201 cell semantics require a dedicated compiler representation for operation-per-edge cells; the current canonical converter preserves the encoding as an explicit typed DAG for validation and metadata, while the research compiler supports the allowlisted tensor graph.
 3. PostgreSQL, Redis, durable workers, authentication, and the complete frontend remain unimplemented.
 4. Hugging Face publishing requires user-provided authorization and release decisions.
+5. Frontend dependency installation hung without output in this environment; `next build` therefore could not run because the `next` binary was unavailable.
 
 ## Repository state
 
