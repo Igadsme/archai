@@ -53,6 +53,22 @@ def test_integrity_verification(tmp_path):
     assert acquired.read_bytes() == b"archai"
     with pytest.raises(ValueError):
         acquire_file(source.as_uri(), tmp_path / "bad.bin", "0" * 64)
+    assert not list(tmp_path.glob(".bad.bin.*.partial"))
+
+
+def test_acquisition_rejects_malformed_digest_without_overwriting_destination(tmp_path):
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"new")
+    destination = tmp_path / "destination.bin"
+    destination.write_bytes(b"old")
+    with pytest.raises(ValueError, match="64-character"):
+        acquire_file(source.as_uri(), destination, "bad")
+    assert destination.read_bytes() == b"old"
+
+    with pytest.raises(ValueError, match="checksum mismatch"):
+        acquire_file(source.as_uri(), destination, "0" * 64)
+    assert destination.read_bytes() == b"old"
+    assert not list(tmp_path.glob(".destination.bin.*.partial"))
 
 
 def test_dataset_acquisition_cli_requires_and_reports_verified_manifest(tmp_path, monkeypatch, capsys):
