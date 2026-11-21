@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .data import ArchitectureRecord, collate_records
-from .evaluation import regression_metrics
+from .evaluation import gaussian_calibration_error, regression_metrics
 
 
 def gaussian_nll(output, target):
@@ -42,7 +42,9 @@ def evaluate_predictor(model, records: list[ArchitectureRecord], interval_z: flo
     predictions = [float(item) for item in means]
     intervals = [(float(mean - interval_z * deviation), float(mean + interval_z * deviation))
                  for mean, deviation in zip(means, std)]
-    return regression_metrics(values, predictions, intervals)
+    result = regression_metrics(values, predictions, intervals)
+    result["calibration_error"] = gaussian_calibration_error(values, predictions, [float(item) for item in std])
+    return result
 
 
 def save_checkpoint(model, path: str | Path, metadata: dict):

@@ -3,7 +3,7 @@ import pytest
 from archai_core.schema import Architecture, Edge, Node, TensorSpec
 from archai_core.validation import validate_architecture
 from archai_predictor.data import ArchitectureRecord, collate_records, split_records
-from archai_predictor.evaluation import regression_metrics
+from archai_predictor.evaluation import embedding_ood_scores, gaussian_calibration_error, regression_metrics
 from archai_predictor.model import PerformancePredictor, PredictorConfig
 from archai_predictor.training import evaluate_predictor, fit_predictor, load_checkpoint, save_checkpoint
 
@@ -28,6 +28,13 @@ def test_regression_metrics():
     result = regression_metrics([1.0, 2.0, 3.0], [1.0, 2.5, 2.5])
     assert result["mae"] == pytest.approx(1 / 3)
     assert -1 <= result["kendall"] <= 1
+    assert 0 <= gaussian_calibration_error([1, 2, 3], [1, 2, 3], [0.1, 0.1, 0.1]) <= 1
+
+
+def test_embedding_ood_scores_separate_reference_and_query():
+    pytest.importorskip("numpy")
+    scores = embedding_ood_scores([[0, 0], [1, 1], [2, 2]], [[1, 1], [100, 100]])
+    assert scores[1] > scores[0]
 
 
 def test_predictor_training_checkpoint_roundtrip(tmp_path):

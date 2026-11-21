@@ -7,7 +7,7 @@ Updated 2026-11-20.
 - Foundation schemas validate unique, acyclic, reachable DAGs, reject duplicate edges, reject incompatible fan-in channels, and enforce typed identity/input/output metadata.
 - Compiler tests execute a real forward and backward pass when PyTorch is installed; compilation is topological-order independent and supports convolution, pooling, skip, none, and output nodes.
 - Analytical metrics propagate upstream channel counts instead of assuming every operation reads the image input.
-- Predictor training supports edge-aware message passing, masked variable-size graph batches, Gaussian NLL uncertainty, deterministic hash-disjoint splits, checkpoint save/load, and MAE/RMSE/Spearman/Kendall/interval coverage metrics.
+- Predictor training supports edge-aware message passing, masked variable-size graph batches, Gaussian NLL uncertainty, deterministic hash-disjoint splits, checkpoint save/load, MAE/RMSE/Spearman/Kendall/interval coverage, calibration error, and embedding OOD scores.
 - Generator training supports a constrained valid-chain autoregressive decoder, teacher forcing, deterministic token-by-token sampling, generation quality metrics, and checkpoint boundaries.
 - Benchmark integration supports checksum-gated acquisition, NAS-Bench-201 encoding conversion, and an explicit query budget.
 - Autonomous search control supports validation, deduplication, injected evaluation, atomic JSON persistence, cancellation requests, budget enforcement, and resume with an expanded budget.
@@ -26,7 +26,7 @@ Updated 2026-11-20.
 - Search acquisition now supports expected improvement, upper-confidence bounds, and uncertainty-aware candidate ranking.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
-- Test suite: 35 passing tests.
+- Test suite: 36 passing tests.
 
 ## Evidence boundaries
 
