@@ -1,6 +1,6 @@
 FROM node:20-alpine AS build
 WORKDIR /opt/archai
-COPY apps/web/package.json apps/web/package-lock.json* ./
+COPY apps/web/package.json ./
 RUN npm install
 COPY apps/web ./
 RUN npm run build
