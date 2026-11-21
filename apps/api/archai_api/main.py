@@ -6,7 +6,7 @@ import hmac
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -198,6 +198,12 @@ class SearchRequest(BaseModel):
     indices: list[int] = Field(default_factory=list, max_length=100_000)
 
 
+class TrainingJobRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["candidate", "generator", "predictor"]
+    payload: dict[str, object] = Field(default_factory=dict)
+
+
 class ExperimentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     architecture_id: str
@@ -341,6 +347,51 @@ def get_architecture(architecture_id: str):
 def create_search(request: SearchRequest):
     job = _jobs.create("search", request.model_dump())
     return _search_store.put(job.job_id, request.model_dump())
+
+
+@app.post("/v1/training", dependencies=[Depends(require_write_access)])
+def create_training_job(request: TrainingJobRequest):
+    required = {
+        "candidate": ("architecture",),
+        "generator": ("corpus_path", "checkpoint_path"),
+        "predictor": ("benchmark_path", "benchmark_sha256", "indices", "checkpoint_path"),
+    }[request.kind]
+    missing = [key for key in required if not request.payload.get(key)]
+    if missing:
+        raise HTTPException(status_code=422, detail={"missing_fields": missing})
+    if request.kind == "candidate" and request.payload.get("dataset", "synthetic") != "synthetic":
+        raise HTTPException(status_code=422, detail="candidate worker requires dataset=synthetic")
+    if request.kind == "predictor":
+        indices = request.payload.get("indices")
+        if not isinstance(indices, list) or len(indices) < 3 or not all(isinstance(index, int) for index in indices):
+            raise HTTPException(status_code=422, detail="predictor worker requires a list of at least three integer indices")
+    worker_kind = f"{request.kind}_training" if request.kind != "candidate" else "training"
+    job = _jobs.create(worker_kind, dict(request.payload))
+    return job.as_dict()
+
+
+@app.get("/v1/jobs")
+def list_jobs(limit: int = Query(default=50, ge=1, le=500)):
+    jobs = sorted(_jobs.list(), key=lambda job: job.created_at, reverse=True)[:limit]
+    return {"items": [job.as_dict() for job in jobs]}
+
+
+@app.get("/v1/jobs/{job_id}")
+def get_job(job_id: str):
+    job = _jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    return job.as_dict()
+
+
+@app.post("/v1/jobs/{job_id}/cancel", dependencies=[Depends(require_write_access)])
+def cancel_job(job_id: str):
+    job = _jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    if job.status in {"queued", "running"}:
+        job = _jobs.transition(job_id, "cancelled")
+    return job.as_dict()
 
 
 @app.get("/v1/searches/{search_id}")

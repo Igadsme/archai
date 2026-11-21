@@ -68,6 +68,27 @@ def test_search_and_experiment_lifecycle_surface():
     assert client.get("/v1/models/unknown").status_code == 404
 
 
+def test_training_job_api_validates_and_exposes_job_lifecycle():
+    client = TestClient(app)
+    missing = client.post("/v1/training", json={"kind": "generator", "payload": {}})
+    assert missing.status_code == 422
+    request = {"kind": "generator", "payload": {"corpus_path": "/tmp/corpus.jsonl",
+        "checkpoint_path": "/tmp/generator.pt", "epochs": 1}}
+    created = client.post("/v1/training", json=request)
+    assert created.status_code == 200
+    job_id = created.json()["job_id"]
+    assert created.json()["kind"] == "generator_training"
+    assert client.get(f"/v1/jobs/{job_id}").json()["status"] == "queued"
+    assert client.get("/v1/jobs").json()["items"]
+    cancelled = client.post(f"/v1/jobs/{job_id}/cancel")
+    assert cancelled.status_code == 200
+    assert cancelled.json()["status"] == "cancelled"
+    assert client.get(f"/v1/jobs/{job_id}").json()["status"] == "cancelled"
+    candidate = client.post("/v1/training", json={"kind": "candidate", "payload": {
+        "architecture": payload(), "dataset": "cifar10"}})
+    assert candidate.status_code == 422
+
+
 def test_readiness_and_queue_status_are_truthful():
     client = TestClient(app)
     readiness = client.get("/readiness")

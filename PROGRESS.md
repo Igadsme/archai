@@ -54,6 +54,7 @@ Updated 2026-11-21.
 - The shared direct `run_job` path now persists handler results identically to `WorkerRunner`, preventing local execution from losing metrics or artifact references.
 - Durable workers now expose an explicit candidate-training handler with reproducible synthetic smoke data, real compiler/training-engine execution, checkpoint output, and refusal to substitute synthetic data for undeclared real datasets.
 - Durable workers now expose generator-training and predictor-training handlers; generator training is locally exercised from JSONL, while predictor training requires an explicit checksum-verified NATS-Bench archive and non-empty train/validation/test indices.
+- FastAPI now exposes validated training-job creation plus generic job listing, retrieval, and cancellation for the durable worker handlers.
 - Queue status now returns explicit degraded availability and error details when the selected Redis backend cannot be listed.
 - Local search persistence now records cancellation/status transitions consistently with the SQLAlchemy registry, with an API regression test covering the persisted state.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
@@ -68,7 +69,7 @@ Updated 2026-11-21.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 80 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 81 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 
