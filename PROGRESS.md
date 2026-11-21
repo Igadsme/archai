@@ -74,6 +74,7 @@ Updated 2026-11-21.
 - The Hugging Face Space status view now verifies configured generator/model artifact hashes and reports unavailable or mismatched evidence explicitly.
 - Container images now include the ML runtime required by API/worker handlers, and the web image no longer assumes an untracked package-lock file; static Dockerfile contracts and Compose parsing are verified.
 - API images now include the root Alembic configuration and worker training scripts required by migration startup and predictor/generator handlers.
+- Compose now passes the supported SHA-256 API-key configuration, allowing deployed API authentication without placing the plaintext key in the service environment.
 - Compose now mounts benchmark data read-only into the worker and uses an explicit in-container archive path, preventing host/container path mismatches.
 - Added a root Docker build-context policy that excludes local dependencies, raw datasets, checkpoints, caches, and VCS metadata from container builds.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.

@@ -29,6 +29,11 @@ def test_worker_compose_mounts_benchmark_data_and_uses_container_path():
     assert "/var/lib/archai/datasets/natsbench.tfrecord" in compose
 
 
+def test_api_compose_passes_hashed_auth_configuration():
+    compose = (ROOT / "infrastructure/docker/docker-compose.yml").read_text()
+    assert "ARCHAI_API_KEY_SHA256: ${ARCHAI_API_KEY_SHA256:-}" in compose
+
+
 def test_docker_context_excludes_local_dependencies_and_artifacts():
     dockerignore = (ROOT / ".dockerignore").read_text()
     assert "**/node_modules" in dockerignore
