@@ -34,3 +34,20 @@ def test_search_and_experiment_lifecycle_surface():
     assert experiment.status_code == 200
     assert client.get(f"/v1/experiments/{experiment.json()['experiment_id']}").status_code == 200
     assert client.get("/v1/models").status_code == 200
+
+
+def test_readiness_and_queue_status_are_truthful():
+    client = TestClient(app)
+    readiness = client.get("/readiness")
+    assert readiness.status_code == 200
+    assert readiness.json()["durable_worker_configured"] is False
+    queue = client.get("/v1/infrastructure/queue").json()
+    assert queue["backend"] == "in_memory"
+
+
+def test_write_operations_honor_x_api_key(monkeypatch):
+    client = TestClient(app)
+    monkeypatch.setenv("ARCHAI_API_KEY", "secret")
+    assert client.post("/v1/searches", json={"algorithm": "random", "dataset_id": "unit", "budget_evaluations": 1}).status_code == 401
+    assert client.post("/v1/searches", headers={"x-api-key": "secret"}, json={"algorithm": "random", "dataset_id": "unit", "budget_evaluations": 1}).status_code == 200
+    monkeypatch.delenv("ARCHAI_API_KEY")

@@ -41,7 +41,7 @@ class ExperimentRequest(BaseModel):
     metrics: dict[str, float] = Field(default_factory=dict)
 
 
-def require_write_access(api_key: Annotated[str | None, Header()] = None) -> None:
+def require_write_access(api_key: Annotated[str | None, Header(alias="x-api-key")] = None) -> None:
     """Local development is open; deployed writes require ARCHAI_API_KEY."""
     configured = os.getenv("ARCHAI_API_KEY")
     if configured and api_key != configured:
@@ -51,6 +51,28 @@ def require_write_access(api_key: Annotated[str | None, Header()] = None) -> Non
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "evidence_policy": "no fabricated metrics"}
+
+
+@app.get("/readiness")
+def readiness() -> dict[str, bool | str]:
+    return {"status": "ready", "durable_worker_configured": bool(os.getenv("ARCHAI_REDIS_URL")),
+            "database_configured": bool(os.getenv("DATABASE_URL"))}
+
+
+@app.get("/v1/infrastructure/workers")
+def worker_status() -> dict[str, object]:
+    configured = bool(os.getenv("ARCHAI_REDIS_URL"))
+    return {"configured": configured, "status": "connected" if configured else "not_configured",
+            "workers": []}
+
+
+@app.get("/v1/infrastructure/queue")
+def queue_status() -> dict[str, object]:
+    jobs = _jobs.list()
+    return {"backend": "redis" if os.getenv("ARCHAI_REDIS_URL") else "in_memory",
+            "queued": sum(job.status == "queued" for job in jobs),
+            "running": sum(job.status == "running" for job in jobs),
+            "terminal": sum(job.status in {"succeeded", "failed", "cancelled"} for job in jobs)}
 
 
 @app.post("/v1/architectures/validate")
