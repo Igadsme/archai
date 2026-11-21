@@ -69,6 +69,7 @@ Updated 2026-11-21.
 - ArchAI Studio now polls live registries/jobs, displays model and worker state, and provides a validated architecture graph inspector with node/edge details; frontend package compilation remains unverified because the local dependency tree is incomplete.
 - Container images now include the ML runtime required by API/worker handlers, and the web image no longer assumes an untracked package-lock file; static Dockerfile contracts and Compose parsing are verified.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
+- Research report aggregation now rejects duplicate algorithm/seed records and mismatched declared budgets before producing comparison summaries.
 - Model artifact registry now stores versioned model manifests with SHA-256 checksums and exposes read-only API listing.
 - The model registry now also supports authenticated API registration with artifact existence checks, immutable model/version enforcement, and checksum-backed retrieval.
 - Benchmark baseline now includes seeded random index traversal under the existing query budget abstraction.
@@ -81,7 +82,7 @@ Updated 2026-11-21.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 92 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 93 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 

@@ -16,3 +16,12 @@ def test_report_rejects_test_selection():
     with pytest.raises(ValueError, match="test leakage"):
         build_research_report([{"run_id": "bad", "algorithm": "random", "seed": 1,
                                "best_validation_accuracy": 0.8, "selected_on": "test"}])
+
+
+def test_report_rejects_duplicate_seeds_and_mismatched_budgets():
+    base = {"algorithm": "random", "seed": 1, "best_validation_accuracy": 0.8,
+            "selected_on": "validation", "budget": 10}
+    with pytest.raises(ValueError, match="duplicate algorithm/seed"):
+        build_research_report([base, dict(base)])
+    with pytest.raises(ValueError, match="matched-budget"):
+        build_research_report([base, {**base, "algorithm": "evolution", "seed": 2, "budget": 20}])
