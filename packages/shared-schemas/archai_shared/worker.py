@@ -17,9 +17,15 @@ def run_job(store: JobStore, job_id: str, handler: JobHandler) -> Job:
     job = store.transition(job_id, "running")
     try:
         result = handler(job)
+        latest = store.get(job_id)
+        if latest is not None and latest.status == "cancelled":
+            return latest
         if result is not None:
             store.update_payload(job_id, {**job.payload, "result": result})
     except Exception as exc:
+        latest = store.get(job_id)
+        if latest is not None and latest.status == "cancelled":
+            return latest
         return store.transition(job_id, "failed", error=f"{type(exc).__name__}: {exc}")
     return store.transition(job_id, "succeeded")
 
@@ -53,9 +59,15 @@ class WorkerRunner:
             return self.store.transition(job.job_id, "failed", error=f"no handler registered for job kind: {job.kind}")
         try:
             result = handler(job)
+            latest = self.store.get(job.job_id)
+            if latest is not None and latest.status == "cancelled":
+                return latest
             if result is not None:
                 self.store.update_payload(job.job_id, {**job.payload, "result": result})
         except Exception as exc:
+            latest = self.store.get(job.job_id)
+            if latest is not None and latest.status == "cancelled":
+                return latest
             return self.store.transition(job.job_id, "failed", error=f"{type(exc).__name__}: {exc}")
         return self.store.transition(job.job_id, "succeeded")
 

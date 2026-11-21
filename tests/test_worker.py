@@ -34,6 +34,27 @@ def test_worker_runner_claims_jobs_and_records_missing_handlers():
     assert "no handler registered" in result.error
 
 
+def test_worker_cancellation_during_handler_stays_terminal():
+    store = InMemoryJobStore()
+    job = store.create("training")
+
+    def cancel_inside_handler(current_job):
+        store.transition(current_job.job_id, "cancelled")
+        return {"should_not": "persist"}
+
+    result = WorkerRunner(store, {"training": cancel_inside_handler}).run_once()
+    assert result.status == "cancelled"
+    assert "result" not in store.get(job.job_id).payload
+
+    direct = store.create("training")
+
+    def cancel_direct(current_job):
+        store.transition(current_job.job_id, "cancelled")
+        return {"ignored": True}
+
+    assert run_job(store, direct.job_id, cancel_direct).status == "cancelled"
+
+
 def test_benchmark_handler_requires_verified_archive_configuration(monkeypatch):
     from archai_api.worker import benchmark_search
 
