@@ -20,11 +20,8 @@ def fit_predictor(model, records: list[ArchitectureRecord], *, epochs: int = 20,
     history = []
     model.train()
     for _ in range(epochs):
-        features, mask, tasks, targets = collate_records(records)
-        # Masked mean is applied here so padded nodes cannot influence learning.
-        encoded = model.node(features)
-        pooled = (encoded * mask.unsqueeze(-1)).sum(1) / mask.sum(1, keepdim=True).clamp_min(1)
-        output = model.head(torch.cat([pooled, tasks], dim=-1))
+        features, mask, adjacency, tasks, targets = collate_records(records)
+        output = model(features, tasks, adjacency, mask)
         loss = gaussian_nll(output, targets)
         optimizer.zero_grad()
         loss.backward()
@@ -37,10 +34,8 @@ def evaluate_predictor(model, records: list[ArchitectureRecord], interval_z: flo
     import torch
     model.eval()
     with torch.no_grad():
-        features, mask, tasks, targets = collate_records(records)
-        encoded = model.node(features)
-        pooled = (encoded * mask.unsqueeze(-1)).sum(1) / mask.sum(1, keepdim=True).clamp_min(1)
-        output = model.head(torch.cat([pooled, tasks], dim=-1))
+        features, mask, adjacency, tasks, targets = collate_records(records)
+        output = model(features, tasks, adjacency, mask)
         means = output[:, 0]
         std = output[:, 1].clamp(-8.0, 8.0).exp().sqrt()
     values = [float(item) for item in targets]

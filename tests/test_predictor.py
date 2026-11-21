@@ -2,7 +2,7 @@ import pytest
 
 from archai_core.schema import Architecture, Edge, Node, TensorSpec
 from archai_core.validation import validate_architecture
-from archai_predictor.data import ArchitectureRecord, split_records
+from archai_predictor.data import ArchitectureRecord, collate_records, split_records
 from archai_predictor.evaluation import regression_metrics
 from archai_predictor.model import PerformancePredictor, PredictorConfig
 from archai_predictor.training import evaluate_predictor, fit_predictor, load_checkpoint, save_checkpoint
@@ -45,3 +45,16 @@ def test_predictor_training_checkpoint_roundtrip(tmp_path):
     assert metadata["kind"] == "unit"
     with torch.no_grad():
         assert torch.isfinite(restored(torch.zeros(1, 3, 11), torch.zeros(1, 8))).all()
+
+
+def test_predictor_consumes_graph_connectivity():
+    torch = pytest.importorskip("torch")
+    record = ArchitectureRecord(make_architecture(8), 0.8, (0.0,) * 8, "unit")
+    features, mask, adjacency, tasks, _ = collate_records([record])
+    model = PerformancePredictor(PredictorConfig(hidden_dim=16, task_dim=8))
+    model.eval()
+    with torch.no_grad():
+        connected = model(features, tasks, adjacency, mask)
+        disconnected = model(features, tasks, torch.zeros_like(adjacency), mask)
+    assert adjacency.sum() > 0
+    assert not torch.allclose(connected, disconnected)

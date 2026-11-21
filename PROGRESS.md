@@ -7,7 +7,7 @@ Updated 2026-11-20.
 - Foundation schemas validate unique, acyclic, reachable DAGs, reject duplicate edges, and reject incompatible fan-in channels.
 - Compiler tests execute a real forward and backward pass when PyTorch is installed; compilation is topological-order independent and supports convolution, pooling, skip, none, and output nodes.
 - Analytical metrics propagate upstream channel counts instead of assuming every operation reads the image input.
-- Predictor training supports masked variable-size graph batches, Gaussian NLL uncertainty, deterministic hash-disjoint splits, checkpoint save/load, and MAE/RMSE/Spearman/Kendall/interval coverage metrics.
+- Predictor training supports edge-aware message passing, masked variable-size graph batches, Gaussian NLL uncertainty, deterministic hash-disjoint splits, checkpoint save/load, and MAE/RMSE/Spearman/Kendall/interval coverage metrics.
 - Generator training supports a constrained valid-chain autoregressive decoder, teacher forcing, deterministic token-by-token sampling, generation quality metrics, and checkpoint boundaries.
 - Benchmark integration supports checksum-gated acquisition, NAS-Bench-201 encoding conversion, and an explicit query budget.
 - Autonomous search control supports validation, deduplication, injected evaluation, atomic JSON persistence, cancellation requests, budget enforcement, and resume with an expanded budget.
@@ -21,7 +21,7 @@ Updated 2026-11-20.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
 - Model artifact registry now stores versioned model manifests with SHA-256 checksums and exposes read-only API listing.
 - Benchmark baseline now includes seeded random index traversal under the existing query budget abstraction.
-- Test suite: 26 passing tests.
+- Test suite: 27 passing tests.
 
 ## Evidence boundaries
 

@@ -53,9 +53,13 @@ def collate_records(records: list[ArchitectureRecord]):
     max_nodes, width = max(item.shape[0] for item in features), features[0].shape[1]
     batch = torch.zeros(len(features), max_nodes, width)
     mask = torch.zeros(len(features), max_nodes, dtype=torch.bool)
+    adjacency = torch.zeros(len(features), max_nodes, max_nodes)
     for index, item in enumerate(features):
         batch[index, :item.shape[0]] = item
         mask[index, :item.shape[0]] = True
+        by_id = {node.id: node_index for node_index, node in enumerate(records[index].architecture.nodes)}
+        for edge in records[index].architecture.edges:
+            adjacency[index, by_id[edge.target], by_id[edge.source]] = 1.0
     tasks = torch.tensor([record.task_features for record in records], dtype=torch.float32)
     targets = torch.tensor([record.target for record in records], dtype=torch.float32)
-    return batch, mask, tasks, targets
+    return batch, mask, adjacency, tasks, targets
