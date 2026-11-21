@@ -35,6 +35,7 @@ Updated 2026-11-21.
 - Experiment API records now support validated running/completed/failed/cancelled lifecycle transitions with persisted metrics and timestamps.
 - API security now supports constant-time plaintext or SHA-256 key verification, Bearer authorization, and body-size enforcement even when clients omit `Content-Length`.
 - Bounded search and experiment list endpoints now expose dashboard/operator history while preserving job-store status as the search authority.
+- Compose deployment now wires API containers to PostgreSQL and Redis, installs the required platform/benchmark extras, and runs Alembic before serving.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.

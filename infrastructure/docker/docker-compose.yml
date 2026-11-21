@@ -5,10 +5,13 @@ services:
       dockerfile: apps/api/Dockerfile
     environment:
       ARCHAI_API_KEY: ${ARCHAI_API_KEY:-}
+      DATABASE_URL: postgresql+psycopg://archai:${POSTGRES_PASSWORD}@postgres:5432/archai
+      ARCHAI_REDIS_URL: redis://redis:6379/0
       ARCHAI_ARTIFACT_STORE: /var/lib/archai/experiments.jsonl
     volumes:
       - archai-artifacts:/var/lib/archai
     ports: ["8000:8000"]
+    command: ["sh", "-c", "alembic upgrade head && uvicorn archai_api.main:app --host 0.0.0.0 --port 8000"]
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
