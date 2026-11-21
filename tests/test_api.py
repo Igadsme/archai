@@ -70,10 +70,32 @@ def test_write_operations_honor_x_api_key(monkeypatch):
     monkeypatch.delenv("ARCHAI_API_KEY")
 
 
+def test_write_operations_accept_bearer_and_hashed_keys(monkeypatch):
+    import hashlib
+
+    client = TestClient(app)
+    monkeypatch.setenv("ARCHAI_API_KEY_SHA256", hashlib.sha256(b"hashed-secret").hexdigest())
+    request = {"algorithm": "random", "dataset_id": "unit", "budget_evaluations": 1}
+    assert client.post("/v1/searches", json=request).status_code == 401
+    response = client.post("/v1/searches", headers={"Authorization": "Bearer hashed-secret"}, json=request)
+    assert response.status_code == 200
+    monkeypatch.delenv("ARCHAI_API_KEY_SHA256")
+
+
 def test_request_size_limit_is_configurable(monkeypatch):
     client = TestClient(app)
     monkeypatch.setenv("ARCHAI_MAX_REQUEST_BYTES", "10")
     assert client.post("/v1/architectures/validate", json=payload()).status_code == 413
+    monkeypatch.delenv("ARCHAI_MAX_REQUEST_BYTES")
+
+
+def test_request_size_limit_checks_body_without_content_length(monkeypatch):
+    client = TestClient(app)
+    monkeypatch.setenv("ARCHAI_MAX_REQUEST_BYTES", "10")
+    request = client.build_request("POST", "/v1/architectures/validate", json=payload())
+    request.headers.pop("content-length", None)
+    response = client.send(request)
+    assert response.status_code == 413
     monkeypatch.delenv("ARCHAI_MAX_REQUEST_BYTES")
 
 

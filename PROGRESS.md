@@ -33,6 +33,7 @@ Updated 2026-11-21.
 - Durable worker infrastructure now has an atomic local claim path, Redis claim/execute loop, explicit handler registration, terminal failure capture for unsupported kinds, and a container entry point; the API only accepts search starts when Redis is selected.
 - The worker now has an explicit NATS-Bench random-search handler with mandatory archive SHA-256 verification, seeded indices, query budgets, validation-selected reporting, and held-out test recording; missing benchmark configuration fails the job instead of fabricating results.
 - Experiment API records now support validated running/completed/failed/cancelled lifecycle transitions with persisted metrics and timestamps.
+- API security now supports constant-time plaintext or SHA-256 key verification, Bearer authorization, and body-size enforcement even when clients omit `Content-Length`.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.

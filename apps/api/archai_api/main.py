@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import hashlib
+import hmac
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
@@ -117,6 +119,10 @@ async def request_limits(request: Request, call_next):
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > max_bytes:
         return JSONResponse({"detail": "request body too large"}, status_code=413)
+    if not content_length and request.method in {"POST", "PUT", "PATCH"}:
+        body = await request.body()
+        if len(body) > max_bytes:
+            return JSONResponse({"detail": "request body too large"}, status_code=413)
     limit = int(os.getenv("ARCHAI_RATE_LIMIT_PER_MINUTE", "120"))
     key = request.client.host if request.client else "unknown"
     now = time.monotonic()
@@ -164,10 +170,24 @@ class GenerateRequest(BaseModel):
     output_classes: int = Field(default=10, gt=1, le=10000)
 
 
-def require_write_access(api_key: Annotated[str | None, Header(alias="x-api-key")] = None) -> None:
-    """Local development is open; deployed writes require ARCHAI_API_KEY."""
+def require_write_access(api_key: Annotated[str | None, Header(alias="x-api-key")] = None,
+                         authorization: Annotated[str | None, Header()] = None) -> None:
+    """Local development is open; deployed writes require a configured key.
+
+    `ARCHAI_API_KEY_SHA256` avoids storing a plaintext key in the service
+    environment. Bearer tokens and the legacy x-api-key header are accepted.
+    """
+    supplied = api_key
+    if supplied is None and authorization and authorization.startswith("Bearer "):
+        supplied = authorization.removeprefix("Bearer ")
     configured = os.getenv("ARCHAI_API_KEY")
-    if configured and api_key != configured:
+    configured_hash = os.getenv("ARCHAI_API_KEY_SHA256")
+    valid = False
+    if supplied and configured:
+        valid = hmac.compare_digest(supplied, configured)
+    if supplied and configured_hash:
+        valid = valid or hmac.compare_digest(hashlib.sha256(supplied.encode()).hexdigest(), configured_hash.lower())
+    if (configured or configured_hash) and not valid:
         raise HTTPException(status_code=401, detail="invalid API key")
 
 
