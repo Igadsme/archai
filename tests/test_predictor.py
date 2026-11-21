@@ -51,7 +51,7 @@ def test_predictor_training_checkpoint_roundtrip(tmp_path):
     torch = pytest.importorskip("torch")
     records = [ArchitectureRecord(make_architecture(channels), channels / 100, (0.0,) * 8, "unit") for channels in range(4, 12)]
     model = PerformancePredictor(PredictorConfig(hidden_dim=16, task_dim=8))
-    history = fit_predictor(model, records, epochs=3, seed=3)
+    history = fit_predictor(model, records, epochs=3, seed=3, batch_size=2)
     assert len(history) == 3
     metrics = evaluate_predictor(model, records)
     assert set(("mae", "rmse", "spearman", "kendall", "interval_coverage")).issubset(metrics)

@@ -9,6 +9,7 @@ Updated 2026-11-21.
 - Compiler exports canonical architecture JSON, state-dict fingerprints, dependency-gated Safetensors, and an ONNX export hook.
 - Analytical metrics propagate upstream channel counts instead of assuming every operation reads the image input.
 - Predictor training supports edge-aware message passing, a seeded ArchitectureDataset/DataLoader, masked variable-size graph batches, Gaussian NLL uncertainty, duplicate-safe architecture-hash splits, checkpoint save/load, MAE/RMSE/Spearman/Kendall/interval coverage, calibration error, and embedding OOD scores.
+- Predictor supervised fitting now consumes the seeded graph DataLoader in minibatches, with batch size exposed through the worker and training CLI.
 - Generator training supports a constrained valid-chain autoregressive decoder, teacher forcing, task/constraint condition vectors, deterministic token-by-token sampling, generation quality metrics, checkpoint boundaries, and a JSONL-corpus CLI.
 - Benchmark integration supports checksum-gated acquisition, NAS-Bench-201 encoding conversion, and an explicit query budget.
 - Autonomous search control supports validation, deduplication, injected evaluation, atomic JSON persistence, cancellation requests, budget enforcement, and resume with an expanded budget.

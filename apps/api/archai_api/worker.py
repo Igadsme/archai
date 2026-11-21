@@ -163,7 +163,8 @@ def predictor_training(job: Job) -> dict:
     if not all(splits.values()):
         raise RuntimeError("predictor split produced an empty partition")
     model = PerformancePredictor(PredictorConfig())
-    history = fit_predictor(model, splits["train"], epochs=int(config.get("epochs", 20)), seed=seed)
+    history = fit_predictor(model, splits["train"], epochs=int(config.get("epochs", 20)), seed=seed,
+                            batch_size=int(config.get("batch_size", 32)))
     validation = evaluate_predictor(model, splits["validation"])
     test = evaluate_predictor(model, splits["test"])
     metadata = {"model": "ArchAI-Predictor", "dataset": dataset,

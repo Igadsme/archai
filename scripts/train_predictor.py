@@ -51,6 +51,7 @@ def main() -> int:
     parser.add_argument("--search-space", default="tss")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
@@ -66,7 +67,8 @@ def main() -> int:
     if not splits["train"] or not splits["validation"] or not splits["test"]:
         parser.error("indices must produce non-empty train, validation, and test partitions")
     model = PerformancePredictor(PredictorConfig())
-    history = fit_predictor(model, splits["train"], epochs=args.epochs, seed=args.seed)
+    history = fit_predictor(model, splits["train"], epochs=args.epochs, seed=args.seed,
+                            batch_size=args.batch_size)
     validation = evaluate_predictor(model, splits["validation"])
     test = evaluate_predictor(model, splits["test"])
     metadata = {"model": "ArchAI-Predictor", "dataset": args.dataset, "search_space": args.search_space,

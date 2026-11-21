@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .data import ArchitectureRecord, collate_records
+from .data import ArchitectureRecord, collate_records, make_loader
 from .evaluation import gaussian_calibration_error, regression_metrics
 
 
@@ -13,20 +13,27 @@ def gaussian_nll(output, target):
 
 
 def fit_predictor(model, records: list[ArchitectureRecord], *, epochs: int = 20, lr: float = 1e-3,
-                  seed: int = 0) -> list[float]:
+                  seed: int = 0, batch_size: int = 32) -> list[float]:
     import torch
+    if epochs <= 0:
+        raise ValueError("epochs must be positive")
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
     torch.manual_seed(seed)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    loader = make_loader(records, batch_size=batch_size, shuffle=True, seed=seed)
     history = []
     model.train()
     for _ in range(epochs):
-        features, mask, adjacency, tasks, targets = collate_records(records)
-        output = model(features, tasks, adjacency, mask)
-        loss = gaussian_nll(output, targets)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        history.append(float(loss.detach()))
+        losses = []
+        for features, mask, adjacency, tasks, targets in loader:
+            output = model(features, tasks, adjacency, mask)
+            loss = gaussian_nll(output, targets)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            losses.append(float(loss.detach()))
+        history.append(sum(losses) / len(losses))
     return history
 
 
