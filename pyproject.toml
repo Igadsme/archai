@@ -34,6 +34,7 @@ archai_api = "apps/api/archai_api"
 
 [tool.pytest.ini_options]
 pythonpath = [
+  ".",
   "packages/architecture-core",
   "packages/architecture-compiler",
   "packages/search-engine",
