@@ -42,7 +42,8 @@ Updated 2026-11-21.
 - Search baselines now include parent-based regularized evolution mutations plus dependency-light Bayesian optimization with seeded warmup, kernel/UCB scoring, and finite-pool deduplication.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
-- Test suite: 59 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
+- Test suite: 61 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 
@@ -51,10 +52,9 @@ No NATS-Bench archive, trained research checkpoint, benchmark table, GPU run, re
 ## Exact blockers
 
 1. A real NATS-Bench/NATS-Bench-201 archive and its verified checksum are needed to run benchmark queries and train the predictor on real labels.
-2. The full NAS-Bench-201 cell semantics require a dedicated compiler representation for operation-per-edge cells; the current canonical converter preserves the encoding as an explicit typed DAG for validation and metadata, while the research compiler supports the allowlisted tensor graph.
-3. PostgreSQL/Redis services and durable worker code are implemented but were not run as live services in this environment; production authentication and the complete frontend remain incomplete.
-4. Hugging Face publishing requires user-provided authorization and release decisions.
-5. Frontend dependency installation repeatedly hung or failed in this environment; `next build` therefore could not run because the pinned dependency tree was unavailable.
+2. PostgreSQL/Redis services and durable worker code are implemented but were not run as live services in this environment; production authentication and the complete frontend remain incomplete.
+3. Hugging Face publishing requires user-provided authorization and release decisions.
+4. Frontend dependency installation repeatedly hung or failed in this environment; `next build` therefore could not run because the pinned dependency tree was unavailable.
 
 ## Repository state
 

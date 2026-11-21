@@ -70,6 +70,22 @@ def test_compiler_handles_serialized_order_and_backward():
     assert any(parameter.grad is not None for parameter in model.parameters())
 
 
+def test_nasbench201_cell_uses_sum_fanin_semantics():
+    torch = pytest.importorskip("torch")
+    from archai_benchmark.nasbench201 import architecture_from_string
+    from archai_compiler.pytorch_compiler import compile_architecture
+
+    value = architecture_from_string(
+        "|skip_connect~0|+|skip_connect~0|skip_connect~1|+|skip_connect~0|skip_connect~1|skip_connect~2|",
+        input_spec=TensorSpec(channels=1, height=2, width=2), output_classes=2)
+    model = compile_architecture(value)
+    captured = []
+    model.head.register_forward_pre_hook(lambda _module, inputs: captured.append(inputs[0]))
+    model(torch.ones(1, 1, 2, 2))
+    # node 1=1, node 2=2, node 3=1+1+2=4 under NAS-Bench-201 sum semantics.
+    assert torch.allclose(captured[0], torch.full_like(captured[0], 4.0))
+
+
 def test_pareto_frontier():
     rows = [{"id": 1, "accuracy": .9, "params": 10}, {"id": 2, "accuracy": .91, "params": 20}, {"id": 3, "accuracy": .89, "params": 30}]
     assert {row["id"] for row in pareto_frontier(rows, ("accuracy",), ("params",))} == {1, 2}

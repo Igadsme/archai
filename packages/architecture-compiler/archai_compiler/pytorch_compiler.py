@@ -6,7 +6,8 @@ from archai_core.schema import Architecture
 from archai_core.validation import validate_architecture
 
 
-def compile_architecture(architecture: Architecture, *, input_channels: int | None = None):
+def compile_architecture(architecture: Architecture, *, input_channels: int | None = None,
+                         fan_in_reduction: str | None = None):
     """Compile only the allow-listed graph into a torch.nn.Module.
 
     PyTorch is imported lazily so schema/benchmark tooling remains usable in a
@@ -14,6 +15,9 @@ def compile_architecture(architecture: Architecture, *, input_channels: int | No
     tensor fan-in instead of executing dynamic user code.
     """
     validate_architecture(architecture)
+    reduction = fan_in_reduction or architecture.metadata.get("fan_in_reduction", "mean")
+    if reduction not in {"mean", "sum"}:
+        raise ValueError("fan_in_reduction must be 'mean' or 'sum'")
     try:
         import torch
         from torch import nn
@@ -84,7 +88,9 @@ def compile_architecture(architecture: Architecture, *, input_channels: int | No
                     raise RuntimeError(f"node {node.id} has no input")
                 value = values[sources[0]]
                 if len(sources) > 1:
-                    value = sum(values[s] for s in sources) / len(sources)
+                    value = sum(values[s] for s in sources)
+                    if reduction == "mean":
+                        value = value / len(sources)
                 if node.op == "none":
                     value = torch.zeros_like(value)
                 elif node.op not in {"output", "skip"}:
