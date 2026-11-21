@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import platform
 from pathlib import Path
 
 from archai_shared.jobs import RedisJobStore
@@ -16,6 +17,12 @@ def _sha256_file(path: str | Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _hardware_profile(device: str = "cpu", torch_version: str | None = None) -> str:
+    python_version = platform.python_version()
+    torch_label = f", torch={torch_version}" if torch_version else ""
+    return f"{platform.system()} {platform.machine()}, python={python_version}, device={device}{torch_label}"
 
 
 def candidate_training(job: Job) -> dict:
@@ -78,7 +85,8 @@ def candidate_training(job: Job) -> dict:
             "wall_clock_seconds": result.wall_clock_seconds,
             "history": list(result.history), "checkpoint_path": result.checkpoint_path,
             "checkpoint_sha256": checkpoint_sha256,
-            "evidence_type": "synthetic_training", "seed": seed}
+            "evidence_type": "synthetic_training", "seed": seed,
+            "hardware": _hardware_profile(training_config.device, torch.__version__)}
 
 
 def generator_training(job: Job) -> dict:
@@ -93,6 +101,7 @@ def generator_training(job: Job) -> dict:
     if not corpus.is_file():
         raise RuntimeError(f"generator corpus is unavailable: {corpus}")
     try:
+        import torch
         from archai_generator.model import ArchitectureGenerator, GeneratorConfig
         from archai_generator.training import fit_generator, generation_metrics, save_checkpoint
         from scripts.train_generator import load_examples
@@ -112,7 +121,8 @@ def generator_training(job: Job) -> dict:
     return {"status": "completed", "checkpoint_path": str(checkpoint_path),
             "corpus_examples": len(examples), "training_loss": history,
             "generation_metrics": metrics, "checkpoint_sha256": checkpoint_sha256,
-            "evidence_type": "generator_training", "seed": seed}
+            "evidence_type": "generator_training", "seed": seed,
+            "hardware": _hardware_profile("cpu", torch.__version__)}
 
 
 def predictor_training(job: Job) -> dict:
@@ -131,6 +141,7 @@ def predictor_training(job: Job) -> dict:
     if not archive.is_file():
         raise RuntimeError(f"benchmark archive is unavailable: {archive}")
     try:
+        import torch
         from archai_benchmark.adapter import NATSBenchAdapter
         from archai_benchmark.integrity import sha256_file
         from archai_core.schema import TensorSpec
@@ -166,7 +177,8 @@ def predictor_training(job: Job) -> dict:
             "training_loss": history, "validation": validation, "test": test,
             "evidence_type": "benchmark_training", "seed": seed,
             "archive_sha256": actual_checksum, "checkpoint_sha256": checkpoint_sha256,
-            "test_used_for_selection": False}
+            "test_used_for_selection": False,
+            "hardware": _hardware_profile("cpu", torch.__version__)}
 
 
 def benchmark_search(job: Job) -> dict:

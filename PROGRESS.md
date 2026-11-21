@@ -56,6 +56,7 @@ Updated 2026-11-21.
 - Durable workers now expose an explicit candidate-training handler with reproducible synthetic smoke data, real compiler/training-engine execution, checkpoint output, and refusal to substitute synthetic data for undeclared real datasets.
 - Durable workers now expose generator-training and predictor-training handlers; generator training is locally exercised from JSONL, while predictor training requires an explicit checksum-verified NATS-Bench archive and non-empty train/validation/test indices.
 - Training-worker results now include SHA-256 hashes of produced checkpoints, making model artifact provenance independently verifiable.
+- Training-worker results now include runtime Python/platform/device and PyTorch version descriptors required by the experiment protocol.
 - FastAPI now exposes validated training-job creation plus generic job listing, retrieval, and cancellation for the durable worker handlers.
 - Training-job API requests now validate candidate graph schemas, benchmark checksum format, and bounded resource parameters before queueing work.
 - Queue status now returns explicit degraded availability and error details when the selected Redis backend cannot be listed.
