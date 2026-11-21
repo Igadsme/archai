@@ -49,7 +49,7 @@ Updated 2026-11-21.
 - Added a database-aware model registration CLI with SHA-256 manifests and a model-card template for reproducibility evidence.
 - ArchAI Studio now reads architecture, search, experiment, and dataset registries and renders live evidence/status counts with explicit unavailable/empty states.
 - Readiness now probes configured database connectivity and supports an explicit `ARCHAI_REQUIRE_REDIS=1` gate for durable deployments.
-- CI now installs the platform extra, verifies a fresh Alembic schema reaches `0004_model_identifiers`, and validates Docker Compose configuration without requiring live services.
+- CI now installs the platform extra, verifies a fresh Alembic schema reaches `0006_experiment_started_at`, and validates Docker Compose configuration without requiring live services.
 - Alembic migrations now have an executable upgrade/downgrade/upgrade regression test against SQLite, covering rollback safety before deployment.
 - Corrected the raw PostgreSQL schema artifact’s duplicate experiment timestamp declarations and aligned model uniqueness with named model IDs.
 - Alembic 0004 now enforces named model/version uniqueness at the database layer with a portable unique index, closing concurrent registration races.
