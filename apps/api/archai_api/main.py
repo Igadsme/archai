@@ -484,10 +484,15 @@ def cancel_search(search_id: str):
 def create_experiment(request: ExperimentRequest):
     if _architecture_store.get(request.architecture_id) is None:
         raise HTTPException(status_code=404, detail="architecture not found")
+    dataset = _dataset_store.get(request.dataset_id, request.dataset_version)
+    if dataset is None:
+        raise HTTPException(status_code=404, detail="dataset version is not registered")
     if request.evidence_type in {"benchmark_lookup", "measured_training"} and not request.dataset_checksum:
         raise HTTPException(status_code=422, detail="benchmark and measured evidence require dataset_checksum")
     if request.evidence_type == "measured_training" and not request.model_checkpoint:
         raise HTTPException(status_code=422, detail="measured_training evidence requires model_checkpoint")
+    if request.dataset_checksum and request.dataset_checksum.lower() != dataset["checksum"].lower():
+        raise HTTPException(status_code=409, detail="dataset_checksum does not match registered dataset version")
     try:
         record = ExperimentRecord(experiment_id=_jobs.create("experiment").job_id,
                                   architecture_id=request.architecture_id,

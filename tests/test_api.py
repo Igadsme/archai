@@ -40,6 +40,9 @@ def test_dataset_registry_requires_checksum_and_is_immutable():
 def test_search_and_experiment_lifecycle_surface():
     client = TestClient(app)
     identifier = client.post("/v1/architectures", json=payload()).json()["hash"]
+    dataset = {"dataset_id": "unit", "version": "1", "checksum": "a" * 64,
+               "uri": "file:///tmp/unit.bin", "license": "test"}
+    assert client.post("/v1/datasets", json=dataset).status_code == 200
     search = client.post("/v1/searches", json={"algorithm": "random", "dataset_id": "unit",
                                                "budget_evaluations": 2, "seed": 7})
     assert search.status_code == 200
@@ -136,13 +139,30 @@ def test_model_registry_api_registers_checksum_manifest(tmp_path):
 def test_experiment_api_enforces_evidence_provenance():
     client = TestClient(app)
     identifier = client.post("/v1/architectures", json=payload()).json()["hash"]
-    base = {"architecture_id": identifier, "dataset_id": "unit", "dataset_version": "1", "seed": 3}
+    dataset = {"dataset_id": "experiment-unit", "version": "1", "checksum": "c" * 64,
+               "uri": "file:///tmp/experiment-unit.bin", "license": "test"}
+    assert client.post("/v1/datasets", json=dataset).status_code == 200
+    base = {"architecture_id": identifier, "dataset_id": "experiment-unit", "dataset_version": "1", "seed": 3}
     assert client.post("/v1/experiments", json={**base, "evidence_type": "benchmark_lookup"}).status_code == 422
     assert client.post("/v1/experiments", json={**base, "evidence_type": "measured_training",
         "dataset_checksum": "a" * 64}).status_code == 422
     valid = client.post("/v1/experiments", json={**base, "evidence_type": "measured_training",
-        "dataset_checksum": "a" * 64, "model_checkpoint": "b" * 64, "hardware": "cpu"})
+        "dataset_checksum": "c" * 64, "model_checkpoint": "b" * 64, "hardware": "cpu"})
     assert valid.status_code == 200
+
+
+def test_experiment_api_requires_registered_matching_dataset_checksum():
+    client = TestClient(app)
+    identifier = client.post("/v1/architectures", json=payload()).json()["hash"]
+    base = {"architecture_id": identifier, "evidence_type": "benchmark_lookup",
+            "dataset_id": "missing-experiment-dataset", "dataset_version": "1", "seed": 1,
+            "dataset_checksum": "d" * 64}
+    assert client.post("/v1/experiments", json=base).status_code == 404
+    dataset = {"dataset_id": "checksum-experiment-dataset", "version": "1", "checksum": "e" * 64,
+               "uri": "file:///tmp/checksum.bin", "license": "test"}
+    assert client.post("/v1/datasets", json=dataset).status_code == 200
+    request = {**base, "dataset_id": dataset["dataset_id"], "dataset_checksum": "d" * 64}
+    assert client.post("/v1/experiments", json=request).status_code == 409
 
 
 def test_readiness_and_queue_status_are_truthful():

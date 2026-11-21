@@ -68,6 +68,7 @@ Updated 2026-11-21.
 - Training-worker results now include SHA-256 hashes of produced checkpoints, making model artifact provenance independently verifiable.
 - Training-worker results now include runtime Python/platform/device and PyTorch version descriptors required by the experiment protocol.
 - Experiment creation now enforces evidence-specific provenance: benchmark/measured records require dataset checksums, measured training requires a checkpoint hash, and hardware/code revision are persisted.
+- Experiment creation now requires a registered dataset version and rejects checksums that do not match the immutable dataset registry record before persistence.
 - FastAPI now exposes validated training-job creation plus generic job listing, retrieval, and cancellation for the durable worker handlers.
 - Training-job API requests now validate candidate graph schemas, benchmark checksum format, and bounded resource parameters before queueing work.
 - Queue status now returns explicit degraded availability and error details when the selected Redis backend cannot be listed.
@@ -101,7 +102,7 @@ Updated 2026-11-21.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 109 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 110 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 
