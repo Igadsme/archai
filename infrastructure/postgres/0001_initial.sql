@@ -68,6 +68,9 @@ CREATE TABLE IF NOT EXISTS experiments (
   hardware JSONB NOT NULL DEFAULT '{}',
   metrics JSONB NOT NULL DEFAULT '{}',
   failure_detail TEXT,
+  provenance JSONB NOT NULL DEFAULT '{}',
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
   started_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()

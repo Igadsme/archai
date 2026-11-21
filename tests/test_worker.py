@@ -18,9 +18,10 @@ def test_worker_runner_claims_jobs_and_records_missing_handlers():
     store = InMemoryJobStore()
     seen = []
     handled = store.create("training", {"value": 4})
-    runner = WorkerRunner(store, {"training": lambda job: seen.append(job.payload["value"])})
+    runner = WorkerRunner(store, {"training": lambda job: (seen.append(job.payload["value"]) or {"loss": 0.25})})
     assert runner.run_once().status == "succeeded"
     assert seen == [4]
+    assert store.get(handled.job_id).payload["result"] == {"loss": 0.25}
 
     unsupported = store.create("search")
     result = runner.run_once()
