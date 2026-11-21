@@ -9,6 +9,7 @@ from pathlib import Path
 from archai_core.schema import Architecture
 from archai_generator.model import ArchitectureGenerator, GeneratorConfig
 from archai_generator.training import fit_generator, generation_metrics, save_checkpoint
+from archai_shared.registry import sha256_file
 
 
 def _revision() -> str:
@@ -51,9 +52,11 @@ def main() -> int:
                 "code_revision": _revision(), "corpus_examples": len(examples),
                 "conditional": True, "test_selection": "not applicable"}
     save_checkpoint(model, args.checkpoint, metadata)
+    checkpoint_sha256 = sha256_file(args.checkpoint)
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(json.dumps({"metadata": metadata, "training_loss": history,
-                                       "generation_metrics": metrics}, indent=2, sort_keys=True))
+    args.report.write_text(json.dumps({"metadata": metadata, "checkpoint_sha256": checkpoint_sha256,
+                                       "training_loss": history, "generation_metrics": metrics},
+                                      indent=2, sort_keys=True))
     print(json.dumps({"checkpoint": str(args.checkpoint), "report": str(args.report), "generation_metrics": metrics}, sort_keys=True))
     return 0
 

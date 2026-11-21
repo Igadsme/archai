@@ -32,5 +32,6 @@ def test_generator_training_cli_writes_checkpoint_and_report(tmp_path, monkeypat
     assert train_generator_main() == 0
     assert checkpoint.exists()
     payload = json.loads(report.read_text())
+    assert len(payload["checkpoint_sha256"]) == 64
     assert payload["metadata"]["conditional"] is True
     assert payload["generation_metrics"]["validity"] == 1.0

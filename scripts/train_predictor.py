@@ -17,6 +17,7 @@ from archai_core.schema import TensorSpec
 from archai_predictor.data import ArchitectureRecord, split_records
 from archai_predictor.model import PerformancePredictor, PredictorConfig
 from archai_predictor.training import evaluate_predictor, fit_predictor, save_checkpoint
+from archai_shared.registry import sha256_file
 
 
 def _code_revision() -> str:
@@ -77,9 +78,11 @@ def main() -> int:
                 "split_sizes": {key: len(value) for key, value in splits.items()},
                 "test_used_for_selection": False, "archive_sha256": actual_checksum}
     save_checkpoint(model, args.checkpoint, metadata)
+    checkpoint_sha256 = sha256_file(args.checkpoint)
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(json.dumps({"metadata": metadata, "training_loss": history,
-                                       "validation": validation, "test": test}, indent=2, sort_keys=True))
+    args.report.write_text(json.dumps({"metadata": metadata, "checkpoint_sha256": checkpoint_sha256,
+                                       "training_loss": history, "validation": validation, "test": test},
+                                      indent=2, sort_keys=True))
     print(json.dumps({"checkpoint": str(args.checkpoint), "report": str(args.report), "validation": validation, "test": test}, sort_keys=True))
     return 0
 

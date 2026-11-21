@@ -25,6 +25,7 @@ Updated 2026-11-21.
 - SQLAlchemy model factories and Alembic environment/initial migration now correspond to the core architecture, search-session, and experiment tables while remaining lazy-imported locally.
 - Benchmark access now records architecture encodings, caches queries with a uniqueness constraint, and refuses acquisition until a verified checksum is supplied.
 - Standalone benchmark-search and predictor-training CLIs now require and verify an archive SHA-256 before opening NATS-Bench, and persist the digest in reports/checkpoint metadata.
+- Generator and predictor training reports now include SHA-256 digests of the produced checkpoint artifacts, matching worker provenance behavior.
 - API now exposes lifecycle surfaces for searches and provenance-backed experiments; local job transitions reject invalid terminal-state changes and worker start reports an explicit unconfigured-worker response.
 - API now exposes readiness, worker, and queue status endpoints; documented `x-api-key` enforcement is tested, and Redis status reflects the actual selected backend plus connectivity ping.
 - API architecture comparison and model metadata retrieval routes are now covered, with static-route ordering fixed so `/compare` is not shadowed by the dynamic architecture route.
