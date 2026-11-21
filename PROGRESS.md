@@ -11,7 +11,11 @@ Updated 2026-11-20.
 - Generator training supports a constrained valid-chain decoder, deterministic sampling, generation quality metrics, and checkpoint boundaries.
 - Benchmark integration supports checksum-gated acquisition, NAS-Bench-201 encoding conversion, and an explicit query budget.
 - Autonomous search control supports validation, deduplication, injected evaluation, atomic JSON persistence, cancellation requests, budget enforcement, and resume with an expanded budget.
-- Test suite: 14 passing tests.
+- Training engine supports reproducible classification loops, gradient accumulation, optional AMP, early stopping, safe state-dict checkpoints, and resume.
+- Provenance records and an append-only artifact store preserve evidence type and dataset/checkpoint/hardware/seed metadata.
+- Local API registry supports architecture create/list/retrieve/validate with optional API-key protection for writes.
+- First normalized PostgreSQL schema migration is present for users, credentials, datasets, architectures, checkpoints, searches, and experiments.
+- Test suite: 17 passing tests.
 
 ## Evidence boundaries
 
