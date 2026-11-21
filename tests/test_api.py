@@ -1,3 +1,4 @@
+import hashlib
 import os
 import pytest
 from fastapi.testclient import TestClient
@@ -87,6 +88,20 @@ def test_training_job_api_validates_and_exposes_job_lifecycle():
     candidate = client.post("/v1/training", json={"kind": "candidate", "payload": {
         "architecture": payload(), "dataset": "cifar10"}})
     assert candidate.status_code == 422
+
+
+def test_model_registry_api_registers_checksum_manifest(tmp_path):
+    client = TestClient(app)
+    artifact = tmp_path / "predictor.pt"
+    artifact.write_bytes(b"api-model-artifact")
+    model_id = f"api-test-predictor-{tmp_path.name}"
+    request = {"model_id": model_id, "kind": "predictor", "version": "v1",
+               "artifact_path": str(artifact), "metadata": {"seed": 4}}
+    registered = client.post("/v1/models", json=request)
+    assert registered.status_code == 200
+    body = registered.json()
+    assert body["sha256"] == hashlib.sha256(artifact.read_bytes()).hexdigest()
+    assert client.get(f"/v1/models/{model_id}?version=v1").json()["sha256"] == body["sha256"]
 
 
 def test_readiness_and_queue_status_are_truthful():

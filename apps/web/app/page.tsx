@@ -8,7 +8,7 @@ type SearchItem = { search_id: string; algorithm: string; dataset_id: string; st
 type ExperimentItem = { experiment_id: string; architecture_id: string; evidence_type: string; status: string; metrics: Record<string, number> }
 type DatasetItem = { dataset_id: string; version: string; checksum: string }
 type JobItem = { job_id: string; kind: string; status: string; error: string | null }
-type ModelItem = { model_id: string; kind: string; version: string; checksum: string }
+type ModelItem = { model_id: string; kind: string; version: string; sha256: string }
 type ArchitectureDocument = { architecture: { nodes: { id: string; op: string; channels: number }[]; edges: { source: string; target: string }[] }; hash: string }
 const apiBase = process.env.NEXT_PUBLIC_ARCHAI_API_URL ?? "http://127.0.0.1:8000"
 

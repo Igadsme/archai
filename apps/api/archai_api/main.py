@@ -239,6 +239,15 @@ class DatasetRequest(BaseModel):
     license: str | None = Field(default=None, max_length=256)
 
 
+class ModelRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+    model_id: str = Field(min_length=1, max_length=128)
+    kind: Literal["generator", "predictor", "candidate"]
+    version: str = Field(min_length=1, max_length=128)
+    artifact_path: str = Field(min_length=1, max_length=2048)
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
 def require_write_access(api_key: Annotated[str | None, Header(alias="x-api-key")] = None,
                          authorization: Annotated[str | None, Header()] = None) -> None:
     """Local development is open; deployed writes require a configured key.
@@ -498,6 +507,19 @@ def update_experiment(experiment_id: str, request: ExperimentUpdate):
 @app.get("/v1/models")
 def list_models():
     return {"items": [item.__dict__ for item in _model_registry.list()]}
+
+
+@app.post("/v1/models", dependencies=[Depends(require_write_access)])
+def register_model(request: ModelRequest):
+    try:
+        artifact = _model_registry.register(model_id=request.model_id, kind=request.kind,
+                                            version=request.version, artifact_path=request.artifact_path,
+                                            metadata=request.metadata)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"model artifact not found: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return artifact.__dict__
 
 
 @app.get("/v1/models/{model_id}")
