@@ -104,8 +104,15 @@ class RedisJobStore:
 
     def create(self, kind: str, payload: dict | None = None) -> Job:
         job = Job(uuid4().hex, kind, payload=payload or {})
-        self.client.set(self._key(job.job_id), json.dumps(job.as_dict()))
-        self.client.rpush(f"{self.prefix}:queue", job.job_id)
+        serialized = json.dumps(job.as_dict())
+        if hasattr(self.client, "pipeline"):
+            pipe = self.client.pipeline(transaction=True)
+            pipe.set(self._key(job.job_id), serialized)
+            pipe.rpush(f"{self.prefix}:queue", job.job_id)
+            pipe.execute()
+        else:
+            self.client.set(self._key(job.job_id), serialized)
+            self.client.rpush(f"{self.prefix}:queue", job.job_id)
         return job
 
     def get(self, job_id: str) -> Job | None:
@@ -113,23 +120,52 @@ class RedisJobStore:
         return Job.from_dict(json.loads(value)) if value else None
 
     def transition(self, job_id: str, status: JobStatus, error: str | None = None) -> Job:
-        job = self.get(job_id)
-        if job is None:
-            raise KeyError(job_id)
-        if status not in _TRANSITIONS[job.status]:
-            raise ValueError(f"invalid job transition {job.status}->{status}")
-        job.status, job.error, job.updated_at = status, error, datetime.now(timezone.utc)
-        self.client.set(self._key(job_id), json.dumps(job.as_dict()))
-        return job
+        def update(job: Job) -> Job:
+            if status not in _TRANSITIONS[job.status]:
+                raise ValueError(f"invalid job transition {job.status}->{status}")
+            job.status, job.error, job.updated_at = status, error, datetime.now(timezone.utc)
+            return job
+
+        return self._atomic_job_update(job_id, update)
 
     def update_payload(self, job_id: str, payload: dict) -> Job:
-        job = self.get(job_id)
-        if job is None:
-            raise KeyError(job_id)
-        job.payload = dict(payload)
-        job.updated_at = datetime.now(timezone.utc)
-        self.client.set(self._key(job_id), json.dumps(job.as_dict()))
-        return job
+        def update(job: Job) -> Job:
+            job.payload = dict(payload)
+            job.updated_at = datetime.now(timezone.utc)
+            return job
+
+        return self._atomic_job_update(job_id, update)
+
+    def _atomic_job_update(self, job_id: str, updater) -> Job:
+        """CAS-update a job when Redis transactions are available."""
+        key = self._key(job_id)
+        if not hasattr(self.client, "pipeline"):
+            job = self.get(job_id)
+            if job is None:
+                raise KeyError(job_id)
+            job = updater(job)
+            self.client.set(key, json.dumps(job.as_dict()))
+            return job
+        try:
+            from redis.exceptions import WatchError
+        except ImportError:  # pragma: no cover - only reached with a custom Redis client
+            WatchError = RuntimeError
+        while True:
+            pipe = self.client.pipeline(transaction=True)
+            try:
+                pipe.watch(key)
+                raw = pipe.get(key)
+                if not raw:
+                    raise KeyError(job_id)
+                job = updater(Job.from_dict(json.loads(raw)))
+                pipe.multi()
+                pipe.set(key, json.dumps(job.as_dict()))
+                pipe.execute()
+                return job
+            except WatchError:
+                continue
+            finally:
+                pipe.reset()
 
     def pop_queued(self, timeout: int = 0) -> Job | None:
         value = self.client.blpop(f"{self.prefix}:queue", timeout=timeout)

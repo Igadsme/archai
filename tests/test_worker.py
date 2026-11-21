@@ -162,6 +162,40 @@ class FakeRedis:
         return iter(self.values)
 
 
+class TransactionalFakeRedis(FakeRedis):
+    class Pipeline:
+        def __init__(self, parent):
+            self.parent = parent
+            self.commands = []
+
+        def watch(self, _key):
+            return None
+
+        def get(self, key):
+            return self.parent.get(key)
+
+        def multi(self):
+            return None
+
+        def set(self, key, value):
+            self.commands.append(("set", key, value))
+
+        def rpush(self, key, value):
+            self.commands.append(("rpush", key, value))
+
+        def execute(self):
+            for command, key, value in self.commands:
+                getattr(self.parent, command)(key, value)
+            self.commands = []
+            return []
+
+        def reset(self):
+            self.commands = []
+
+    def pipeline(self, transaction=True):
+        return self.Pipeline(self)
+
+
 def test_redis_worker_round_trip_persists_result():
     from archai_shared.jobs import RedisJobStore
 
@@ -171,6 +205,15 @@ def test_redis_worker_round_trip_persists_result():
     result = runner.run_once()
     assert result.status == "succeeded"
     assert store.get(job.job_id).payload["result"] == {"accuracy": 0.9}
+
+
+def test_redis_store_uses_transactional_job_writes():
+    from archai_shared.jobs import RedisJobStore
+
+    store = RedisJobStore(TransactionalFakeRedis())
+    job = store.create("training", {"seed": 2})
+    assert store.transition(job.job_id, "cancelled").status == "cancelled"
+    assert store.get(job.job_id).status == "cancelled"
 
 
 def test_redis_worker_heartbeat_reports_idle_and_active_state():
