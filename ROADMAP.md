@@ -8,9 +8,9 @@
 - [partial] M1 checksum-gated acquisition, NAS-Bench-201 parser, and budgeted adapter; real archive query pending
 - [ ] M6 trained generator + predictor checkpoints with provenance
 - [partial] M6 controller loop, persistence, validation, and budget enforcement; trained closed-loop benchmark run pending
-- [ ] M7 matched multi-objective baseline studies
+- [partial] M7 seeded benchmark-index random baseline and research summaries; matched real-data comparisons pending
 - [ ] M8 durable workers and real candidate training on configured hardware
-- [ ] M9 PostgreSQL/Redis production deployment and authenticated job APIs
+- [partial] M9 schema, local job/API lifecycle, model registry, and container definitions; PostgreSQL/Redis runtime wiring pending
 - [partial] M10 connected ArchAI Studio frontend shell and API reads; package installation/build pending environment network
 - [ ] M11 repeated-seed research report and ablations
 - [ ] M12 authorized Hugging Face publication

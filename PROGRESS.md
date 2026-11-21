@@ -19,7 +19,9 @@ Updated 2026-11-20.
 - API now exposes lifecycle surfaces for searches and provenance-backed experiments; local job transitions reject invalid terminal-state changes and worker start reports an explicit unconfigured-worker response.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
-- Test suite: 24 passing tests.
+- Model artifact registry now stores versioned model manifests with SHA-256 checksums and exposes read-only API listing.
+- Benchmark baseline now includes seeded random index traversal under the existing query budget abstraction.
+- Test suite: 26 passing tests.
 
 ## Evidence boundaries
 

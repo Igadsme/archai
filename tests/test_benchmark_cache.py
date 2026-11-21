@@ -1,7 +1,7 @@
 from archai_benchmark.adapter import BenchmarkRecord, NATSBenchAdapter
 from archai_benchmark.cache import BenchmarkCache
 from archai_benchmark.manifest import load_manifest
-from archai_benchmark.search import BenchmarkEvaluator, QueryBudget
+from archai_benchmark.search import BenchmarkEvaluator, IndexRandomSearch, QueryBudget
 
 
 class FakeNATS:
@@ -37,3 +37,10 @@ def test_cached_query_does_not_consume_new_budget(tmp_path):
 def test_unresolved_manifest_is_not_ready_for_download():
     manifest = load_manifest("datasets/manifests/natsbench201.json")
     assert manifest.sha256 is None
+
+
+def test_index_random_search_is_seeded_and_budgetable():
+    left = IndexRandomSearch(range(5), seed=12)
+    right = IndexRandomSearch(range(5), seed=12)
+    assert [left.ask() for _ in range(5)] == [right.ask() for _ in range(5)]
+    assert left.ask() is None

@@ -33,3 +33,4 @@ def test_search_and_experiment_lifecycle_surface():
         "evidence_type": "predicted", "dataset_id": "unit", "dataset_version": "1", "seed": 7})
     assert experiment.status_code == 200
     assert client.get(f"/v1/experiments/{experiment.json()['experiment_id']}").status_code == 200
+    assert client.get("/v1/models").status_code == 200

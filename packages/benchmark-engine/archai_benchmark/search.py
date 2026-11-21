@@ -31,3 +31,20 @@ class BenchmarkEvaluator:
         if self.cache:
             self.cache.put(record)
         return record
+
+
+class IndexRandomSearch:
+    """Reproducible random search over benchmark indices under a fixed budget."""
+    def __init__(self, indices, *, seed: int = 0):
+        import random
+        self._rng = random.Random(seed)
+        self._indices = list(indices)
+        self._rng.shuffle(self._indices)
+        self._position = 0
+
+    def ask(self) -> int | None:
+        if self._position >= len(self._indices):
+            return None
+        index = self._indices[self._position]
+        self._position += 1
+        return index

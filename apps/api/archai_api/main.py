@@ -11,6 +11,7 @@ from archai_core.validation import ValidationError, validate_architecture
 from archai_compiler.metrics import analytical_metrics
 from archai_shared.jobs import InMemoryJobStore
 from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance
+from archai_shared.registry import ModelRegistry
 from pydantic import BaseModel, ConfigDict, Field
 
 app = FastAPI(title="ArchAI API", version="v1")
@@ -19,6 +20,7 @@ _searches: dict[str, dict] = {}
 _experiments: dict[str, ExperimentRecord] = {}
 _jobs = InMemoryJobStore()
 _artifact_store = ArtifactStore(os.getenv("ARCHAI_ARTIFACT_STORE", "/tmp/archai-experiments.jsonl"))
+_model_registry = ModelRegistry(os.getenv("ARCHAI_MODEL_MANIFEST", "/tmp/archai-models.json"))
 
 
 class SearchRequest(BaseModel):
@@ -145,6 +147,11 @@ def get_experiment(experiment_id: str):
     if record is None:
         raise HTTPException(status_code=404, detail="experiment not found")
     return record.model_dump(mode="json")
+
+
+@app.get("/v1/models")
+def list_models():
+    return {"items": [item.__dict__ for item in _model_registry.list()]}
 
 
 @app.post("/v1/architectures/generate")
