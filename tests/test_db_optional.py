@@ -48,3 +48,7 @@ def test_sqlalchemy_search_and_experiment_stores_round_trip(tmp_path):
     assert loaded is not None
     assert loaded.provenance.dataset_id == "unit"
     assert loaded.metrics == {"accuracy": 0.5}
+    updated = loaded.model_copy(update={"status": "completed", "metrics": {"accuracy": 0.7}})
+    experiment_store.put(updated)
+    assert experiment_store.get("experiment-1").status == "completed"
+    assert experiment_store.get("experiment-1").metrics == {"accuracy": 0.7}

@@ -39,7 +39,16 @@ def test_search_and_experiment_lifecycle_surface():
     experiment = client.post("/v1/experiments", json={"architecture_id": identifier,
         "evidence_type": "predicted", "dataset_id": "unit", "dataset_version": "1", "seed": 7})
     assert experiment.status_code == 200
-    assert client.get(f"/v1/experiments/{experiment.json()['experiment_id']}").status_code == 200
+    experiment_id = experiment.json()["experiment_id"]
+    assert client.get(f"/v1/experiments/{experiment_id}").status_code == 200
+    updated = client.patch(f"/v1/experiments/{experiment_id}",
+                            json={"status": "running", "metrics": {"loss": 0.4}})
+    assert updated.status_code == 200
+    assert updated.json()["status"] == "running"
+    completed = client.patch(f"/v1/experiments/{experiment_id}",
+                             json={"status": "completed", "metrics": {"accuracy": 0.8}})
+    assert completed.status_code == 200
+    assert client.patch(f"/v1/experiments/{experiment_id}", json={"status": "running"}).status_code == 409
     assert client.get("/v1/models").status_code == 200
     assert client.get("/v1/models/unknown").status_code == 404
 

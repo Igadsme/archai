@@ -148,6 +148,13 @@ class ExperimentRequest(BaseModel):
     metrics: dict[str, float] = Field(default_factory=dict)
 
 
+class ExperimentUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    status: str
+    metrics: dict[str, float] | None = None
+    failure_detail: str | None = Field(default=None, max_length=4096)
+
+
 class GenerateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     count: int = Field(default=1, gt=0, le=64)
@@ -313,6 +320,28 @@ def get_experiment(experiment_id: str):
     if record is None:
         raise HTTPException(status_code=404, detail="experiment not found")
     return record.model_dump(mode="json")
+
+
+@app.patch("/v1/experiments/{experiment_id}", dependencies=[Depends(require_write_access)])
+def update_experiment(experiment_id: str, request: ExperimentUpdate):
+    record = _experiment_store.get(experiment_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="experiment not found")
+    allowed = {"created": {"running", "failed", "cancelled"},
+               "running": {"completed", "failed", "cancelled"},
+               "completed": set(), "failed": set(), "cancelled": set()}
+    if request.status not in {"created", "running", "completed", "failed", "cancelled"}:
+        raise HTTPException(status_code=422, detail="invalid experiment status")
+    if request.status not in allowed[record.status]:
+        raise HTTPException(status_code=409, detail=f"invalid experiment transition {record.status}->{request.status}")
+    now = datetime.now(timezone.utc)
+    updated = record.model_copy(update={"status": request.status,
+        "metrics": request.metrics if request.metrics is not None else record.metrics,
+        "failure_detail": request.failure_detail,
+        "completed_at": now if request.status in {"completed", "failed", "cancelled"} else record.completed_at})
+    _experiment_store.put(updated)
+    _artifact_store.append(updated)
+    return updated.model_dump(mode="json")
 
 
 @app.get("/v1/models")
