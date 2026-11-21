@@ -14,4 +14,4 @@ Enable the durable queue worker with:
 docker compose -f infrastructure/docker/docker-compose.yml --profile worker up --build
 ```
 
-The generic worker claims Redis jobs and records unsupported job kinds as failures. Search/training handlers must be registered by the experiment service before production execution is enabled.
+The worker claims Redis jobs and records unsupported job kinds as failures. The current entry point registers benchmark search, candidate training, generator training, and predictor training handlers. Candidate training is explicitly limited to synthetic smoke data; predictor training requires a checksum-verified NATS-Bench archive.

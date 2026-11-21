@@ -16,7 +16,9 @@ def run_job(store: JobStore, job_id: str, handler: JobHandler) -> Job:
     """Execute one claimed job with terminal failure capture."""
     job = store.transition(job_id, "running")
     try:
-        handler(job)
+        result = handler(job)
+        if result is not None:
+            store.update_payload(job_id, {**job.payload, "result": result})
     except Exception as exc:
         return store.transition(job_id, "failed", error=f"{type(exc).__name__}: {exc}")
     return store.transition(job_id, "succeeded")

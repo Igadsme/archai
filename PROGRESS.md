@@ -51,6 +51,7 @@ Updated 2026-11-21.
 - Benchmark worker rejects unsupported algorithm names instead of silently recording them as random search.
 - Worker status and search start now require a successful Redis ping; Compose enables `ARCHAI_REQUIRE_REDIS=1` for durable deployment truthfulness.
 - Redis job serialization, queue claiming, handler execution, and result persistence now have a dependency-free fake-client integration test.
+- The shared direct `run_job` path now persists handler results identically to `WorkerRunner`, preventing local execution from losing metrics or artifact references.
 - Durable workers now expose an explicit candidate-training handler with reproducible synthetic smoke data, real compiler/training-engine execution, checkpoint output, and refusal to substitute synthetic data for undeclared real datasets.
 - Durable workers now expose generator-training and predictor-training handlers; generator training is locally exercised from JSONL, while predictor training requires an explicit checksum-verified NATS-Bench archive and non-empty train/validation/test indices.
 - Queue status now returns explicit degraded availability and error details when the selected Redis backend cannot be listed.
