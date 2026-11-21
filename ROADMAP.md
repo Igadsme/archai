@@ -7,7 +7,7 @@
 - [x] M5 constrained trainable generator with valid sampling and checkpoint boundary
 - [partial] M1 checksum-gated acquisition, NAS-Bench-201 parser, and budgeted adapter; real archive query pending
 - [ ] M6 trained generator + predictor checkpoints with provenance
-- [partial] M6 controller loop, persistence, validation, and budget enforcement; trained closed-loop benchmark run pending
+- [partial] M6 controller loop, persistence, acquisition ranking, validation, and budget enforcement; trained closed-loop benchmark run pending
 - [partial] M7 seeded benchmark-index random baseline and research summaries; matched real-data comparisons pending
 - [ ] M8 durable workers and real candidate training on configured hardware
 - [partial] M9 schema, local job/API lifecycle, model registry, and container definitions; PostgreSQL/Redis runtime wiring pending

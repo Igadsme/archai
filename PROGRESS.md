@@ -21,7 +21,9 @@ Updated 2026-11-20.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
 - Model artifact registry now stores versioned model manifests with SHA-256 checksums and exposes read-only API listing.
 - Benchmark baseline now includes seeded random index traversal under the existing query budget abstraction.
-- Test suite: 27 passing tests.
+- Search acquisition now supports expected improvement, upper-confidence bounds, and uncertainty-aware candidate ranking.
+- Predictor comparisons now include mean and graph-feature ridge baselines.
+- Test suite: 31 passing tests.
 
 ## Evidence boundaries
 
