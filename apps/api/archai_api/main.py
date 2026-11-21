@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import os
+import time
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 
 from archai_core.schema import Architecture
 from archai_core.validation import ValidationError, validate_architecture
@@ -31,6 +34,25 @@ def _make_job_store():
 _jobs = _make_job_store()
 _artifact_store = ArtifactStore(os.getenv("ARCHAI_ARTIFACT_STORE", "/tmp/archai-experiments.jsonl"))
 _model_registry = ModelRegistry(os.getenv("ARCHAI_MODEL_MANIFEST", "/tmp/archai-models.json"))
+_rate_windows: dict[str, deque[float]] = defaultdict(deque)
+
+
+@app.middleware("http")
+async def request_limits(request: Request, call_next):
+    max_bytes = int(os.getenv("ARCHAI_MAX_REQUEST_BYTES", str(1024 * 1024)))
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > max_bytes:
+        return JSONResponse({"detail": "request body too large"}, status_code=413)
+    limit = int(os.getenv("ARCHAI_RATE_LIMIT_PER_MINUTE", "120"))
+    key = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    window = _rate_windows[key]
+    while window and now - window[0] >= 60:
+        window.popleft()
+    if len(window) >= limit:
+        return JSONResponse({"detail": "rate limit exceeded"}, status_code=429)
+    window.append(now)
+    return await call_next(request)
 
 
 class SearchRequest(BaseModel):

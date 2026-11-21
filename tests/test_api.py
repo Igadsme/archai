@@ -51,3 +51,10 @@ def test_write_operations_honor_x_api_key(monkeypatch):
     assert client.post("/v1/searches", json={"algorithm": "random", "dataset_id": "unit", "budget_evaluations": 1}).status_code == 401
     assert client.post("/v1/searches", headers={"x-api-key": "secret"}, json={"algorithm": "random", "dataset_id": "unit", "budget_evaluations": 1}).status_code == 200
     monkeypatch.delenv("ARCHAI_API_KEY")
+
+
+def test_request_size_limit_is_configurable(monkeypatch):
+    client = TestClient(app)
+    monkeypatch.setenv("ARCHAI_MAX_REQUEST_BYTES", "10")
+    assert client.post("/v1/architectures/validate", json=payload()).status_code == 413
+    monkeypatch.delenv("ARCHAI_MAX_REQUEST_BYTES")
