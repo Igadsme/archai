@@ -95,6 +95,20 @@ def sqlalchemy_components():
     return Base, ArchitectureRow, SearchSessionRow, ExperimentRow, make_engine, make_session_factory
 
 
+def database_is_ready(url: str) -> bool:
+    """Check database connectivity without requiring ORM store initialization."""
+    try:
+        _base, _architecture, _search, _experiment, make_engine, _sessions = sqlalchemy_components()
+        from sqlalchemy import text
+        engine = make_engine(url)
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        engine.dispose()
+        return True
+    except Exception:
+        return False
+
+
 class SqlAlchemyArchitectureStore:
     """Persist canonical architecture documents through the configured database.
 

@@ -1,3 +1,4 @@
+import os
 import pytest
 from fastapi.testclient import TestClient
 
@@ -73,6 +74,15 @@ def test_readiness_and_queue_status_are_truthful():
     assert readiness.json()["durable_worker_configured"] is False
     queue = client.get("/v1/infrastructure/queue").json()
     assert queue["backend"] == "in_memory"
+
+
+def test_database_readiness_probe_is_truthful(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'ready.sqlite'}")
+    from archai_api import main as api_main
+    assert api_main.database_is_ready(os.environ["DATABASE_URL"]) is True
+    monkeypatch.setenv("DATABASE_URL", "sqlite:////path/that/does/not/exist/archai.sqlite")
+    assert api_main.database_is_ready(os.environ["DATABASE_URL"]) is False
+    monkeypatch.delenv("DATABASE_URL")
 
 
 def test_write_operations_honor_x_api_key(monkeypatch):

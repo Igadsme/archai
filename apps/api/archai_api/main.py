@@ -15,7 +15,8 @@ from archai_core.schema import Architecture
 from archai_core.validation import ValidationError, validate_architecture
 from archai_compiler.metrics import analytical_metrics
 from archai_api.db import (SqlAlchemyArchitectureStore, SqlAlchemyExperimentStore,
-                           SqlAlchemyDatasetStore, SqlAlchemyModelRegistry, SqlAlchemySearchStore)
+                           SqlAlchemyDatasetStore, SqlAlchemyModelRegistry, SqlAlchemySearchStore,
+                           database_is_ready)
 from archai_shared.jobs import InMemoryJobStore, RedisJobStore
 from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance
 from archai_shared.registry import ModelRegistry
@@ -248,8 +249,11 @@ def readiness() -> dict[str, bool | str]:
             _jobs.client.ping()
         except Exception:
             redis_ready = False
-    return {"status": "ready", "durable_worker_configured": redis_ready,
-            "database_configured": bool(os.getenv("DATABASE_URL"))}
+    database_configured = bool(os.getenv("DATABASE_URL"))
+    database_ready = database_is_ready(os.environ["DATABASE_URL"]) if database_configured else True
+    ready = database_ready and (redis_ready or not os.getenv("ARCHAI_REQUIRE_REDIS"))
+    return {"status": "ready" if ready else "not_ready", "durable_worker_configured": redis_ready,
+            "database_configured": database_configured, "database_ready": database_ready}
 
 
 @app.get("/v1/infrastructure/workers")
