@@ -91,6 +91,20 @@ def test_training_job_api_validates_and_exposes_job_lifecycle():
     assert candidate.status_code == 422
 
 
+def test_training_job_api_enforces_schema_and_resource_limits():
+    client = TestClient(app)
+    invalid_architecture = client.post("/v1/training", json={"kind": "candidate", "payload": {
+        "architecture": {"nodes": [], "edges": []}, "epochs": 1}})
+    assert invalid_architecture.status_code == 422
+    excessive = client.post("/v1/training", json={"kind": "generator", "payload": {
+        "corpus_path": "/tmp/corpus.jsonl", "checkpoint_path": "/tmp/model.pt", "epochs": 1001}})
+    assert excessive.status_code == 422
+    invalid_checksum = client.post("/v1/training", json={"kind": "predictor", "payload": {
+        "benchmark_path": "/tmp/nats.tar", "benchmark_sha256": "bad", "indices": [1, 2, 3],
+        "checkpoint_path": "/tmp/model.pt"}})
+    assert invalid_checksum.status_code == 422
+
+
 def test_model_registry_api_registers_checksum_manifest(tmp_path):
     client = TestClient(app)
     artifact = tmp_path / "predictor.pt"

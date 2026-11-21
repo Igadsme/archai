@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import hashlib
 import hmac
+import re
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
@@ -370,10 +371,24 @@ def create_training_job(request: TrainingJobRequest):
         raise HTTPException(status_code=422, detail={"missing_fields": missing})
     if request.kind == "candidate" and request.payload.get("dataset", "synthetic") != "synthetic":
         raise HTTPException(status_code=422, detail="candidate worker requires dataset=synthetic")
+    if request.kind == "candidate":
+        try:
+            validate_architecture(Architecture.model_validate(request.payload["architecture"]))
+        except (TypeError, ValueError, ValidationError) as exc:
+            raise HTTPException(status_code=422, detail=f"invalid candidate architecture: {exc}") from exc
     if request.kind == "predictor":
         indices = request.payload.get("indices")
         if not isinstance(indices, list) or len(indices) < 3 or not all(isinstance(index, int) for index in indices):
             raise HTTPException(status_code=422, detail="predictor worker requires a list of at least three integer indices")
+        checksum = request.payload.get("benchmark_sha256")
+        if not isinstance(checksum, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", checksum):
+            raise HTTPException(status_code=422, detail="predictor worker requires a 64-character SHA-256 checksum")
+    limits = {"epochs": 1000, "train_samples": 100_000, "validation_samples": 100_000,
+              "batch_size": 4096, "sample_count": 64, "population_size": 10_000, "sample_size": 10_000}
+    for field_name, upper_bound in limits.items():
+        value = request.payload.get(field_name)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value <= 0 or value > upper_bound):
+            raise HTTPException(status_code=422, detail=f"{field_name} must be an integer in [1, {upper_bound}]")
     worker_kind = f"{request.kind}_training" if request.kind != "candidate" else "training"
     job = _jobs.create(worker_kind, dict(request.payload))
     return job.as_dict()
