@@ -29,6 +29,7 @@ Updated 2026-11-20.
 - API generator inference now loads a registered-format checkpoint when `ARCHAI_GENERATOR_CHECKPOINT` is configured, samples the requested number of seeded candidates, and returns canonical architecture IDs; the unconfigured path remains an explicit `503`.
 - Search API status and cancellation now read and update the authoritative job-store state instead of maintaining a divergent in-memory status.
 - The architecture registry now has a SQLAlchemy-backed implementation selected by `DATABASE_URL`, with canonical-document hash verification on reads and an SQLite round-trip test; process-local storage remains the explicit default.
+- Search configurations and evidence-aware experiment records now persist through SQLAlchemy when `DATABASE_URL` is configured; migration `0002_experiment_provenance` preserves provenance and lifecycle timestamps.
 - API now enforces configurable request-size and per-client rate limits; the limiter is intentionally process-local until a gateway/Redis limiter is deployed.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.

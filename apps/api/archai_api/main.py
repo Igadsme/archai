@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from archai_core.schema import Architecture
 from archai_core.validation import ValidationError, validate_architecture
 from archai_compiler.metrics import analytical_metrics
-from archai_api.db import SqlAlchemyArchitectureStore
+from archai_api.db import SqlAlchemyArchitectureStore, SqlAlchemyExperimentStore, SqlAlchemySearchStore
 from archai_shared.jobs import InMemoryJobStore, RedisJobStore
 from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance
 from archai_shared.registry import ModelRegistry
@@ -53,6 +53,35 @@ class _InMemoryArchitectureStore:
         return list(self._values.values())[:limit]
 
 
+class _InMemorySearchStore:
+    def __init__(self):
+        self._values: dict[str, dict] = {}
+
+    def put(self, search_id: str, config: dict, *, status: str = "queued") -> dict:
+        value = {"search_id": search_id, **config}
+        self._values[search_id] = value
+        return value
+
+    def get(self, search_id: str) -> dict | None:
+        return self._values.get(search_id)
+
+    def set_status(self, search_id: str, status: str, consumed_evaluations: int | None = None) -> None:
+        if search_id not in self._values:
+            raise KeyError(search_id)
+
+
+class _InMemoryExperimentStore:
+    def __init__(self):
+        self._values: dict[str, ExperimentRecord] = {}
+
+    def put(self, record: ExperimentRecord) -> ExperimentRecord:
+        self._values[record.experiment_id] = record
+        return record
+
+    def get(self, experiment_id: str) -> ExperimentRecord | None:
+        return self._values.get(experiment_id)
+
+
 def _make_architecture_store():
     url = os.getenv("DATABASE_URL")
     if not url:
@@ -62,6 +91,24 @@ def _make_architecture_store():
 
 
 _architecture_store = _make_architecture_store()
+
+
+def _make_search_store():
+    url = os.getenv("DATABASE_URL")
+    if not url:
+        return _InMemorySearchStore()
+    return SqlAlchemySearchStore.from_url(url, initialize=os.getenv("ARCHAI_DB_AUTO_CREATE", "0") == "1")
+
+
+def _make_experiment_store():
+    url = os.getenv("DATABASE_URL")
+    if not url:
+        return _InMemoryExperimentStore()
+    return SqlAlchemyExperimentStore.from_url(url, initialize=os.getenv("ARCHAI_DB_AUTO_CREATE", "0") == "1")
+
+
+_search_store = _make_search_store()
+_experiment_store = _make_experiment_store()
 
 
 @app.middleware("http")
@@ -200,13 +247,12 @@ def get_architecture(architecture_id: str):
 @app.post("/v1/searches", dependencies=[Depends(require_write_access)])
 def create_search(request: SearchRequest):
     job = _jobs.create("search", request.model_dump())
-    _searches[job.job_id] = {"search_id": job.job_id, **request.model_dump()}
-    return _searches[job.job_id]
+    return _search_store.put(job.job_id, request.model_dump())
 
 
 @app.get("/v1/searches/{search_id}")
 def get_search(search_id: str):
-    search = _searches.get(search_id)
+    search = _search_store.get(search_id)
     if search is None:
         raise HTTPException(status_code=404, detail="search not found")
     job = _jobs.get(search_id)
@@ -217,7 +263,7 @@ def get_search(search_id: str):
 
 @app.post("/v1/searches/{search_id}/start", dependencies=[Depends(require_write_access)])
 def start_search(search_id: str):
-    search = _searches.get(search_id)
+    search = _search_store.get(search_id)
     if search is None:
         raise HTTPException(status_code=404, detail="search not found")
     job = _jobs.get(search_id)
@@ -228,7 +274,7 @@ def start_search(search_id: str):
 
 @app.post("/v1/searches/{search_id}/cancel", dependencies=[Depends(require_write_access)])
 def cancel_search(search_id: str):
-    search = _searches.get(search_id)
+    search = _search_store.get(search_id)
     if search is None:
         raise HTTPException(status_code=404, detail="search not found")
     job = _jobs.get(search_id)
@@ -236,6 +282,7 @@ def cancel_search(search_id: str):
         raise HTTPException(status_code=404, detail="search job not found")
     if job.status in {"queued", "running"}:
         job = _jobs.transition(search_id, "cancelled")
+        _search_store.set_status(search_id, job.status)
     return {**search, "status": job.status, "job": job.as_dict()}
 
 
@@ -252,14 +299,14 @@ def create_experiment(request: ExperimentRequest):
                                       dataset_version=request.dataset_version, seed=request.seed))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    _experiments[record.experiment_id] = record
+    _experiment_store.put(record)
     _artifact_store.append(record)
     return record.model_dump(mode="json")
 
 
 @app.get("/v1/experiments/{experiment_id}")
 def get_experiment(experiment_id: str):
-    record = _experiments.get(experiment_id)
+    record = _experiment_store.get(experiment_id)
     if record is None:
         raise HTTPException(status_code=404, detail="experiment not found")
     return record.model_dump(mode="json")

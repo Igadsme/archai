@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -9,7 +10,7 @@ if TYPE_CHECKING:
 def sqlalchemy_components():
     """Return optional SQLAlchemy primitives without making local API depend on them."""
     try:
-        from sqlalchemy import JSON, Integer, String, Text, create_engine
+        from sqlalchemy import DateTime, JSON, Integer, String, Text, create_engine
         from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError("install the 'platform' extra for SQLAlchemy support") from exc
@@ -48,6 +49,9 @@ def sqlalchemy_components():
         seed: Mapped[int] = mapped_column(Integer, nullable=False)
         metrics: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
         failure_detail: Mapped[str | None] = mapped_column(Text)
+        provenance: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+        started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+        completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     def make_engine(url: str):
         return create_engine(url, pool_pre_ping=True)
@@ -139,5 +143,122 @@ class SqlAlchemyArchitectureStore:
                     raise ValueError("stored architecture hash does not match canonical document")
                 values.append(architecture)
             return values
+        finally:
+            session.close()
+
+
+class SqlAlchemySearchStore:
+    """Persist search configuration independently from the job queue."""
+
+    def __init__(self, session_factory, search_row):
+        self._session_factory = session_factory
+        self._row = search_row
+
+    @classmethod
+    def from_url(cls, url: str, *, initialize: bool = False) -> "SqlAlchemySearchStore":
+        Base, _architecture_row, search_row, _experiment_row, make_engine, make_session_factory = sqlalchemy_components()
+        engine = make_engine(url)
+        if initialize:
+            Base.metadata.create_all(engine)
+        return cls(make_session_factory(url, engine), search_row)
+
+    def put(self, search_id: str, config: dict, *, status: str = "queued") -> dict:
+        session = self._session_factory()
+        try:
+            row = session.get(self._row, search_id)
+            values = {"search_id": search_id, "status": status, "algorithm": config["algorithm"],
+                      "config": dict(config), "budget_evaluations": config["budget_evaluations"]}
+            if row is None:
+                row = self._row(**values)
+                session.add(row)
+            else:
+                for key, value in values.items():
+                    setattr(row, key, value)
+            session.commit()
+            return {"search_id": row.search_id, **row.config}
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def get(self, search_id: str) -> dict | None:
+        session = self._session_factory()
+        try:
+            row = session.get(self._row, search_id)
+            return None if row is None else {"search_id": row.search_id, **row.config}
+        finally:
+            session.close()
+
+    def set_status(self, search_id: str, status: str, consumed_evaluations: int | None = None) -> None:
+        session = self._session_factory()
+        try:
+            row = session.get(self._row, search_id)
+            if row is None:
+                raise KeyError(search_id)
+            row.status = status
+            if consumed_evaluations is not None:
+                row.consumed_evaluations = consumed_evaluations
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+
+class SqlAlchemyExperimentStore:
+    """Persist evidence-aware experiment records in the relational store."""
+
+    def __init__(self, session_factory, experiment_row):
+        self._session_factory = session_factory
+        self._row = experiment_row
+
+    @classmethod
+    def from_url(cls, url: str, *, initialize: bool = False) -> "SqlAlchemyExperimentStore":
+        Base, _architecture_row, _search_row, experiment_row, make_engine, make_session_factory = sqlalchemy_components()
+        engine = make_engine(url)
+        if initialize:
+            Base.metadata.create_all(engine)
+        return cls(make_session_factory(url, engine), experiment_row)
+
+    def put(self, record):
+        session = self._session_factory()
+        try:
+            row = session.get(self._row, record.experiment_id)
+            values = {"experiment_id": record.experiment_id, "architecture_id": record.architecture_id,
+                      "dataset_id": record.provenance.dataset_id, "dataset_version": record.provenance.dataset_version,
+                      "evidence_type": record.evidence_type, "status": record.status, "seed": record.provenance.seed,
+                      "metrics": dict(record.metrics), "failure_detail": record.failure_detail,
+                      "provenance": record.provenance.model_dump(), "started_at": record.started_at,
+                      "completed_at": record.completed_at}
+            if row is None:
+                row = self._row(**values)
+                session.add(row)
+            else:
+                for key, value in values.items():
+                    setattr(row, key, value)
+            session.commit()
+            return record
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def get(self, experiment_id: str):
+        from archai_shared.records import ExperimentRecord, Provenance
+
+        session = self._session_factory()
+        try:
+            row = session.get(self._row, experiment_id)
+            if row is None:
+                return None
+            provenance = Provenance.model_validate(row.provenance or {
+                "dataset_id": row.dataset_id, "dataset_version": row.dataset_version, "seed": row.seed})
+            return ExperimentRecord(experiment_id=row.experiment_id, architecture_id=row.architecture_id,
+                                    evidence_type=row.evidence_type, status=row.status, metrics=row.metrics or {},
+                                    provenance=provenance, started_at=row.started_at or datetime.now(timezone.utc),
+                                    completed_at=row.completed_at, failure_detail=row.failure_detail)
         finally:
             session.close()
