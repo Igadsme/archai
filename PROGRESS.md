@@ -49,6 +49,7 @@ Updated 2026-11-21.
 - CI now installs the platform extra, verifies a fresh Alembic schema reaches `0004_model_identifiers`, and validates Docker Compose configuration without requiring live services.
 - Alembic migrations now have an executable upgrade/downgrade/upgrade regression test against SQLite, covering rollback safety before deployment.
 - Corrected the raw PostgreSQL schema artifact’s duplicate experiment timestamp declarations and aligned model uniqueness with named model IDs.
+- Alembic 0004 now enforces named model/version uniqueness at the database layer with a portable unique index, closing concurrent registration races.
 - API CORS is now explicit and environment-configured, with local Studio origins enabled by default and preflight coverage.
 - Generator checkpoint save/load is now verified with deterministic post-reload sampling, matching predictor checkpoint evidence.
 - Generator CLI execution is now covered end-to-end from conditional JSONL corpus through checkpoint/report generation.
