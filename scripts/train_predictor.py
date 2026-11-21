@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 
 from archai_benchmark.adapter import NATSBenchAdapter
+from archai_benchmark.integrity import sha256_file
 from archai_benchmark.nasbench201 import architecture_from_string
 from archai_core.schema import TensorSpec
 from archai_predictor.data import ArchitectureRecord, split_records
@@ -44,6 +45,7 @@ def collect_records(adapter: NATSBenchAdapter, indices: list[int], seed: int, da
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--benchmark-path", required=True)
+    parser.add_argument("--benchmark-sha256", required=True)
     parser.add_argument("--indices", required=True, help="comma-separated architecture indices")
     parser.add_argument("--dataset", default="cifar10")
     parser.add_argument("--search-space", default="tss")
@@ -55,6 +57,9 @@ def main() -> int:
     indices = [int(value.strip()) for value in args.indices.split(",") if value.strip()]
     if len(indices) < 3:
         parser.error("at least three architecture indices are required for train/validation/test")
+    actual_checksum = sha256_file(args.benchmark_path)
+    if actual_checksum != args.benchmark_sha256.lower():
+        parser.error("benchmark archive checksum mismatch")
     adapter = NATSBenchAdapter(args.benchmark_path, args.search_space, args.dataset).open()
     records = collect_records(adapter, indices, args.seed, args.dataset)
     splits = split_records(records, seed=args.seed)
@@ -68,7 +73,7 @@ def main() -> int:
                 "seed": args.seed, "code_revision": _code_revision(),
                 "architecture_ids": [record.architecture.content_hash() for record in records],
                 "split_sizes": {key: len(value) for key, value in splits.items()},
-                "test_used_for_selection": False}
+                "test_used_for_selection": False, "archive_sha256": actual_checksum}
     save_checkpoint(model, args.checkpoint, metadata)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps({"metadata": metadata, "training_loss": history,

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from archai_benchmark import (BenchmarkCache, BenchmarkEvaluator, IndexRandomSearch,
                                IndexRegularizedEvolution, NATSBenchAdapter, QueryBudget)
+from archai_benchmark.integrity import sha256_file
 
 
 def select_best_validation(records):
@@ -18,6 +19,7 @@ def select_best_validation(records):
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--benchmark-path", required=True)
+    parser.add_argument("--benchmark-sha256", required=True)
     parser.add_argument("--indices", required=True, help="comma-separated benchmark indices")
     parser.add_argument("--budget", type=int, required=True)
     parser.add_argument("--dataset", default="cifar10")
@@ -32,6 +34,9 @@ def main() -> int:
     indices = [int(value.strip()) for value in args.indices.split(",") if value.strip()]
     if args.budget <= 0:
         parser.error("budget must be positive")
+    actual_checksum = sha256_file(args.benchmark_path)
+    if actual_checksum != args.benchmark_sha256.lower():
+        parser.error("benchmark archive checksum mismatch")
     if args.algorithm == "evolution" and (args.population_size <= 0 or args.sample_size <= 0):
         parser.error("population and sample sizes must be positive")
     adapter = NATSBenchAdapter(args.benchmark_path, args.search_space, args.dataset).open()
@@ -60,6 +65,7 @@ def main() -> int:
               "selected_on": "validation_accuracy", "selected_index": best.architecture_index,
               "selected_validation_accuracy": best.validation_accuracy,
               "held_out_test_accuracy": best.test_accuracy, "evidence_type": "benchmark_lookup",
+              "archive_sha256": actual_checksum,
               "evaluated_indices": [record.architecture_index for record in records]}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2, sort_keys=True))

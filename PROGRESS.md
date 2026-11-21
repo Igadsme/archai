@@ -23,6 +23,7 @@ Updated 2026-11-21.
 - First normalized PostgreSQL schema migration is present for users, credentials, datasets, architectures, checkpoints, searches, and experiments.
 - SQLAlchemy model factories and Alembic environment/initial migration now correspond to the core architecture, search-session, and experiment tables while remaining lazy-imported locally.
 - Benchmark access now records architecture encodings, caches queries with a uniqueness constraint, and refuses acquisition until a verified checksum is supplied.
+- Standalone benchmark-search and predictor-training CLIs now require and verify an archive SHA-256 before opening NATS-Bench, and persist the digest in reports/checkpoint metadata.
 - API now exposes lifecycle surfaces for searches and provenance-backed experiments; local job transitions reject invalid terminal-state changes and worker start reports an explicit unconfigured-worker response.
 - API now exposes readiness, worker, and queue status endpoints; documented `x-api-key` enforcement is tested, and Redis status reflects the actual selected backend plus connectivity ping.
 - API architecture comparison and model metadata retrieval routes are now covered, with static-route ordering fixed so `/compare` is not shadowed by the dynamic architecture route.
@@ -78,7 +79,7 @@ Updated 2026-11-21.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 89 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 91 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 
