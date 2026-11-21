@@ -9,7 +9,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from archai_core.schema import Architecture
 from archai_core.validation import ValidationError, validate_architecture
 from archai_compiler.metrics import analytical_metrics
-from archai_shared.jobs import InMemoryJobStore
+from archai_shared.jobs import InMemoryJobStore, RedisJobStore
 from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance
 from archai_shared.registry import ModelRegistry
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,7 +18,17 @@ app = FastAPI(title="ArchAI API", version="v1")
 _architectures: dict[str, Architecture] = {}
 _searches: dict[str, dict] = {}
 _experiments: dict[str, ExperimentRecord] = {}
-_jobs = InMemoryJobStore()
+def _make_job_store():
+    url = os.getenv("ARCHAI_REDIS_URL")
+    if url:
+        try:
+            return RedisJobStore.from_url(url)
+        except RuntimeError:
+            pass
+    return InMemoryJobStore()
+
+
+_jobs = _make_job_store()
 _artifact_store = ArtifactStore(os.getenv("ARCHAI_ARTIFACT_STORE", "/tmp/archai-experiments.jsonl"))
 _model_registry = ModelRegistry(os.getenv("ARCHAI_MODEL_MANIFEST", "/tmp/archai-models.json"))
 
@@ -55,13 +65,19 @@ def health() -> dict[str, str]:
 
 @app.get("/readiness")
 def readiness() -> dict[str, bool | str]:
-    return {"status": "ready", "durable_worker_configured": bool(os.getenv("ARCHAI_REDIS_URL")),
+    redis_ready = isinstance(_jobs, RedisJobStore)
+    if redis_ready:
+        try:
+            _jobs.client.ping()
+        except Exception:
+            redis_ready = False
+    return {"status": "ready", "durable_worker_configured": redis_ready,
             "database_configured": bool(os.getenv("DATABASE_URL"))}
 
 
 @app.get("/v1/infrastructure/workers")
 def worker_status() -> dict[str, object]:
-    configured = bool(os.getenv("ARCHAI_REDIS_URL"))
+    configured = isinstance(_jobs, RedisJobStore)
     return {"configured": configured, "status": "connected" if configured else "not_configured",
             "workers": []}
 
@@ -69,7 +85,7 @@ def worker_status() -> dict[str, object]:
 @app.get("/v1/infrastructure/queue")
 def queue_status() -> dict[str, object]:
     jobs = _jobs.list()
-    return {"backend": "redis" if os.getenv("ARCHAI_REDIS_URL") else "in_memory",
+    return {"backend": "redis" if isinstance(_jobs, RedisJobStore) else "in_memory",
             "queued": sum(job.status == "queued" for job in jobs),
             "running": sum(job.status == "running" for job in jobs),
             "terminal": sum(job.status in {"succeeded", "failed", "cancelled"} for job in jobs)}

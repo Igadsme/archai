@@ -23,7 +23,7 @@ Updated 2026-11-20.
 - First normalized PostgreSQL schema migration is present for users, credentials, datasets, architectures, checkpoints, searches, and experiments.
 - Benchmark access now records architecture encodings, caches queries with a uniqueness constraint, and refuses acquisition until a verified checksum is supplied.
 - API now exposes lifecycle surfaces for searches and provenance-backed experiments; local job transitions reject invalid terminal-state changes and worker start reports an explicit unconfigured-worker response.
-- API now exposes readiness, worker, and queue status endpoints; documented `x-api-key` enforcement is tested and honors deployment configuration.
+- API now exposes readiness, worker, and queue status endpoints; documented `x-api-key` enforcement is tested, and Redis status reflects the actual selected backend plus connectivity ping.
 - ArchAI Studio now has a responsive dark research dashboard shell, API health/registry reads, evidence-aware empty states, and container definitions for API/web/Postgres/Redis.
 - Research evaluation utilities now compute deterministic bootstrap intervals, multi-seed summaries, search regret, and 2D accuracy/resource hypervolume.
 - Model artifact registry now stores versioned model manifests with SHA-256 checksums and exposes read-only API listing.

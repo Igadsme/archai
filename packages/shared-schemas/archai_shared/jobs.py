@@ -107,3 +107,11 @@ class RedisJobStore:
             return None
         job_id = value[1] if isinstance(value, tuple) else value
         return self.transition(job_id, "running")
+
+    def list(self) -> list[Job]:
+        jobs = []
+        for key in self.client.scan_iter(match=f"{self.prefix}:job:*"):
+            value = self.client.get(key)
+            if value:
+                jobs.append(Job.from_dict(json.loads(value)))
+        return jobs
