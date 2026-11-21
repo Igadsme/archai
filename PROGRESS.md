@@ -93,7 +93,7 @@ Updated 2026-11-21.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 99 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 100 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 
@@ -104,7 +104,7 @@ No NATS-Bench archive, trained research checkpoint, benchmark table, GPU run, re
 1. A real NATS-Bench/NATS-Bench-201 archive and its verified checksum are needed to run benchmark queries and train the predictor on real labels.
 2. PostgreSQL/Redis services and durable worker code are implemented but were not run as live services in this environment; production authentication and the complete frontend remain incomplete.
 3. Hugging Face publishing requires user-provided authorization and release decisions.
-4. Frontend dependency installation repeatedly hung or failed in this environment; `next build` therefore could not run because the pinned dependency tree was unavailable.
+4. Frontend dependency installation repeatedly hung or failed in this environment; the clean offline attempt failed with npm `ENOTCACHED` for TypeScript, and `next build` therefore could not run because the dependency tree is unavailable.
 
 ## Repository state
 
