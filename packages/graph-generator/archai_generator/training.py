@@ -24,10 +24,9 @@ def fit_generator(model: ArchitectureGenerator, architectures, *, epochs: int = 
             target = torch.tensor(tokens, dtype=torch.long).unsqueeze(0)
             one_hot = F.one_hot(target, num_classes=len(GENERATABLE_OPS)).float()
             _, hidden = model.encoder(one_hot)
-            latent = hidden[-1]
+            latent = model.latent_projection(hidden[-1])
             condition = torch.zeros(1, model.config.condition_dim)
-            logits = model.decoder(model.context(torch.cat([latent[:, :model.config.latent_dim], condition], dim=-1)).unsqueeze(1))
-            sequence_logits = logits.expand(1, target.shape[1], -1).transpose(1, 2)
+            sequence_logits = model.forward(latent, condition, teacher_tokens=target).transpose(1, 2)
             loss = F.cross_entropy(sequence_logits, target)
             losses.append(loss)
         if not losses:
