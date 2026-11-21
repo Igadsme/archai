@@ -5,11 +5,11 @@
 - [x] M3 deterministic random search, evolution policy, Pareto frontier, and budget primitives
 - [x] M4 predictor training/evaluation interface with uncertainty head, checkpoints, baselines, and real-data CLI
 - [x] M5 constrained conditional trainable generator with valid sampling, checkpoint boundary, and corpus CLI
-- [partial] M1 checksum-gated acquisition, validated NAS-Bench-201 parser/compiler semantics, and budgeted adapter; real archive query pending
+- [partial] M1 checksum-gated acquisition, validated NAS-Bench-201 parser/compiler semantics, and budgeted random/evolution adapters; real archive query pending
 - [ ] M6 trained generator + predictor checkpoints with provenance
 - [partial] M6 controller loop, persistence, acquisition ranking, validation, and budget enforcement; trained closed-loop benchmark run pending
 - [partial] M7 seeded random, evolution, Bayesian, learned-search policies, and research summaries; matched real-data comparisons pending
-- [partial] M8 safe training engine, candidate compiler path, CIFAR adapters, Redis job adapter, durable worker runner, and benchmark search handler; measured larger real runs and training handlers pending
+- [partial] M8 safe training engine, candidate compiler path, CIFAR adapters, Redis job adapter, durable worker runner, and benchmark search handlers; measured larger real runs and training handlers pending
 - [partial] M9 schema, SQLAlchemy/Alembic entry points, identity/dataset/checkpoint metadata, database-backed architecture/search/experiment registries, local job/API lifecycle, model registry, checkpoint-backed generator API, and container definitions; production runtime wiring pending
 - [partial] M10 connected ArchAI Studio dashboard with architecture/search/experiment/dataset reads and evidence cards; package installation/build pending environment network
 - [partial] M11 repeated-seed report builder with leakage checks; real repeated-seed results and ablations pending
