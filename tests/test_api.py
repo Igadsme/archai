@@ -1,5 +1,6 @@
 import hashlib
 import os
+from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
@@ -94,7 +95,7 @@ def test_model_registry_api_registers_checksum_manifest(tmp_path):
     client = TestClient(app)
     artifact = tmp_path / "predictor.pt"
     artifact.write_bytes(b"api-model-artifact")
-    model_id = f"api-test-predictor-{tmp_path.name}"
+    model_id = f"api-test-predictor-{uuid4().hex}"
     request = {"model_id": model_id, "kind": "predictor", "version": "v1",
                "artifact_path": str(artifact), "metadata": {"seed": 4}}
     registered = client.post("/v1/models", json=request)
