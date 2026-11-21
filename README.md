@@ -15,7 +15,7 @@ pytest
 python -m archai.apps.api.main
 ```
 
-The optional `torch`, `torch-geometric`, `nats_bench`, database, and frontend dependencies are pinned in `pyproject.toml`. Core graph validation and serialization do not require PyTorch.
+Install `.[ml,benchmark]` for real model/benchmark runs and `.[platform]` for SQLAlchemy/Alembic/Redis/Celery integrations. Core graph validation and serialization do not require PyTorch.
 
 ## Research workflow
 
