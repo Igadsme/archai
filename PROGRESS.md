@@ -21,6 +21,7 @@ Updated 2026-11-20.
 - Added `scripts/run_benchmark_search.py` for seeded, budgeted random search that selects on validation accuracy and reports held-out test accuracy separately.
 - Added `scripts/build_report.py` and leakage-aware research reporting that aggregates repeated seeds with confidence intervals and rejects test-selected runs.
 - First normalized PostgreSQL schema migration is present for users, credentials, datasets, architectures, checkpoints, searches, and experiments.
+- SQLAlchemy model factories and Alembic environment/initial migration now correspond to the core architecture, search-session, and experiment tables while remaining lazy-imported locally.
 - Benchmark access now records architecture encodings, caches queries with a uniqueness constraint, and refuses acquisition until a verified checksum is supplied.
 - API now exposes lifecycle surfaces for searches and provenance-backed experiments; local job transitions reject invalid terminal-state changes and worker start reports an explicit unconfigured-worker response.
 - API now exposes readiness, worker, and queue status endpoints; documented `x-api-key` enforcement is tested, and Redis status reflects the actual selected backend plus connectivity ping.
@@ -33,7 +34,7 @@ Updated 2026-11-20.
 - Search baselines now include parent-based regularized evolution mutations plus dependency-light Bayesian optimization with seeded warmup, kernel/UCB scoring, and finite-pool deduplication.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
-- Test suite: 51 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Test suite: 52 passing tests, 1 optional export test skipped when Safetensors is unavailable.
 
 ## Evidence boundaries
 
