@@ -135,6 +135,22 @@ def create_architecture(payload: Architecture):
             "analytical_metrics": analytical_metrics(architecture).__dict__}
 
 
+@app.get("/v1/architectures")
+def list_architectures(limit: int = Query(default=50, ge=1, le=500)):
+    values = list(_architectures.values())[:limit]
+    return {"items": [{"architecture_id": value.content_hash(), "search_space": value.search_space,
+                       "metrics": analytical_metrics(value).__dict__} for value in values]}
+
+
+@app.get("/v1/architectures/compare")
+def compare_architectures(ids: Annotated[list[str], Query(min_length=1, max_length=20)]):
+    missing = [identifier for identifier in ids if identifier not in _architectures]
+    if missing:
+        raise HTTPException(status_code=404, detail={"missing_architectures": missing})
+    return {"items": [{"architecture_id": identifier, "architecture": _architectures[identifier].model_dump(),
+                       "analytical_metrics": analytical_metrics(_architectures[identifier]).__dict__} for identifier in ids]}
+
+
 @app.get("/v1/architectures/{architecture_id}")
 def get_architecture(architecture_id: str):
     architecture = _architectures.get(architecture_id)
@@ -142,13 +158,6 @@ def get_architecture(architecture_id: str):
         raise HTTPException(status_code=404, detail="architecture not found")
     return {"architecture": architecture.model_dump(), "hash": architecture_id,
             "analytical_metrics": analytical_metrics(architecture).__dict__}
-
-
-@app.get("/v1/architectures")
-def list_architectures(limit: int = Query(default=50, ge=1, le=500)):
-    values = list(_architectures.values())[:limit]
-    return {"items": [{"architecture_id": value.content_hash(), "search_space": value.search_space,
-                       "metrics": analytical_metrics(value).__dict__} for value in values]}
 
 
 @app.post("/v1/searches", dependencies=[Depends(require_write_access)])
@@ -212,6 +221,14 @@ def get_experiment(experiment_id: str):
 @app.get("/v1/models")
 def list_models():
     return {"items": [item.__dict__ for item in _model_registry.list()]}
+
+
+@app.get("/v1/models/{model_id}")
+def get_model(model_id: str, version: str | None = None):
+    artifact = _model_registry.get(model_id, version)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="model not found")
+    return artifact.__dict__
 
 
 @app.post("/v1/architectures/generate")

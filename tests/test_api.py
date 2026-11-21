@@ -18,6 +18,8 @@ def test_architecture_registry_api():
     identifier = created.json()["hash"]
     assert client.get(f"/v1/architectures/{identifier}").status_code == 200
     assert client.get("/v1/architectures").json()["items"]
+    assert client.get(f"/v1/architectures/compare?ids={identifier}").status_code == 200
+    assert client.get("/v1/architectures/compare?ids=missing").status_code == 404
 
 
 def test_search_and_experiment_lifecycle_surface():
@@ -34,6 +36,7 @@ def test_search_and_experiment_lifecycle_surface():
     assert experiment.status_code == 200
     assert client.get(f"/v1/experiments/{experiment.json()['experiment_id']}").status_code == 200
     assert client.get("/v1/models").status_code == 200
+    assert client.get("/v1/models/unknown").status_code == 404
 
 
 def test_readiness_and_queue_status_are_truthful():
