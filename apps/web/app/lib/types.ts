@@ -1,0 +1,11 @@
+export type Metrics = { parameters: number; flops: number; activation_memory_bytes: number }
+export type ArchitectureItem = { architecture_id: string; search_space: string; metrics: Metrics }
+export type SearchItem = { search_id: string; algorithm: string; dataset_id: string; status?: string; seed: number; budget_evaluations?: number }
+export type ExperimentItem = { experiment_id: string; architecture_id: string; evidence_type: string; status: string; metrics: Record<string, number>; provenance?: { dataset_id?: string; seed?: number; code_revision?: string } }
+export type DatasetItem = { dataset_id: string; version: string; checksum: string; uri?: string; license?: string | null }
+export type JobItem = { job_id: string; kind: string; status: string; error: string | null; payload?: Record<string, unknown>; created_at?: string }
+export type ModelItem = { model_id: string; kind: string; version: string; sha256: string; artifact_exists?: boolean; integrity_verified?: boolean }
+export type ArchitectureNode = { id: string; op: string; channels: number }
+export type ArchitectureDocument = { architecture: { nodes: ArchitectureNode[]; edges: { source: string; target: string }[] }; hash: string; metrics?: Metrics }
+export type Readiness = { status: string; durable_worker_configured: boolean; database_configured: boolean; database_ready: boolean; rate_limit_backend?: string; rate_limit_redis_error?: string | null }
+export type Worker = { worker_id: string; hostname: string; status: string; last_seen: string; active_job_id: string | null }
