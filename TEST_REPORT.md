@@ -27,3 +27,22 @@ Executed results only. Nothing here is predicted or estimated. Every row was run
 | 2026-11-25 | 5b95d00 | `next start` + `curl` of all 10 routes | HTTP 200 for each |
 | 2026-11-25 | 5b95d00 | `pytest -q` (no live env) incl. `tests/test_studio_contract.py` | 137 passed, 3 skipped; `ruff check .`: all checks passed |
 | 2026-11-25 | ab95052 | GitHub Actions CI (python, web; push and pull_request runs) | success |
+| 2026-11-25 | 2fe79d1 | Full-space TSS table (`scripts/benchmark_table.py`) | 15,625 rows × 3 trials + cost, `/workspace/archai-data/table/cifar10.jsonl` |
+| 2026-11-25 | 2fe79d1 | `run_experiment_matrix.py` full suite (7 policies + 4 ablations, 10 seeds, budget 100) | exit 0, 850 s; recorded in `research/results/nasbench201_cifar10_full_suite/` |
+| 2026-11-25 | 2fe79d1 | Predictor smoke (1,000 cells, 30 epochs, CPU) | held-out n=100: MAE 0.0539, Spearman 0.753; ckpt sha `3392b86c…13d2` |
+| 2026-11-25 | b6fb591 | Generator smoke (2,000 cells, 300 epochs, CPU) | loss 1.613→1.278; high-acc mean val. 89.18 vs random 83.24; ckpt sha `0ad684a2…784e` |
+| 2026-11-25 | d308cc6 | `scripts/verify_checkpoints.py` | both smoke checkpoints reload and reproduce outputs |
+| 2026-11-25 | 2fe79d1 / b6fb591 / d308cc6 | GitHub Actions | python failed (torch without ml extra); web passed |
+| 2026-11-25 | 5670f3f | `pytest -q` (no live env) | 168 passed, 3 skipped; no-torch mimic: 140 passed, 31 skipped |
+| 2026-11-25 | 5670f3f | GitHub Actions (python, web) | success |
+| 2026-11-25 | 08d4476 | GitHub Actions (python, web) | success (https://github.com/Igadsme/archai/actions/runs/45748164004) |
+| 2026-11-25 | 3e7e9a7 | `pytest -q` (no live env) | 168 passed, 3 skipped; no-torch 140 passed, 31 skipped; ruff clean |
+| 2026-11-25 | 3e7e9a7 | GitHub Actions (python, web) | success (https://github.com/Igadsme/archai/actions/runs/45748468981) |
+| 2026-11-25 | 6fffab5 | GitHub Actions (python, web; two runs) | success (https://github.com/Igadsme/archai/actions/runs/45748566766) |
+| 2026-11-25 22:35 ET | c03bd67 (local) | Live stack restarted after box replacement | Postgres recovered to 0006; `/readiness` ready, redis rate limits; worker idle; all 7 search algorithms available |
+| 2026-11-25 | c03bd67 (local) | `npm run typecheck` / `npx vitest run` / `pytest tests/test_studio_contract.py` | tsc clean; 21 then 22 vitest passed; contract tests passed |
+| 2026-11-25 22:40 ET | 02a6b00 (local) | Browser E2E `apps/web/e2e/studio.e2e.mjs` at 1280×900 and 390×844 against the live stack | **31/31 passed**, 0 console errors. TorchScript export loaded standalone, output (2, 10) |
+| 2026-11-25 | 02a6b00 (local) | `pytest -q` (no live env) | **174 passed, 3 skipped**; ruff clean |
+| 2026-11-25 | 02a6b00 (local) | CI mimic without torch | **146 passed, 31 skipped** |
+| 2026-11-25 | 02a6b00 (local) | `pytest tests/test_live_services.py` against local Redis/Postgres | **3 passed** |
+| 2026-11-25 22:50 ET | 07d729c (local) | Repeat random + Bayesian seed 0 on the same archive | exact match to the recorded `2fe79d1` runs (`reproducibility_seed0.json`) |

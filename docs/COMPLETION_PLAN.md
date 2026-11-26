@@ -98,7 +98,7 @@ CI because it needs the stack.
 | Gradients propagate | COMPLETE | `test_compiler_handles_serialized_order_and_backward` |
 | Predictor evaluated on held-out data | COMPLETE (smoke scale) | `research/results/archai_v1_smoke/` (100 held-out cells) |
 | Search budgets enforced | COMPLETE | `BenchmarkEvaluator` budget + `test_every_algorithm_runs_at_a_matched_budget_with_hypervolume` |
-| Reproducible within documented tolerances | IN PROGRESS | seeded determinism tested; no documented tolerance or repeat of a full matrix |
+| Reproducible within documented tolerances | IN PROGRESS | seeded unit tests plus an exact-match repeat of random and Bayesian seed 0 (`research/results/nasbench201_cifar10_full_suite/reproducibility_seed0.json`, rev 07d729c vs recorded 2fe79d1). The other nine seeds and the torch policies were not repeated; no numeric tolerance is documented for them |
 | Baselines fair | COMPLETE | matched budget (100), same 15,625-cell pool, fresh cache per run, hyperparameters fixed a priori in the committed config, learned policies trained only on in-budget queries; full-suite matrix recorded |
 
 ## 6. Deployment verification (§16)
