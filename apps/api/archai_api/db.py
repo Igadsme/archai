@@ -100,8 +100,24 @@ def sqlalchemy_components():
         checksum: Mapped[str] = mapped_column(String(128), nullable=False)
         metadata_json: Mapped[dict] = mapped_column("metadata", JSON, nullable=False, default=dict)
 
+    class ResearchProjectRow(Base):
+        __tablename__ = "research_projects"
+        project_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        name: Mapped[str] = mapped_column(String(128), nullable=False)
+        description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+        task: Mapped[str] = mapped_column(String(128), nullable=False)
+        dataset_id: Mapped[str | None] = mapped_column(String(128))
+        dataset_version: Mapped[str | None] = mapped_column(String(128))
+        constraints: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+        status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                      server_default="CURRENT_TIMESTAMP", nullable=False)
+        updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                      server_default="CURRENT_TIMESTAMP", nullable=False)
+
     Base._archai_model_checkpoint_row = ModelCheckpointRow
     Base._archai_dataset_row = DatasetRow
+    Base._archai_project_row = ResearchProjectRow
 
     def make_engine(url: str):
         return create_engine(url, pool_pre_ping=True)
@@ -485,3 +501,73 @@ class SqlAlchemyDatasetStore:
         finally:
             session.close()
 
+
+
+
+class SqlAlchemyProjectStore:
+    """Persist research projects (the Studio's top-level research entity)."""
+
+    def __init__(self, session_factory, project_row):
+        self._session_factory = session_factory
+        self._row = project_row
+
+    @classmethod
+    def from_url(cls, url: str, *, initialize: bool = False) -> SqlAlchemyProjectStore:
+        Base, _a, _s, _e, make_engine, make_session_factory = sqlalchemy_components()
+        engine = make_engine(url)
+        if initialize:
+            Base.metadata.create_all(engine)
+        project_row = getattr(Base, "_archai_project_row", None)
+        if project_row is None:  # pragma: no cover
+            raise RuntimeError("research project mapping is unavailable")
+        return cls(make_session_factory(url, engine), project_row)
+
+    def put(self, project):
+
+        session = self._session_factory()
+        try:
+            values = {
+                "project_id": project.project_id, "name": project.name, "description": project.description,
+                "task": project.task, "dataset_id": project.dataset_id, "dataset_version": project.dataset_version,
+                "constraints": project.constraints.model_dump(), "status": project.status,
+                "created_at": project.created_at, "updated_at": project.updated_at,
+            }
+            row = session.get(self._row, project.project_id)
+            if row is None:
+                session.add(self._row(**values))
+            else:
+                for key, value in values.items():
+                    setattr(row, key, value)
+            session.commit()
+            return project
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def _to_record(self, row):
+        from archai_shared.constraints import ArchitectureConstraints
+        from archai_shared.records import ResearchProject
+        return ResearchProject(
+            project_id=row.project_id, name=row.name, description=row.description or "",
+            task=row.task, dataset_id=row.dataset_id, dataset_version=row.dataset_version,
+            constraints=ArchitectureConstraints.model_validate(row.constraints or {}),
+            status=row.status, created_at=row.created_at, updated_at=row.updated_at)
+
+    def get(self, project_id: str):
+        session = self._session_factory()
+        try:
+            row = session.get(self._row, project_id)
+            return None if row is None else self._to_record(row)
+        finally:
+            session.close()
+
+    def list(self, limit: int = 50):
+        from sqlalchemy import select
+        session = self._session_factory()
+        try:
+            rows = session.scalars(select(self._row).order_by(self._row.created_at.desc()).limit(limit)).all()
+            return [self._to_record(row) for row in rows]
+        finally:
+            session.close()

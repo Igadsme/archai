@@ -6,7 +6,7 @@ def test_sqlalchemy_model_factory_is_dependency_gated():
     from archai_api.db import sqlalchemy_components
     Base, ArchitectureRow, SearchSessionRow, ExperimentRow, make_engine, make_session_factory = sqlalchemy_components()
     assert {ArchitectureRow.__tablename__, SearchSessionRow.__tablename__, ExperimentRow.__tablename__} == {"architectures", "search_sessions", "experiments"}
-    assert {"users", "api_credentials", "datasets", "model_checkpoints"}.issubset(Base.metadata.tables)
+    assert {"users", "api_credentials", "datasets", "model_checkpoints", "research_projects"}.issubset(Base.metadata.tables)
 
 
 def test_sqlalchemy_architecture_store_round_trips_canonical_document(tmp_path):
@@ -78,3 +78,23 @@ def test_sqlalchemy_dataset_store_enforces_checksum_and_immutability(tmp_path):
     assert store.get("unit", "1") == value
     with pytest.raises(ValueError, match="immutable"):
         store.put(dataset_id="unit", version="1", checksum="b" * 64, uri="file:///other")
+
+
+def test_sqlalchemy_project_store_round_trips(tmp_path):
+    pytest.importorskip("sqlalchemy")
+    from archai_api.db import SqlAlchemyProjectStore
+    from archai_shared.constraints import ArchitectureConstraints
+    from archai_shared.records import ResearchProject
+
+    store = SqlAlchemyProjectStore.from_url(f"sqlite:///{tmp_path / 'projects.sqlite'}", initialize=True)
+    project = ResearchProject(project_id="project01", name="CIFAR search", task="cifar10",
+                              constraints=ArchitectureConstraints(max_parameters=800_000, allowed_ops=["nor_conv_3x3", "skip_connect", "none"]))
+    store.put(project)
+    loaded = store.get("project01")
+    assert loaded is not None
+    assert loaded.name == "CIFAR search"
+    assert loaded.constraints.max_parameters == 800_000
+    updated = loaded.model_copy(update={"status": "archived"})
+    store.put(updated)
+    assert store.get("project01").status == "archived"
+    assert store.list(10)[0].project_id == "project01"

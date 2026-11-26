@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import fixtures from "../app/lib/fixtures/requests.json"
-import { buildSearchRequest, buildTrainingRequest, defaultSearchForm, defaultTrainingForm, parseIndices } from "../app/lib/forms"
+import { buildProjectRequest, buildSearchRequest, buildTrainingRequest, defaultProjectForm, defaultSearchForm, defaultTrainingForm, parseIndices } from "../app/lib/forms"
 
 describe("parseIndices", () => {
   it("expands ranges, de-duplicates and sorts", () => {
@@ -49,5 +49,22 @@ describe("buildTrainingRequest", () => {
     expect(predictor.ok).toBe(false)
     if (!predictor.ok) expect(predictor.errors).toEqual(["benchmark SHA-256 must be 64 hex characters", "predictor training needs at least three indices"])
     expect(buildTrainingRequest({ ...defaultTrainingForm, epochs: "1001" }).ok).toBe(false)
+  })
+})
+
+
+describe("buildProjectRequest", () => {
+  it("trims a valid project and rejects a blank name", () => {
+    expect(buildProjectRequest({ ...defaultProjectForm, name: "  CIFAR search  " })).toEqual({ ok: true, value: { name: "CIFAR search", task: "cifar10", description: "" } })
+    expect(buildProjectRequest(defaultProjectForm).ok).toBe(false)
+  })
+})
+
+describe("buildSearchRequest project_id", () => {
+  it("omits project_id unless a project is selected", () => {
+    const without = buildSearchRequest({ ...defaultSearchForm, budget: "10", seed: "3", indices: "0:8,10:13" })
+    expect(without).toEqual({ ok: true, value: fixtures.search })
+    const withProject = buildSearchRequest({ ...defaultSearchForm, budget: "10", seed: "3", indices: "0:8,10:13", projectId: "project01abcdefgh" })
+    expect(withProject.ok && "value" in withProject && withProject.value.project_id).toBe("project01abcdefgh")
   })
 })

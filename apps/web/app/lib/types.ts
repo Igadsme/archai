@@ -23,3 +23,6 @@ export type ParetoData = { objectives: Record<string, string>; evidence_type: st
 export type ResearchResult = { name: string; report?: ResearchReport; pareto?: ParetoData; readme?: string; tables?: string; predictor?: Record<string, unknown>; generator?: Record<string, unknown>; checkpoint_verification?: Record<string, unknown>; regret?: Record<string, SeedSummary>; experiment?: ExperimentConfig }
 export type ModelInspection = ModelItem & { path?: string; top_level_keys: string[]; tensor_count: number; parameter_count: number; tensors: { name: string; shape: number[]; dtype: string }[]; checkpoint_metadata: Record<string, unknown> | null }
 export type ExperimentConfig = { name: string; description?: string; budget: number; seeds: number[]; algorithms: string[]; ablations?: { name: string; algorithm: string; params: Record<string, unknown> }[] }
+
+export type ArchitectureConstraints = { max_parameters?: number | null; max_flops?: number | null; max_latency_s?: number | null; allowed_ops?: string[] | null }
+export type ResearchProject = { project_id: string; name: string; description: string; task: string; dataset_id?: string | null; dataset_version?: string | null; constraints: ArchitectureConstraints; status: "active" | "archived"; created_at: string; updated_at: string }

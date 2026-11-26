@@ -11,14 +11,16 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Literal
+from uuid import uuid4
 
 from archai_compiler.metrics import analytical_metrics
 from archai_core.schema import Architecture
 from archai_core.validation import ValidationError, validate_architecture
+from archai_shared.constraints import ArchitectureConstraints
 from archai_shared.jobs import InMemoryJobStore, RedisJobStore
 from archai_shared.paths import allowed_path
 from archai_shared.ratelimit import RedisRateLimiter, make_rate_limiter
-from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance
+from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance, ResearchProject
 from archai_shared.registry import ModelRegistry, sha256_file
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,6 +32,7 @@ from archai_api.db import (
     SqlAlchemyDatasetStore,
     SqlAlchemyExperimentStore,
     SqlAlchemyModelRegistry,
+    SqlAlchemyProjectStore,
     SqlAlchemySearchStore,
     database_is_ready,
 )
@@ -164,9 +167,34 @@ def _make_experiment_store():
 
 _search_store = _make_search_store()
 _experiment_store = _make_experiment_store()
+class _InMemoryProjectStore:
+    def __init__(self):
+        self._values: dict[str, ResearchProject] = {}
+
+    def put(self, project: ResearchProject) -> ResearchProject:
+        self._values[project.project_id] = project
+        return project
+
+    def get(self, project_id: str) -> ResearchProject | None:
+        return self._values.get(project_id)
+
+    def list(self, limit: int = 50) -> list[ResearchProject]:
+        values = sorted(self._values.values(), key=lambda item: item.created_at, reverse=True)
+        return values[:limit]
+
+
+def _make_project_store():
+    url = os.getenv("DATABASE_URL")
+    if not url:
+        return _InMemoryProjectStore()
+    return SqlAlchemyProjectStore.from_url(url, initialize=os.getenv("ARCHAI_DB_AUTO_CREATE", "0") == "1")
+
+
 _dataset_store = (SqlAlchemyDatasetStore.from_url(
     os.environ["DATABASE_URL"], initialize=os.getenv("ARCHAI_DB_AUTO_CREATE", "0") == "1")
     if os.getenv("DATABASE_URL") else _InMemoryDatasetStore())
+
+_project_store = _make_project_store()
 
 
 def _redis_is_ready() -> bool:
@@ -261,12 +289,15 @@ class SearchRequest(BaseModel):
     seed: int = 0
     indices: list[int] = Field(default_factory=list, max_length=100_000)
     params: dict[str, float | int | bool | str] = Field(default_factory=dict, max_length=16)
+    project_id: str | None = Field(default=None, min_length=8, max_length=64)
+    constraints: ArchitectureConstraints | None = None
 
 
 class TrainingJobRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     kind: Literal["candidate", "generator", "predictor"]
     payload: dict[str, object] = Field(default_factory=dict)
+    project_id: str | None = Field(default=None, min_length=8, max_length=64)
 
 
 class ExperimentRequest(BaseModel):
@@ -281,6 +312,7 @@ class ExperimentRequest(BaseModel):
     code_revision: str = Field(default="working-tree", min_length=1, max_length=128)
     seed: int
     metrics: dict[str, float] = Field(default_factory=dict)
+    project_id: str | None = Field(default=None, min_length=8, max_length=64)
 
 
 class ExperimentUpdate(BaseModel):
@@ -297,9 +329,33 @@ class GenerateRequest(BaseModel):
     condition: list[float] = Field(default_factory=lambda: [0.0] * 8, min_length=8, max_length=8)
     input_spec: dict[str, int] = Field(default_factory=lambda: {"channels": 3, "height": 32, "width": 32})
     output_classes: int = Field(default=10, gt=1, le=10000)
+    project_id: str | None = Field(default=None, min_length=8, max_length=64)
+    constraints: ArchitectureConstraints | None = None
+
+
+class ProjectRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=128)
+    task: str = Field(min_length=1, max_length=128)
+    description: str = Field(default="", max_length=2000)
+    dataset_id: str | None = Field(default=None, min_length=1, max_length=128)
+    dataset_version: str | None = Field(default=None, min_length=1, max_length=128)
+    constraints: ArchitectureConstraints = Field(default_factory=ArchitectureConstraints)
+
+
+class ProjectUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    task: str | None = Field(default=None, min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=2000)
+    dataset_id: str | None = Field(default=None, min_length=1, max_length=128)
+    dataset_version: str | None = Field(default=None, min_length=1, max_length=128)
+    constraints: ArchitectureConstraints | None = None
+    status: Literal["active", "archived"] | None = None
 
 
 class DatasetRequest(BaseModel):
+
     model_config = ConfigDict(extra="forbid")
     dataset_id: str = Field(min_length=1, max_length=128)
     version: str = Field(min_length=1, max_length=128)
@@ -336,6 +392,18 @@ def require_write_access(api_key: Annotated[str | None, Header(alias="x-api-key"
         valid = valid or hmac.compare_digest(hashlib.sha256(supplied.encode()).hexdigest(), configured_hash.lower())
     if (configured or configured_hash) and not valid:
         raise HTTPException(status_code=401, detail="invalid API key")
+
+
+def require_active_project(project_id: str | None) -> ResearchProject | None:
+    """Resolve an optional project id; missing or archived projects cannot accept new work."""
+    if not project_id:
+        return None
+    project = _project_store.get(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail=f"project {project_id} not found")
+    if project.status != "active":
+        raise HTTPException(status_code=409, detail=f"project {project_id} is {project.status}")
+    return project
 
 
 @app.get("/health")
@@ -438,12 +506,14 @@ def create_search(request: SearchRequest):
         unknown = sorted(set(request.params) - set(POLICIES[request.algorithm]["params"]))
         if unknown:
             raise HTTPException(status_code=422, detail=f"unsupported {request.algorithm} parameters: {', '.join(unknown)}")
+    require_active_project(request.project_id)
     job = _jobs.create("search", request.model_dump())
     return _search_store.put(job.job_id, request.model_dump())
 
 
 @app.post("/v1/training", dependencies=[Depends(require_write_access)])
 def create_training_job(request: TrainingJobRequest):
+    require_active_project(request.project_id)
     required = {
         "candidate": ("architecture",),
         "generator": ("corpus_path", "checkpoint_path"),
@@ -558,6 +628,7 @@ def cancel_search(search_id: str):
 
 @app.post("/v1/experiments", dependencies=[Depends(require_write_access)])
 def create_experiment(request: ExperimentRequest):
+    require_active_project(request.project_id)
     if _architecture_store.get(request.architecture_id) is None:
         raise HTTPException(status_code=404, detail="architecture not found")
     dataset = _dataset_store.get(request.dataset_id, request.dataset_version)
@@ -580,7 +651,8 @@ def create_experiment(request: ExperimentRequest):
                                       model_checkpoint=request.model_checkpoint,
                                       hardware=request.hardware,
                                       code_revision=request.code_revision,
-                                      seed=request.seed))
+                                      seed=request.seed,
+                                      project_id=request.project_id))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     _experiment_store.put(record)
@@ -661,6 +733,45 @@ def get_model(model_id: str, version: str | None = None):
     return _model_response(artifact)
 
 
+
+@app.post("/v1/projects", dependencies=[Depends(require_write_access)])
+def create_project(request: ProjectRequest):
+    now = datetime.now(UTC)
+    project = ResearchProject(project_id=uuid4().hex, name=request.name.strip(),
+                              description=request.description, task=request.task.strip(),
+                              dataset_id=request.dataset_id, dataset_version=request.dataset_version,
+                              constraints=request.constraints, status="active",
+                              created_at=now, updated_at=now)
+    return _project_store.put(project).model_dump(mode="json")
+
+
+@app.get("/v1/projects")
+def list_projects(limit: int = Query(default=50, ge=1, le=500)):
+    return {"items": [project.model_dump(mode="json") for project in _project_store.list(limit)]}
+
+
+@app.get("/v1/projects/{project_id}")
+def get_project(project_id: str):
+    project = _project_store.get(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    return project.model_dump(mode="json")
+
+
+@app.patch("/v1/projects/{project_id}", dependencies=[Depends(require_write_access)])
+def update_project(project_id: str, request: ProjectUpdate):
+    project = _project_store.get(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    updates = request.model_dump(exclude_unset=True)
+    if "name" in updates and isinstance(updates["name"], str):
+        updates["name"] = updates["name"].strip()
+    if "task" in updates and isinstance(updates["task"], str):
+        updates["task"] = updates["task"].strip()
+    updated = project.model_copy(update={**updates, "updated_at": datetime.now(UTC)})
+    return _project_store.put(updated).model_dump(mode="json")
+
+
 @app.post("/v1/datasets", dependencies=[Depends(require_write_access)])
 def register_dataset(request: DatasetRequest):
     try:
@@ -684,6 +795,7 @@ def get_dataset(dataset_id: str, version: str = Query(..., min_length=1, max_len
 
 @app.post("/v1/architectures/generate")
 def generate_architectures(request: GenerateRequest):
+    require_active_project(request.project_id)
     checkpoint = os.getenv("ARCHAI_GENERATOR_CHECKPOINT")
     if not checkpoint:
         raise HTTPException(status_code=503, detail="No trained generator checkpoint is configured")

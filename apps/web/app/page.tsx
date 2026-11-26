@@ -1,5 +1,6 @@
 "use client"
 import Link from "next/link"
+import { ProjectPicker } from "./components/ProjectPicker"
 import { Empty, Loaded, PageHeader } from "./components/Shell"
 import { items, usePoll } from "./components/usePoll"
 import { ci, splitAblations } from "./lib/results"
@@ -27,6 +28,7 @@ export default function ResearchDashboard() {
       note={readiness.data ? `Readiness: ${readiness.data.status} · rate limits: ${readiness.data.rate_limit_backend ?? "unknown"}` : `API: ${readiness.error ?? "checking"}`} />
     <div className="cards">{cards.map(([label, value, note, href]) => <Link className="card-link" href={href} key={label}><article><span className="label">{label}</span><strong>{value}</strong><small>{note}</small></article></Link>)}</div>
     <div className="grid">
+      <ProjectPicker />
       <article className="panel"><p className="eyebrow">MEASURED BENCHMARK (benchmark_lookup)</p><h3>Best validation accuracy at 100 queries</h3>
         <Loaded poll={suite}>{(data) => data.report ? <table><thead><tr><th>Policy</th><th>Mean [95% CI], 10 seeds</th></tr></thead><tbody>
           {splitAblations(data).policies.map((name) => <tr key={name}><td>{name}</td><td className="num">{ci(data.report!.algorithms[name].best_validation_accuracy)}</td></tr>)}

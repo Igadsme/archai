@@ -4,8 +4,8 @@
 export type Result<T> = { ok: true; value: T } | { ok: false; errors: string[] }
 
 export const SEARCH_ALGORITHMS = ["random", "evolution", "reinforce", "bayesian", "predictor_guided", "generator_guided", "multi_objective"] as const
-export type SearchForm = { algorithm: string; datasetId: string; budget: string; seed: string; indices: string }
-export type SearchRequest = { algorithm: string; dataset_id: string; budget_evaluations: number; seed: number; indices: number[] }
+export type SearchForm = { algorithm: string; datasetId: string; budget: string; seed: string; indices: string; projectId?: string }
+export type SearchRequest = { algorithm: string; dataset_id: string; budget_evaluations: number; seed: number; indices: number[]; project_id?: string }
 
 export const defaultSearchForm: SearchForm = { algorithm: "bayesian", datasetId: "cifar10", budget: "10", seed: "0", indices: "0:256" }
 
@@ -44,7 +44,9 @@ export function buildSearchRequest(form: SearchForm): Result<SearchRequest> {
   if (!indices.ok) errors.push(...indices.errors)
   else if (budget !== null && indices.value.length > 0 && budget > indices.value.length) errors.push(`budget (${budget}) exceeds the ${indices.value.length}-architecture pool`)
   if (errors.length || budget === null || seed === null || !indices.ok) return { ok: false, errors }
-  return { ok: true, value: { algorithm: form.algorithm, dataset_id: datasetId, budget_evaluations: budget, seed, indices: indices.value } }
+  const value: SearchRequest = { algorithm: form.algorithm, dataset_id: datasetId, budget_evaluations: budget, seed, indices: indices.value }
+  if (form.projectId) value.project_id = form.projectId
+  return { ok: true, value }
 }
 
 export type TrainingKind = "candidate" | "generator" | "predictor"
@@ -100,4 +102,21 @@ export function buildTrainingRequest(form: TrainingForm): Result<TrainingRequest
     errors.push("unknown training kind")
   }
   return errors.length ? { ok: false, errors } : { ok: true, value: { kind: form.kind, payload } }
+}
+
+
+export type ProjectForm = { name: string; task: string; description: string }
+export type ProjectRequest = { name: string; task: string; description: string }
+export const defaultProjectForm: ProjectForm = { name: "", task: "cifar10", description: "" }
+
+export function buildProjectRequest(form: ProjectForm): Result<ProjectRequest> {
+  const errors: string[] = []
+  const name = form.name.trim()
+  const task = form.task.trim()
+  const description = form.description.trim()
+  if (!name || name.length > 128) errors.push("project name is required (max 128 characters)")
+  if (!task || task.length > 128) errors.push("task is required (max 128 characters)")
+  if (description.length > 2000) errors.push("description must be at most 2000 characters")
+  if (errors.length) return { ok: false, errors }
+  return { ok: true, value: { name, task, description } }
 }

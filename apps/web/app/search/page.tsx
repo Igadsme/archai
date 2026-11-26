@@ -3,6 +3,7 @@ import { useState } from "react"
 import { Empty, Errors, Loaded, PageHeader, Unavailable } from "../components/Shell"
 import { items, usePoll } from "../components/usePoll"
 import { postJson } from "../lib/api"
+import { SelectedProjectLabel, useSelectedProject } from "../components/ProjectPicker"
 import { buildSearchRequest, defaultSearchForm, type SearchForm } from "../lib/forms"
 import { jobResult } from "../lib/results"
 import type { HistoryStep, JobDetail, SearchAlgorithm, SearchItem } from "../lib/types"
@@ -10,6 +11,7 @@ import type { HistoryStep, JobDetail, SearchAlgorithm, SearchItem } from "../lib
 type Session = SearchItem & { job?: JobDetail }
 
 export default function AutonomousSearchLaboratory() {
+  const { projectId } = useSelectedProject()
   const [form, setForm] = useState<SearchForm>(defaultSearchForm)
   const [errors, setErrors] = useState<string[]>([])
   const [message, setMessage] = useState("")
@@ -20,7 +22,7 @@ export default function AutonomousSearchLaboratory() {
   const chosen = items(algorithms.data).find((item) => item.name === form.algorithm)
   const update = (field: keyof SearchForm) => (event: { target: { value: string } }) => setForm({ ...form, [field]: event.target.value })
   const submit = async () => {
-    const built = buildSearchRequest(form)
+    const built = buildSearchRequest({ ...form, projectId: projectId || undefined })
     if (!built.ok) { setErrors(built.errors); return }
     if (chosen && !chosen.available) { setErrors([`${chosen.label} is unavailable: ${chosen.unavailable_reason}`]); return }
     setErrors([])
@@ -39,6 +41,7 @@ export default function AutonomousSearchLaboratory() {
   const result = jobResult<Record<string, unknown> & { history?: HistoryStep[] }>(selected.data?.job)
   return <>
     <PageHeader eyebrow="AUTONOMOUS SEARCH LABORATORY" title="Budgeted architecture search" note="Searches run on the Redis worker against the checksum-verified NATS-Bench archive (evidence: benchmark_lookup). Selection uses validation accuracy only; test accuracy is reported for the selected cell." />
+    <SelectedProjectLabel />
     <div className="grid">
       <article className="panel"><h3>New search</h3>
         <div className="form">
