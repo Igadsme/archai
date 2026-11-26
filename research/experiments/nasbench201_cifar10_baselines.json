@@ -1,0 +1,54 @@
+{
+  "name": "nasbench201_cifar10_baselines",
+  "description": "Matched-budget random search, regularized evolution and GP-UCB Bayesian optimization on NATS-Bench TSS (NAS-Bench-201) CIFAR-10 (selection on cifar10-valid validation accuracy, cifar10 test reported separately), with ablations of the BO uncertainty term and the evolution tournament size.",
+  "benchmark": {
+    "search_space": "tss",
+    "dataset": "cifar10"
+  },
+  "indices": {
+    "start": 0,
+    "stop": 15625
+  },
+  "budget": 100,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "algorithms": [
+    "random",
+    "evolution",
+    "bayesian"
+  ],
+  "evolution": {
+    "population_size": 20,
+    "sample_size": 5
+  },
+  "report": {
+    "bootstrap_seed": 0
+  },
+  "bayesian": {
+    "warmup": 10,
+    "beta": 2.0,
+    "lengthscale": 2.0,
+    "candidate_pool_size": 512
+  },
+  "ablations": [
+    {
+      "name": "bayesian_no_uncertainty",
+      "algorithm": "bayesian",
+      "params": {
+        "beta": 0.0
+      }
+    },
+    {
+      "name": "evolution_no_tournament",
+      "algorithm": "evolution",
+      "params": {
+        "sample_size": 1
+      }
+    }
+  ]
+}

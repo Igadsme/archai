@@ -43,7 +43,7 @@ def test_committed_experiment_configs_are_valid():
     assert paths
     for path in paths:
         config = load_matrix(path)
-        assert len(planned_runs(config)) == len(config["seeds"]) * len(config["algorithms"])
+        assert len(planned_runs(config)) == len(config["seeds"]) * len(config["variants"])
 
 
 def test_matrix_rejects_bad_configs(tmp_path):
@@ -85,3 +85,25 @@ def test_matrix_cli_rejects_checksum_mismatch(tmp_path, monkeypatch):
         "--benchmark-path", str(archive), "--benchmark-sha256", "0" * 64, "--output", str(tmp_path / "o")])
     with pytest.raises(SystemExit):
         main()
+
+
+def test_bayesian_and_ablation_variants_run_as_named_matched_budget_arms(tmp_path):
+    config = load_matrix(_config(tmp_path, algorithms=["random", "bayesian"],
+                                 bayesian={"warmup": 2, "candidate_pool_size": 8},
+                                 ablations=[{"name": "bayesian_no_uncertainty",
+                                             "algorithm": "bayesian", "params": {"beta": 0.0}}]))
+    report = run_matrix(config, FakeAdapter(), tmp_path / "out")
+    runs = json.loads((tmp_path / "out/runs.json").read_text())
+    assert {run["algorithm"] for run in runs} == {"random", "bayesian", "bayesian_no_uncertainty"}
+    ablated = [run for run in runs if run["algorithm"] == "bayesian_no_uncertainty"]
+    assert all(run["ablation"] and run["policy_params"]["beta"] == 0.0 for run in ablated)
+    assert all(run["policy_params"]["warmup"] == 2 for run in ablated)
+    assert {run["search_cost"] for run in runs} == {6}
+    assert report["ablations"] == ["bayesian_no_uncertainty"]
+    assert set(report["required_algorithms"]) == {"random", "bayesian", "bayesian_no_uncertainty"}
+
+
+def test_matrix_rejects_unknown_policy_parameters(tmp_path):
+    config = load_matrix(_config(tmp_path, algorithms=["bayesian"], bayesian={"temperature": 1}))
+    with pytest.raises(ValueError, match="unsupported bayesian parameters"):
+        run_matrix(config, FakeAdapter(), tmp_path / "out")

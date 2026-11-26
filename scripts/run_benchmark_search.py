@@ -8,6 +8,7 @@ from pathlib import Path
 from archai_benchmark import (
     BenchmarkCache,
     BenchmarkEvaluator,
+    IndexBayesianOptimization,
     IndexRandomSearch,
     IndexRegularizedEvolution,
     NATSBenchAdapter,
@@ -22,29 +23,46 @@ def select_best_validation(records):
     return max(records, key=lambda record: record.validation_accuracy)
 
 
-ALGORITHMS = ("random", "evolution")
+ALGORITHMS = ("random", "evolution", "bayesian")
+EVOLUTION_PARAMS = ("population_size", "sample_size")
+BAYESIAN_PARAMS = ("warmup", "beta", "lengthscale", "noise", "candidate_pool_size")
+
+
+def build_policy(adapter, indices, algorithm: str, seed: int, params: dict | None = None):
+    params = dict(params or {})
+    allowed = {"random": (), "evolution": EVOLUTION_PARAMS, "bayesian": BAYESIAN_PARAMS}
+    if algorithm not in allowed:
+        raise ValueError(f"unsupported algorithm: {algorithm}")
+    unknown = sorted(set(params) - set(allowed[algorithm]))
+    if unknown:
+        raise ValueError(f"unsupported {algorithm} parameters: {', '.join(unknown)}")
+    if algorithm == "random":
+        return IndexRandomSearch(indices, seed=seed)
+    architecture_strings = {index: adapter.architecture_string(index) for index in indices}
+    if algorithm == "evolution":
+        return IndexRegularizedEvolution(indices, architecture_strings, seed=seed, **params)
+    return IndexBayesianOptimization(indices, architecture_strings, seed=seed, **params)
 
 
 def run_search(adapter, indices, *, budget: int, algorithm: str, seed: int, cache_path: Path,
-               population_size: int = 8, sample_size: int = 3) -> dict:
+               population_size: int | None = None, sample_size: int | None = None,
+               params: dict | None = None) -> dict:
     """Run one validation-selected benchmark search against an opened adapter.
 
     The held-out test accuracy of the validation-selected architecture is reported
-    separately and never used for selection.
+    separately and never used for selection or passed to the policy.
     """
-    if algorithm not in ALGORITHMS:
-        raise ValueError(f"unsupported algorithm: {algorithm}")
     if budget <= 0:
         raise ValueError("budget must be positive")
+    params = dict(params or {})
+    if algorithm == "evolution":
+        if population_size is not None:
+            params.setdefault("population_size", population_size)
+        if sample_size is not None:
+            params.setdefault("sample_size", sample_size)
+    policy = build_policy(adapter, indices, algorithm, seed, params)
     evaluator = BenchmarkEvaluator(adapter, QueryBudget(min(budget, len(indices))),
                                    BenchmarkCache(cache_path))
-    if algorithm == "random":
-        policy = IndexRandomSearch(indices, seed=seed)
-    else:
-        architecture_strings = {index: adapter.architecture_string(index) for index in indices}
-        policy = IndexRegularizedEvolution(indices, architecture_strings,
-                                           population_size=population_size,
-                                           sample_size=sample_size, seed=seed)
     records = []
     while len(records) < budget:
         index = policy.ask()
@@ -52,16 +70,18 @@ def run_search(adapter, indices, *, budget: int, algorithm: str, seed: int, cach
             break
         record = evaluator.evaluate_index(index, seed=seed)
         records.append(record)
-        if algorithm == "evolution":
+        if hasattr(policy, "tell"):
             policy.tell(index, record.validation_accuracy)
     if not records:
         raise ValueError("no benchmark indices were evaluated")
     best = select_best_validation(records)
     return {"algorithm": algorithm, "seed": seed, "budget": budget, "queries": evaluator.queries,
+            "policy_params": params,
             "selected_on": "validation_accuracy", "selected_index": best.architecture_index,
             "selected_validation_accuracy": best.validation_accuracy,
             "held_out_test_accuracy": best.test_accuracy, "evidence_type": "benchmark_lookup",
-            "evaluated_indices": [record.architecture_index for record in records]}
+            "evaluated_indices": [record.architecture_index for record in records],
+            "validation_trace": [record.validation_accuracy for record in records]}
 
 
 def main() -> int:
@@ -73,7 +93,7 @@ def main() -> int:
     parser.add_argument("--dataset", default="cifar10")
     parser.add_argument("--search-space", default="tss")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--algorithm", choices=("random", "evolution"), default="random")
+    parser.add_argument("--algorithm", choices=ALGORITHMS, default="random")
     parser.add_argument("--population-size", type=int, default=8)
     parser.add_argument("--sample-size", type=int, default=3)
     parser.add_argument("--cache", type=Path, required=True)

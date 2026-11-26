@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from pathlib import Path
 
 from archai_benchmark import NATSBenchAdapter, build_research_report
@@ -16,6 +17,32 @@ except ModuleNotFoundError:  # executed as `python scripts/run_experiment_matrix
 REQUIRED_KEYS = ("name", "benchmark", "indices", "budget", "seeds", "algorithms")
 
 
+def resolve_variants(config: dict) -> list[dict]:
+    """Expand `algorithms` (+ optional `ablations`) into named policy variants.
+
+    A plain string such as "bayesian" uses the per-algorithm defaults from the config
+    section of the same name; an object `{"name", "algorithm", "params"}` overrides them.
+    Ablations use the same object form and are reported as separate named variants.
+    """
+    variants = []
+    entries = list(config["algorithms"]) + list(config.get("ablations", []))
+    for entry in entries:
+        if isinstance(entry, str):
+            entry = {"name": entry, "algorithm": entry}
+        if not isinstance(entry, dict) or "algorithm" not in entry:
+            raise ValueError(f"invalid algorithm entry: {entry!r}")
+        algorithm = str(entry["algorithm"])
+        if algorithm not in ALGORITHMS:
+            raise ValueError(f"algorithms must use values from {ALGORITHMS}; got {algorithm!r}")
+        params = {**dict(config.get(algorithm, {})), **dict(entry.get("params", {}))}
+        variants.append({"name": str(entry.get("name", algorithm)), "algorithm": algorithm,
+                         "params": params, "ablation": entry in config.get("ablations", [])})
+    names = [variant["name"] for variant in variants]
+    if not variants or len(set(names)) != len(names):
+        raise ValueError(f"algorithm variant names must be unique and non-empty; got {names}")
+    return variants
+
+
 def load_matrix(path: str | Path) -> dict:
     config = json.loads(Path(path).read_text())
     missing = [key for key in REQUIRED_KEYS if key not in config]
@@ -26,10 +53,7 @@ def load_matrix(path: str | Path) -> dict:
     seeds = [int(seed) for seed in config["seeds"]]
     if not seeds or len(set(seeds)) != len(seeds):
         raise ValueError("seeds must be a non-empty list of unique integers")
-    algorithms = list(config["algorithms"])
-    unknown = sorted(set(algorithms) - set(ALGORITHMS))
-    if not algorithms or unknown or len(set(algorithms)) != len(algorithms):
-        raise ValueError(f"algorithms must be unique values from {ALGORITHMS}; got {algorithms}")
+    config["variants"] = resolve_variants(config)
     config["indices"] = resolve_indices(config["indices"])
     if len(config["indices"]) < 2:
         raise ValueError("index pool must contain at least two architectures")
@@ -49,44 +73,51 @@ def resolve_indices(spec) -> list[int]:
 
 
 def planned_runs(config: dict) -> list[dict]:
-    return [{"run_id": f"{config['name']}/{algorithm}/seed{seed}", "algorithm": algorithm,
-             "seed": int(seed), "budget": int(config["budget"])}
-            for algorithm in config["algorithms"] for seed in config["seeds"]]
+    return [{"run_id": f"{config['name']}/{variant['name']}/seed{seed}", "algorithm": variant["name"],
+             "base_algorithm": variant["algorithm"], "params": variant["params"],
+             "ablation": variant["ablation"], "seed": int(seed), "budget": int(config["budget"])}
+            for variant in config["variants"] for seed in config["seeds"]]
 
 
-def to_run_record(report: dict, run_id: str) -> dict:
+def to_run_record(report: dict, plan: dict) -> dict:
     """Map a run_benchmark_search report onto build_research_report's record schema."""
-    return {"run_id": run_id, "algorithm": report["algorithm"], "seed": report["seed"],
+    return {"run_id": plan["run_id"], "algorithm": plan["algorithm"],
+            "base_algorithm": plan["base_algorithm"], "policy_params": report["policy_params"],
+            "ablation": plan["ablation"], "seed": report["seed"],
             "budget": report["budget"], "selected_on": "validation",
             "test_used_for_selection": False,
             "best_validation_accuracy": report["selected_validation_accuracy"],
             "final_test_accuracy": report["held_out_test_accuracy"],
             "search_cost": report["queries"], "selected_index": report["selected_index"],
-            "evidence_type": report["evidence_type"]}
+            "evidence_type": report["evidence_type"],
+            "validation_trace": report["validation_trace"]}
 
 
 def run_matrix(config: dict, adapter, output: Path, *, archive_sha256: str | None = None) -> dict:
     output.mkdir(parents=True, exist_ok=True)
-    evolution = config.get("evolution", {})
     records = []
     for plan in planned_runs(config):
         cache = output / "cache" / f"{plan['algorithm']}-seed{plan['seed']}.sqlite"
         cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.unlink(missing_ok=True)  # fresh cache per run keeps query budgets matched
+        started = time.monotonic()
         report = run_search(adapter, config["indices"], budget=plan["budget"],
-                            algorithm=plan["algorithm"], seed=plan["seed"], cache_path=cache,
-                            population_size=int(evolution.get("population_size", 8)),
-                            sample_size=int(evolution.get("sample_size", 3)))
-        record = to_run_record(report, plan["run_id"])
+                            algorithm=plan["base_algorithm"], seed=plan["seed"], cache_path=cache,
+                            params=plan["params"])
+        record = to_run_record(report, plan)
+        record["wall_clock_seconds"] = round(time.monotonic() - started, 3)
         if archive_sha256:
             record["archive_sha256"] = archive_sha256
         records.append(record)
     (output / "runs.json").write_text(json.dumps(records, indent=2, sort_keys=True))
     report = build_research_report(records,
                                    seed=int(config.get("report", {}).get("bootstrap_seed", 0)),
-                                   required_algorithms=tuple(config["algorithms"]),
+                                   required_algorithms=tuple(v["name"] for v in config["variants"]),
                                    min_seeds=len(config["seeds"]))
     report.update({"experiment": config["name"], "benchmark": config["benchmark"],
-                   "index_pool_size": len(config["indices"]), "evidence_type": "benchmark_lookup"})
+                   "index_pool_size": len(config["indices"]), "evidence_type": "benchmark_lookup",
+                   "variants": config["variants"], "seeds": config["seeds"],
+                   "ablations": [v["name"] for v in config["variants"] if v["ablation"]]})
     if archive_sha256:
         report["archive_sha256"] = archive_sha256
     (output / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True))
