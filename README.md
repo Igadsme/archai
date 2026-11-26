@@ -15,7 +15,7 @@ pytest
 uvicorn archai_api.main:app --port 8000   # or: python -m archai_api.main
 ```
 
-Studio (dashboard): `cd apps/web && npm ci && npm run dev` with the API on port 8000.
+Studio (dashboard): `cd apps/web && npm ci && npm run dev` with the API on port 8000. Run `npm test` for the Studio unit tests; `npm run build` runs them first.
 
 Install `.[ml,benchmark]` for real model/benchmark runs and `.[platform]` for SQLAlchemy/Alembic/Redis/Celery integrations. Core graph validation and serialization do not require PyTorch.
 

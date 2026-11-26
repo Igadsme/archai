@@ -22,3 +22,7 @@ Executed results only. Nothing here is predicted or estimated. Every row was run
 | 2026-11-25 | 56f8cab+ | `scripts/live_service_check.py` (Bayesian, budget 10, indices 0:256) | exit 0: search job succeeded via the Redis worker; benchmark experiment persisted in Postgres; synthetic candidate training job succeeded; `/readiness` shows `ready`, `rate_limit_backend=redis`; 10/10 write requests audit-logged |
 | 2026-11-25 | 56f8cab+ | `pytest tests/test_live_services.py` against local Redis/Postgres | 3 passed |
 | 2026-11-25 | 56f8cab+ | `pytest -q` (no live env) | 135 passed, 3 skipped (the live-service tests) |
+| 2026-11-25 | 5b95d00 | Studio `vitest run` (forms, leaderboard) | 12 passed |
+| 2026-11-25 | 5b95d00 | `npm run typecheck` / `npm run build` (prebuild vitest; Next 16.4.6) | pass / pass, 10 page routes prerendered; `npm audit`: 0 vulnerabilities (vitest 5.1.2) |
+| 2026-11-25 | 5b95d00 | `next start` + `curl` of all 10 routes | HTTP 200 for each |
+| 2026-11-25 | 5b95d00 | `pytest -q` (no live env) incl. `tests/test_studio_contract.py` | 137 passed, 3 skipped; `ruff check .`: all checks passed |

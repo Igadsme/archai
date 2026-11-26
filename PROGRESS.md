@@ -121,3 +121,5 @@ No NATS-Bench archive, trained research checkpoint, benchmark table, GPU run, re
 ## Repository state
 
 The supplied directory was not a Git repository; a local Git history was initialized for this continuation. The working tree remains directly inspectable under `/Volumes/PX4DRIVE/archai`.
+- ArchAI Studio now has ten pages behind a shared navigation shell, including search and training launch forms (validated client-side, then by the API), an API-key field kept in sessionStorage, and a leaderboard ranked by validation accuracy only. 12 vitest tests run on every build, and `tests/test_studio_contract.py` checks that the API accepts the form builders' requests.
+- `docs/FINAL_REPORT_TEMPLATE.md` defines the final engineering report format: evidence labels, configs and commits, CIs, and separate predicted numbers.
