@@ -2,24 +2,34 @@
 import Link from "next/link"
 import { useState } from "react"
 import { DagView } from "../components/DagView"
-import { Empty, Errors, PageHeader, Unavailable } from "../components/Shell"
+import { ConstraintFields } from "../components/ConstraintFields"
+import { SelectedProjectLabel, useSelectedProject } from "../components/ProjectPicker"
+import { Empty, Errors, PageHeader } from "../components/Shell"
 import { postJson } from "../lib/api"
+import { buildConstraints, defaultConstraintForm } from "../lib/forms"
 import type { FullArchitecture } from "../lib/types"
 
 type Generated = { items: { architecture_id: string; architecture: FullArchitecture }[]; checkpoint: string; metadata: Record<string, unknown> }
 
 export default function ArchitectureGenerator() {
-  const [form, setForm] = useState({ count: "4", seed: "0", channels: "3", height: "32", width: "32", classes: "10" })
+  const { projectId } = useSelectedProject()
+  const [form, setForm] = useState({ count: "4", seed: "0", channels: "3", height: "32", width: "32", classes: "10", ...defaultConstraintForm })
   const [result, setResult] = useState<Generated | null>(null)
   const [selected, setSelected] = useState(0)
   const [errors, setErrors] = useState<string[]>([])
   const [saved, setSaved] = useState<Record<string, string>>({})
   const set = (key: keyof typeof form) => (event: { target: { value: string } }) => setForm({ ...form, [key]: event.target.value })
   const submit = async () => {
-    const numbers = Object.fromEntries(Object.entries(form).map(([key, value]) => [key, Number(value)]))
-    if (Object.values(numbers).some((value) => !Number.isInteger(value) || value < 0)) { setErrors(["all fields must be non-negative integers"]); return }
-    const outcome = await postJson<Generated>("/v1/architectures/generate", { count: numbers.count, seed: numbers.seed,
-      input_spec: { channels: numbers.channels, height: numbers.height, width: numbers.width }, output_classes: numbers.classes })
+    const numericKeys = ["count", "seed", "channels", "height", "width", "classes"] as const
+    const numbers = Object.fromEntries(numericKeys.map((key) => [key, Number(form[key])])) as Record<typeof numericKeys[number], number>
+    if (numericKeys.some((key) => !Number.isInteger(numbers[key]) || numbers[key] < 0)) { setErrors(["count, seed and input dimensions must be non-negative integers"]); return }
+    const constraints = buildConstraints(form)
+    if (!constraints.ok) { setErrors(constraints.errors); return }
+    const body: Record<string, unknown> = { count: numbers.count, seed: numbers.seed,
+      input_spec: { channels: numbers.channels, height: numbers.height, width: numbers.width }, output_classes: numbers.classes }
+    if (projectId) body.project_id = projectId
+    if (constraints.value) body.constraints = constraints.value
+    const outcome = await postJson<Generated>("/v1/architectures/generate", body)
     if (outcome.ok) { setResult(outcome.data); setSelected(0); setErrors([]) } else { setResult(null); setErrors([`${outcome.status}: ${outcome.detail}`]) }
   }
   const save = async (architecture: FullArchitecture, id: string) => {
@@ -42,7 +52,10 @@ export default function ArchitectureGenerator() {
         </div>
         <button onClick={() => void submit()}>Generate candidates</button>
         <Errors errors={errors} />
-        <Unavailable feature="constraint-conditioned generation in the Studio" reason="The parameter-budget and accuracy conditions exist only in the offline NAS-Bench-201 generator (scripts/train_generator_nb201.py), and at smoke scale the budget condition is not met better than random. The API generator has no constraint inputs." />
+        <SelectedProjectLabel />
+        <div className="form">
+          <ConstraintFields form={form} onChange={set} />
+        </div>
       </article>
       <article className="panel"><h3>Candidates</h3>
         {result ? <><p className="muted">Checkpoint: <code>{result.checkpoint}</code></p>

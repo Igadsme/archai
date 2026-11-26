@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import fixtures from "../app/lib/fixtures/requests.json"
-import { buildProjectRequest, buildSearchRequest, buildTrainingRequest, defaultProjectForm, defaultSearchForm, defaultTrainingForm, parseIndices } from "../app/lib/forms"
+import { buildConstraints, buildProjectRequest, buildSearchRequest, buildTrainingRequest, defaultConstraintForm, defaultProjectForm, defaultSearchForm, defaultTrainingForm, parseIndices } from "../app/lib/forms"
 
 describe("parseIndices", () => {
   it("expands ranges, de-duplicates and sorts", () => {
@@ -66,5 +66,19 @@ describe("buildSearchRequest project_id", () => {
     expect(without).toEqual({ ok: true, value: fixtures.search })
     const withProject = buildSearchRequest({ ...defaultSearchForm, budget: "10", seed: "3", indices: "0:8,10:13", projectId: "project01abcdefgh" })
     expect(withProject.ok && "value" in withProject && withProject.value.project_id).toBe("project01abcdefgh")
+  })
+})
+
+
+describe("buildConstraints", () => {
+  it("omits empty constraints and parses raw counts", () => {
+    expect(buildConstraints(defaultConstraintForm)).toEqual({ ok: true, value: undefined })
+    expect(buildConstraints({ ...defaultConstraintForm, maxParameters: "800000", allowedOps: "skip_connect, none" })).toEqual({
+      ok: true, value: { max_parameters: 800000, allowed_ops: ["skip_connect", "none"] },
+    })
+  })
+  it("rejects unknown ops and non-positive budgets", () => {
+    expect(buildConstraints({ ...defaultConstraintForm, maxParameters: "0" }).ok).toBe(false)
+    expect(buildConstraints({ ...defaultConstraintForm, allowedOps: "quantum_gate" }).ok).toBe(false)
   })
 })

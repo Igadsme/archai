@@ -2,6 +2,7 @@
 import { type ChangeEvent, type FormEvent, useEffect, useState } from "react"
 import { usePoll } from "./usePoll"
 import { postJson } from "../lib/api"
+import { ConstraintFields } from "./ConstraintFields"
 import { buildProjectRequest, defaultProjectForm, type ProjectForm } from "../lib/forms"
 import { readSelectedProjectId, writeSelectedProjectId } from "../lib/project"
 import type { ResearchProject } from "../lib/types"
@@ -45,6 +46,7 @@ export function ProjectPicker() {
       <label>Name<input name="name" value={form.name} onChange={onChange("name")} required maxLength={128} /></label>
       <label>Task<input name="task" value={form.task} onChange={onChange("task")} required maxLength={128} /></label>
       <label>Description<textarea name="description" value={form.description} onChange={onChange("description")} maxLength={2000} rows={2} /></label>
+      <ConstraintFields form={form} onChange={onChange} />
       <button type="submit" disabled={busy}>{busy ? "Creating…" : "Create project"}</button>
     </form>
     <Loaded poll={projects} isEmpty={(data) => !data.items?.length} empty="No research projects yet.">

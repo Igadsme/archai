@@ -97,6 +97,11 @@ def main() -> int:
     parser.add_argument("--samples", type=int, default=1000)
     parser.add_argument("--trial", type=int, default=0, help="which archive trial (0..2) supplies validation accuracy")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--condition-mode", choices=("point", "ceiling"), default="point",
+                        help="point uses each cell's own params_m/1.6; ceiling samples a budget "
+                             "in [params_m, 1.6] so the condition is a feasible upper bound")
+    parser.add_argument("--reject-samples", type=int, default=0,
+                        help="if >0, also report hard-rejection sampling of this many feasible cells")
     args = parser.parse_args()
     table = load_table(args.table, args.trial)
     cells = sorted(table)
@@ -105,8 +110,18 @@ def main() -> int:
     train_cells = cells[:args.train_cells]
     train_set = set(train_cells)
     accuracies = sorted(table[cell]["validation_accuracy"] for cell in train_cells)
-    conditions = [(quantile_of(table[cell]["validation_accuracy"], accuracies),
-                   table[cell]["params_m"] / MAX_PARAMS_M) for cell in train_cells]
+    if args.condition_mode == "point":
+        conditions = [(quantile_of(table[cell]["validation_accuracy"], accuracies),
+                       table[cell]["params_m"] / MAX_PARAMS_M) for cell in train_cells]
+        condition_label = "validation_accuracy_quantile, params_m / 1.6 (point estimate)"
+    else:
+        conditions = []
+        for cell in train_cells:
+            params_m = table[cell]["params_m"]
+            ceiling = rng.uniform(params_m, MAX_PARAMS_M)
+            conditions.append((quantile_of(table[cell]["validation_accuracy"], accuracies),
+                               ceiling / MAX_PARAMS_M))
+        condition_label = "validation_accuracy_quantile, sampled budget ceiling in [params_m, 1.6] / 1.6"
     import torch
     torch.manual_seed(args.seed)
     config = GeneratorConfig(latent_dim=8, hidden_dim=64, max_nodes=6, condition_dim=2, vocabulary=NB201_OPS)
@@ -116,7 +131,7 @@ def main() -> int:
     metadata = {"model": "ArchAI-V1", "kind": "generator", "scale": "cpu_smoke",
                 "search_space": "nats-bench-tss", "dataset": "cifar10-valid (validation accuracy)",
                 "train_cells": len(train_cells), "epochs": args.epochs, "seed": args.seed,
-                "archive_trial": args.trial, "condition": ["validation_accuracy_quantile", "params_m / 1.6"],
+                "archive_trial": args.trial, "condition": condition_label, "condition_mode": args.condition_mode,
                 "code_revision": revision(), "test_used_for_selection": False}
     save_checkpoint(model, args.checkpoint, metadata)
     checkpoint_sha256 = sha256_file(args.checkpoint)
@@ -136,6 +151,32 @@ def main() -> int:
     reports["untrained_generator_baseline"] = generation_report(
         untrained.sample_tokens(args.samples, steps=6, seed=args.seed + 1, condition=(0.95, budget / MAX_PARAMS_M)),
         table, train_set, params_budget_m=budget)
+    if args.reject_samples > 0:
+        target = args.reject_samples
+        accepted, draws = [], 0
+        seed = args.seed + 11
+        while len(accepted) < target and draws < target * 40:
+            batch = model.sample_tokens(min(256, target * 4), steps=6, seed=seed + draws,
+                                        condition=(0.95, budget / MAX_PARAMS_M))
+            draws += len(batch)
+            for cell in batch:
+                cell = tuple(cell)
+                if cell in table and table[cell]["params_m"] <= budget:
+                    accepted.append(cell)
+                    if len(accepted) >= target:
+                        break
+        feasible_random = [cell for cell in table if table[cell]["params_m"] <= budget]
+        rng_eval = random.Random(args.seed + 13)
+        random_feasible = [feasible_random[rng_eval.randrange(len(feasible_random))] for _ in range(len(accepted))] if feasible_random and accepted else []
+        reports["hard_reject_to_0.8M_params"] = {
+            "requested": target,
+            "accepted": len(accepted),
+            "draws": draws,
+            "yield": (len(accepted) / draws) if draws else 0.0,
+            "candidate_quality_mean_validation_accuracy": mean(table[cell]["validation_accuracy"] for cell in accepted) if accepted else None,
+            "random_feasible_mean_validation_accuracy": mean(table[cell]["validation_accuracy"] for cell in random_feasible) if random_feasible else None,
+            "evidence_type": "benchmark_lookup",
+        }
     output = {"metadata": metadata, "checkpoint": str(args.checkpoint), "checkpoint_sha256": checkpoint_sha256,
               "checkpoint_reload_reproduces_samples": same,
               "training_loss_first_last": [history[0], history[-1]],

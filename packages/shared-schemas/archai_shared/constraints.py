@@ -93,3 +93,14 @@ def check_constraints(constraints: ArchitectureConstraints, *,
         violations.extend(f"{name} cannot be evaluated in this context" for name in unevaluable)
         return ConstraintReport(satisfied=False, violations=violations, unevaluable=unevaluable)
     return ConstraintReport(satisfied=not violations, violations=violations, unevaluable=unevaluable)
+
+
+def resolve_constraints(request: ArchitectureConstraints | None,
+                        project: ArchitectureConstraints | None = None) -> ArchitectureConstraints:
+    """Request fields override the project's constraints; unset request fields inherit."""
+    base = (project or ArchitectureConstraints()).model_dump()
+    if request is not None:
+        for key, value in request.model_dump().items():
+            if value is not None:
+                base[key] = value
+    return ArchitectureConstraints.model_validate(base)

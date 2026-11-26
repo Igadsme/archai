@@ -3,6 +3,7 @@ import { useState } from "react"
 import { Empty, Errors, Loaded, PageHeader, Unavailable } from "../components/Shell"
 import { items, usePoll } from "../components/usePoll"
 import { postJson } from "../lib/api"
+import { ConstraintFields } from "../components/ConstraintFields"
 import { SelectedProjectLabel, useSelectedProject } from "../components/ProjectPicker"
 import { buildSearchRequest, defaultSearchForm, type SearchForm } from "../lib/forms"
 import { jobResult } from "../lib/results"
@@ -53,6 +54,7 @@ export default function AutonomousSearchLaboratory() {
           <label>Budget (benchmark queries)<input inputMode="numeric" value={form.budget} onChange={update("budget")} /></label>
           <label>Seed<input inputMode="numeric" value={form.seed} onChange={update("seed")} /></label>
           <label>Search-space indices (e.g. 0:256 or 1,5,9)<input value={form.indices} onChange={update("indices")} /></label>
+          <ConstraintFields form={form} onChange={update} />
           <button onClick={() => void submit()}>Launch search</button>
         </div>
         <Errors errors={errors} />{message ? <p className="muted" role="status">{message}</p> : null}

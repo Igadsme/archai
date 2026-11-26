@@ -4,10 +4,10 @@
 export type Result<T> = { ok: true; value: T } | { ok: false; errors: string[] }
 
 export const SEARCH_ALGORITHMS = ["random", "evolution", "reinforce", "bayesian", "predictor_guided", "generator_guided", "multi_objective"] as const
-export type SearchForm = { algorithm: string; datasetId: string; budget: string; seed: string; indices: string; projectId?: string }
-export type SearchRequest = { algorithm: string; dataset_id: string; budget_evaluations: number; seed: number; indices: number[]; project_id?: string }
+export type SearchForm = { algorithm: string; datasetId: string; budget: string; seed: string; indices: string; projectId?: string } & ConstraintForm
+export type SearchRequest = { algorithm: string; dataset_id: string; budget_evaluations: number; seed: number; indices: number[]; project_id?: string; constraints?: ArchitectureConstraints }
 
-export const defaultSearchForm: SearchForm = { algorithm: "bayesian", datasetId: "cifar10", budget: "10", seed: "0", indices: "0:256" }
+export const defaultSearchForm: SearchForm = { algorithm: "bayesian", datasetId: "cifar10", budget: "10", seed: "0", indices: "0:256", maxParameters: "", maxFlops: "", maxLatencyS: "", allowedOps: "" }
 
 const integer = (raw: string): number | null => (/^-?\d+$/.test(raw.trim()) ? Number(raw.trim()) : null)
 
@@ -44,8 +44,12 @@ export function buildSearchRequest(form: SearchForm): Result<SearchRequest> {
   if (!indices.ok) errors.push(...indices.errors)
   else if (budget !== null && indices.value.length > 0 && budget > indices.value.length) errors.push(`budget (${budget}) exceeds the ${indices.value.length}-architecture pool`)
   if (errors.length || budget === null || seed === null || !indices.ok) return { ok: false, errors }
+  const constraints = buildConstraints(form)
+  if (!constraints.ok) errors.push(...constraints.errors)
+  if (errors.length || budget === null || seed === null || !indices.ok) return { ok: false, errors }
   const value: SearchRequest = { algorithm: form.algorithm, dataset_id: datasetId, budget_evaluations: budget, seed, indices: indices.value }
   if (form.projectId) value.project_id = form.projectId
+  if (constraints.ok && constraints.value) value.constraints = constraints.value
   return { ok: true, value }
 }
 
@@ -105,9 +109,56 @@ export function buildTrainingRequest(form: TrainingForm): Result<TrainingRequest
 }
 
 
-export type ProjectForm = { name: string; task: string; description: string }
-export type ProjectRequest = { name: string; task: string; description: string }
-export const defaultProjectForm: ProjectForm = { name: "", task: "cifar10", description: "" }
+
+export const KNOWN_OPS = ["input", "output", "conv3x3", "conv1x1", "skip", "avg_pool3x3", "none", "nor_conv_3x3", "nor_conv_1x1", "skip_connect", "avg_pool_3x3"] as const
+export type ConstraintForm = { maxParameters: string; maxFlops: string; maxLatencyS: string; allowedOps: string }
+export type ArchitectureConstraints = { max_parameters?: number; max_flops?: number; max_latency_s?: number; allowed_ops?: string[] }
+export const defaultConstraintForm: ConstraintForm = { maxParameters: "", maxFlops: "", maxLatencyS: "", allowedOps: "" }
+
+export function buildConstraints(form: ConstraintForm): Result<ArchitectureConstraints | undefined> {
+  const errors: string[] = []
+  const optionalInteger = (raw: string, label: string): number | undefined => {
+    const value = raw.trim()
+    if (!value) return undefined
+    if (!/^[0-9]+$/.test(value) || Number(value) <= 0) {
+      errors.push(`${label} must be a positive integer`)
+      return undefined
+    }
+    return Number(value)
+  }
+  const optionalFloat = (raw: string, label: string): number | undefined => {
+    const value = raw.trim()
+    if (!value) return undefined
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      errors.push(`${label} must be a positive number`)
+      return undefined
+    }
+    return parsed
+  }
+  const maxParameters = optionalInteger(form.maxParameters, "max parameters")
+  const maxFlops = optionalInteger(form.maxFlops, "max FLOPs")
+  const maxLatencyS = optionalFloat(form.maxLatencyS, "max latency (s)")
+  let allowedOps: string[] | undefined
+  if (form.allowedOps.trim()) {
+    allowedOps = form.allowedOps.split(/[\s,]+/).filter(Boolean)
+    const unknown = allowedOps.filter((op) => !(KNOWN_OPS as readonly string[]).includes(op))
+    if (!allowedOps.length) errors.push("allowed ops must contain at least one operation when set")
+    if (unknown.length) errors.push(`unsupported operations: ${unknown.join(", ")}`)
+  }
+  if (errors.length) return { ok: false, errors }
+  if (maxParameters === undefined && maxFlops === undefined && maxLatencyS === undefined && !allowedOps) return { ok: true, value: undefined }
+  const value: ArchitectureConstraints = {}
+  if (maxParameters !== undefined) value.max_parameters = maxParameters
+  if (maxFlops !== undefined) value.max_flops = maxFlops
+  if (maxLatencyS !== undefined) value.max_latency_s = maxLatencyS
+  if (allowedOps) value.allowed_ops = allowedOps
+  return { ok: true, value }
+}
+
+export type ProjectForm = { name: string; task: string; description: string } & ConstraintForm
+export type ProjectRequest = { name: string; task: string; description: string; constraints?: ArchitectureConstraints }
+export const defaultProjectForm: ProjectForm = { name: "", task: "cifar10", description: "", ...defaultConstraintForm }
 
 export function buildProjectRequest(form: ProjectForm): Result<ProjectRequest> {
   const errors: string[] = []
@@ -117,6 +168,10 @@ export function buildProjectRequest(form: ProjectForm): Result<ProjectRequest> {
   if (!name || name.length > 128) errors.push("project name is required (max 128 characters)")
   if (!task || task.length > 128) errors.push("task is required (max 128 characters)")
   if (description.length > 2000) errors.push("description must be at most 2000 characters")
+  const constraints = buildConstraints(form)
+  if (!constraints.ok) errors.push(...constraints.errors)
   if (errors.length) return { ok: false, errors }
-  return { ok: true, value: { name, task, description } }
+  const value: ProjectRequest = { name, task, description }
+  if (constraints.ok && constraints.value) value.constraints = constraints.value
+  return { ok: true, value }
 }

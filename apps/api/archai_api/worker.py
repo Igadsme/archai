@@ -234,11 +234,24 @@ def benchmark_search(job: Job) -> dict:
     indices = [int(value) for value in raw_indices]
     if not indices:
         raise RuntimeError("no benchmark indices configured")
-    budget = min(int(config["budget_evaluations"]), len(indices))
     dataset = str(config.get("dataset_id", "cifar10"))
     search_space = os.getenv("ARCHAI_NATS_BENCH_SEARCH_SPACE", "tss")
     cache_path = os.getenv("ARCHAI_BENCHMARK_CACHE", "/tmp/archai-benchmark-cache.sqlite")
     adapter = NATSBenchAdapter(str(archive), search_space, dataset).open()
+    pool_before = len(indices)
+    constraints_payload = config.get("constraints")
+    if constraints_payload:
+        from archai_benchmark.constraint_filter import feasible_benchmark_indices
+        from archai_shared.constraints import ArchitectureConstraints
+        constraints = ArchitectureConstraints.model_validate(constraints_payload)
+        if not constraints.is_empty():
+            feasible, unevaluable = feasible_benchmark_indices(adapter, indices, constraints)
+            if unevaluable:
+                raise RuntimeError("constraints cannot be evaluated on this benchmark: " + ", ".join(unevaluable))
+            if not feasible:
+                raise RuntimeError("no architectures in the pool satisfy the constraints")
+            indices = feasible
+    budget = min(int(config["budget_evaluations"]), len(indices))
     evaluator = BenchmarkEvaluator(adapter, QueryBudget(budget), BenchmarkCache(cache_path))
     policy = build_policy(adapter, indices, algorithm, int(config.get("seed", 0)), params)
     uses_cost = getattr(policy, "uses_cost", False)
@@ -278,7 +291,9 @@ def benchmark_search(job: Job) -> dict:
             "evidence_type": "benchmark_lookup",
             "evaluated_indices": [record.architecture_index for record in records],
             "history": history, "policy_params": params, **extras,
-            "archive_sha256": actual_checksum}
+            "archive_sha256": actual_checksum,
+            "pool_size_before_constraints": pool_before,
+            "pool_size_after_constraints": len(indices)}
 
 
 def main() -> int:

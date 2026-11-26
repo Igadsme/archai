@@ -16,7 +16,11 @@ from uuid import uuid4
 from archai_compiler.metrics import analytical_metrics
 from archai_core.schema import Architecture
 from archai_core.validation import ValidationError, validate_architecture
-from archai_shared.constraints import ArchitectureConstraints
+from archai_shared.constraints import (
+    ArchitectureConstraints,
+    check_constraints,
+    resolve_constraints,
+)
 from archai_shared.jobs import InMemoryJobStore, RedisJobStore
 from archai_shared.paths import allowed_path
 from archai_shared.ratelimit import RedisRateLimiter, make_rate_limiter
@@ -506,9 +510,12 @@ def create_search(request: SearchRequest):
         unknown = sorted(set(request.params) - set(POLICIES[request.algorithm]["params"]))
         if unknown:
             raise HTTPException(status_code=422, detail=f"unsupported {request.algorithm} parameters: {', '.join(unknown)}")
-    require_active_project(request.project_id)
-    job = _jobs.create("search", request.model_dump())
-    return _search_store.put(job.job_id, request.model_dump())
+    project = require_active_project(request.project_id)
+    payload = request.model_dump()
+    payload["constraints"] = resolve_constraints(
+        request.constraints, project.constraints if project else None).model_dump()
+    job = _jobs.create("search", payload)
+    return _search_store.put(job.job_id, payload)
 
 
 @app.post("/v1/training", dependencies=[Depends(require_write_access)])
@@ -795,7 +802,8 @@ def get_dataset(dataset_id: str, version: str = Query(..., min_length=1, max_len
 
 @app.post("/v1/architectures/generate")
 def generate_architectures(request: GenerateRequest):
-    require_active_project(request.project_id)
+    project = require_active_project(request.project_id)
+    constraints = resolve_constraints(request.constraints, project.constraints if project else None)
     checkpoint = os.getenv("ARCHAI_GENERATOR_CHECKPOINT")
     if not checkpoint:
         raise HTTPException(status_code=503, detail="No trained generator checkpoint is configured")
@@ -812,20 +820,46 @@ def generate_architectures(request: GenerateRequest):
         model = ArchitectureGenerator(config)
         metadata = load_checkpoint(model, checkpoint)
         generated = []
-        for offset in range(request.count):
+        rejected = 0
+        attempts = 0
+        limit = request.count if constraints.is_empty() else max(request.count * 32, 32)
+        for offset in range(limit):
             candidates = model.sample(seed=request.seed + offset, condition=tuple(request.condition),
                                       input_spec=TensorSpec.model_validate(request.input_spec),
                                       output_classes=request.output_classes)
             if not candidates:
                 raise RuntimeError("generator returned no candidates")
-            generated.append(candidates[-1])
+            candidate = candidates[-1]
+            attempts += 1
+            if not constraints.is_empty():
+                metrics = analytical_metrics(candidate)
+                report = check_constraints(constraints, parameters=metrics.parameters, flops=metrics.flops,
+                                           operations=[node.op for node in candidate.nodes])
+                if not report.satisfied:
+                    rejected += 1
+                    if report.unevaluable and offset == 0:
+                        raise HTTPException(status_code=422, detail={
+                            "message": "one or more constraints cannot be evaluated for generated architectures",
+                            "unevaluable": report.unevaluable, "violations": report.violations})
+                    continue
+            generated.append(candidate)
+            if len(generated) >= request.count:
+                break
+        if len(generated) < request.count:
+            raise HTTPException(status_code=422, detail={
+                "message": f"only {len(generated)} of {request.count} candidates satisfied the constraints",
+                "attempts": attempts, "rejected": rejected,
+                "constraints": constraints.model_dump()})
+    except HTTPException:
+        raise
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail="configured generator checkpoint is unavailable") from exc
     except (ImportError, ValueError, KeyError, RuntimeError, OSError) as exc:
         raise HTTPException(status_code=503, detail=f"generator checkpoint could not be loaded: {exc}") from exc
     return {"items": [{"architecture": candidate.model_dump(),
                        "architecture_id": candidate.content_hash()} for candidate in generated],
-            "count": len(generated), "checkpoint": checkpoint, "metadata": metadata}
+            "count": len(generated), "checkpoint": checkpoint, "metadata": metadata,
+            "constraints": constraints.model_dump(), "attempts": attempts, "rejected": rejected}
 
 
 @app.get("/v1/search/algorithms")
