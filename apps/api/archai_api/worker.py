@@ -263,8 +263,10 @@ def benchmark_search(job: Job) -> dict:
     best = max(records, key=lambda record: record.validation_accuracy)
     return {"algorithm": algorithm, "dataset": dataset, "search_space": search_space,
             "seed": int(config.get("seed", 0)), "budget": int(config["budget_evaluations"]),
-            "queries": evaluator.queries, "selected_on": "validation_accuracy",
+            "queries": evaluator.queries, "evaluations": len(records),
+            "cache_hits": len(records) - evaluator.queries, "selected_on": "validation_accuracy",
             "selected_index": best.architecture_index,
+            "selected_architecture_string": best.architecture_string,
             "selected_validation_accuracy": best.validation_accuracy,
             "held_out_test_accuracy": best.test_accuracy,
             "evidence_type": "benchmark_lookup",

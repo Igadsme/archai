@@ -284,3 +284,45 @@ def test_worker_runner_refreshes_heartbeat_during_long_handler():
     assert runner.run_once().status == "succeeded"
     assert observed and observed[0]["status"] == "running"
     assert observed[0]["active_job_id"] == job.job_id
+
+
+def test_benchmark_worker_runs_bayesian_search_on_verified_directory(monkeypatch, tmp_path):
+    import archai_benchmark
+    from archai_api.worker import benchmark_search
+    from archai_benchmark.adapter import BenchmarkRecord
+    from archai_benchmark.integrity import sha256_tree
+
+    ops = ("none", "skip_connect", "nor_conv_1x1", "nor_conv_3x3", "avg_pool_3x3")
+
+    class FakeAdapter:
+        dataset = "cifar10"
+
+        def __init__(self, *_args):
+            pass
+
+        def open(self):
+            return self
+
+        def architecture_string(self, index):
+            o = [ops[(index // 5 ** p) % 5] for p in range(6)]
+            return f"|{o[0]}~0|+|{o[1]}~0|{o[2]}~1|+|{o[3]}~0|{o[4]}~1|{o[5]}~2|"
+
+        def query(self, index, seed=0):
+            return BenchmarkRecord(index, "cifar10", seed, 80.0 + index % 7, 79.0, 1.0,
+                                   architecture_string=self.architecture_string(index))
+
+    archive = tmp_path / "NATS-simple"
+    archive.mkdir()
+    (archive / "meta.pickle.pbz2").write_bytes(b"meta")
+    monkeypatch.setattr(archai_benchmark, "NATSBenchAdapter", FakeAdapter)
+    monkeypatch.setenv("ARCHAI_NATS_BENCH_PATH", str(archive))
+    monkeypatch.setenv("ARCHAI_NATS_BENCH_SHA256", sha256_tree(archive))
+    monkeypatch.setenv("ARCHAI_BENCHMARK_CACHE", str(tmp_path / "cache.sqlite"))
+    payload = {"algorithm": "bayesian", "budget_evaluations": 6, "seed": 1,
+               "indices": list(range(30)), "warmup": 2}
+    first = benchmark_search(InMemoryJobStore().create("search", payload))
+    assert (first["evaluations"], first["queries"], first["cache_hits"]) == (6, 6, 0)
+    assert first["selected_architecture_string"].startswith("|")
+    second = benchmark_search(InMemoryJobStore().create("search", payload))
+    assert (second["evaluations"], second["queries"], second["cache_hits"]) == (6, 0, 6)
+    assert second["selected_index"] == first["selected_index"]
