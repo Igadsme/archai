@@ -300,7 +300,7 @@ def test_rate_limited_writes_are_audited(monkeypatch, tmp_path):
     audit = tmp_path / "events.jsonl"
     monkeypatch.setenv("ARCHAI_AUDIT_LOG", str(audit))
     monkeypatch.setenv("ARCHAI_RATE_LIMIT_PER_MINUTE", "1")
-    monkeypatch.setattr(api_main, "_rate_windows", api_main.defaultdict(api_main.deque))
+    monkeypatch.setattr(api_main, "_rate_limiter", api_main.make_rate_limiter(""))
     client = TestClient(app)
     client.post("/v1/architectures/validate", json=payload())
     assert client.post("/v1/architectures/validate", json=payload()).status_code == 429

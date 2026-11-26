@@ -8,7 +8,6 @@ import os
 import re
 import threading
 import time
-from collections import defaultdict, deque
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Literal
@@ -18,6 +17,7 @@ from archai_core.schema import Architecture
 from archai_core.validation import ValidationError, validate_architecture
 from archai_shared.jobs import InMemoryJobStore, RedisJobStore
 from archai_shared.paths import allowed_path
+from archai_shared.ratelimit import RedisRateLimiter, make_rate_limiter
 from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance
 from archai_shared.registry import ModelRegistry, sha256_file
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
@@ -57,7 +57,7 @@ _artifact_store = ArtifactStore(os.getenv("ARCHAI_ARTIFACT_STORE", "/tmp/archai-
 _model_registry = (SqlAlchemyModelRegistry.from_url(
     os.environ["DATABASE_URL"], initialize=os.getenv("ARCHAI_DB_AUTO_CREATE", "0") == "1")
     if os.getenv("DATABASE_URL") else ModelRegistry(os.getenv("ARCHAI_MODEL_MANIFEST", "/tmp/archai-models.json")))
-_rate_windows: dict[str, deque[float]] = defaultdict(deque)
+_rate_limiter = make_rate_limiter()
 
 
 class _InMemoryArchitectureStore:
@@ -190,13 +190,10 @@ async def request_limits(request: Request, call_next):
             return JSONResponse({"detail": "request body too large"}, status_code=413)
     limit = int(os.getenv("ARCHAI_RATE_LIMIT_PER_MINUTE", "120"))
     key = request.client.host if request.client else "unknown"
-    now = time.monotonic()
-    window = _rate_windows[key]
-    while window and now - window[0] >= 60:
-        window.popleft()
-    if len(window) >= limit:
-        return JSONResponse({"detail": "rate limit exceeded"}, status_code=429)
-    window.append(now)
+    decision = _rate_limiter.hit(key, limit)
+    if not decision.allowed:
+        return JSONResponse({"detail": "rate limit exceeded"}, status_code=429,
+                            headers={"x-ratelimit-backend": decision.backend})
     return await call_next(request)
 
 
@@ -346,13 +343,16 @@ def health() -> dict[str, str]:
 
 
 @app.get("/readiness")
-def readiness() -> dict[str, bool | str]:
+def readiness() -> dict[str, object]:
     redis_ready = _redis_is_ready()
     database_configured = bool(os.getenv("DATABASE_URL"))
     database_ready = database_is_ready(os.environ["DATABASE_URL"]) if database_configured else True
     ready = database_ready and (redis_ready or not os.getenv("ARCHAI_REQUIRE_REDIS"))
     return {"status": "ready" if ready else "not_ready", "durable_worker_configured": redis_ready,
-            "database_configured": database_configured, "database_ready": database_ready}
+            "database_configured": database_configured, "database_ready": database_ready,
+            "rate_limit_backend": _rate_limiter.backend,
+            "rate_limit_redis_error": (_rate_limiter.last_error
+                                       if isinstance(_rate_limiter, RedisRateLimiter) else None)}
 
 
 @app.get("/v1/infrastructure/workers")
