@@ -7,6 +7,7 @@ from scripts.train_generator_nb201 import connected, generation_report
 
 
 def test_vocabulary_generator_learns_sequences_and_reloads(tmp_path):
+    pytest.importorskip("torch")
     config = GeneratorConfig(latent_dim=4, hidden_dim=16, max_nodes=6, condition_dim=1, vocabulary=NB201_OPS)
     model = ArchitectureGenerator(config)
     target = ["nor_conv_3x3"] * 6
@@ -22,11 +23,12 @@ def test_vocabulary_generator_learns_sequences_and_reloads(tmp_path):
 
 
 def test_chain_sampling_rejects_non_default_vocabularies():
+    with pytest.raises(ValueError):
+        GeneratorConfig(vocabulary=("a",))
+    pytest.importorskip("torch")
     model = ArchitectureGenerator(GeneratorConfig(vocabulary=NB201_OPS))
     with pytest.raises(ValueError):
         model.sample(seed=0)
-    with pytest.raises(ValueError):
-        GeneratorConfig(vocabulary=("a",))
 
 
 def test_cell_connectivity_and_generation_metrics():

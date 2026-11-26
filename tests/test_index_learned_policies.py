@@ -22,6 +22,17 @@ from scripts.run_benchmark_search import ALGORITHMS, build_policy, run_search
 from scripts.run_experiment_matrix import run_matrix
 
 
+def _has_torch() -> bool:
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+needs_torch = pytest.mark.skipif(not _has_torch(), reason="install the 'ml' extra (torch) for learned policies")
+
+
 def encoding(index):
     return cell_string([NB201_OPS[(index // 5 ** position) % 5] for position in range(6)])
 
@@ -59,8 +70,10 @@ def test_cell_string_round_trips_through_the_parser():
 
 @pytest.mark.parametrize("factory", [
     lambda seed: IndexREINFORCE(POOL, STRINGS, seed=seed),
-    lambda seed: IndexPredictorGuided(POOL, STRINGS, seed=seed, warmup=4, refit_every=4, epochs=5, candidate_pool_size=32),
-    lambda seed: IndexGeneratorGuided(POOL, STRINGS, seed=seed, warmup=4, finetune_every=4, epochs=5, samples_per_step=16),
+    pytest.param(lambda seed: IndexPredictorGuided(POOL, STRINGS, seed=seed, warmup=4, refit_every=4, epochs=5,
+                                                   candidate_pool_size=32), marks=needs_torch),
+    pytest.param(lambda seed: IndexGeneratorGuided(POOL, STRINGS, seed=seed, warmup=4, finetune_every=4, epochs=5,
+                                                   samples_per_step=16), marks=needs_torch),
 ])
 def test_learned_policies_are_seeded_unique_and_in_pool(factory):
     first, second = drive(factory(3), 14), drive(factory(3), 14)
@@ -82,6 +95,7 @@ def test_reinforce_shifts_probability_toward_rewarded_operations():
     assert all(row[conv3] > 0.2 for row in policy.probabilities())  # uniform start is 0.2
 
 
+@needs_torch
 def test_generator_guided_learning_beats_its_untrained_ablation_on_synthetic_scores():
     def mean_tail(learn):
         values = []
@@ -93,6 +107,7 @@ def test_generator_guided_learning_beats_its_untrained_ablation_on_synthetic_sco
     assert mean_tail(True) > mean_tail(False)
 
 
+@needs_torch
 def test_predictor_guided_refits_and_finds_high_scores():
     policy = IndexPredictorGuided(POOL, STRINGS, seed=0, warmup=8, refit_every=4, epochs=40, candidate_pool_size=128)
     chosen = drive(policy, 24)
@@ -127,7 +142,9 @@ class CostAdapter:
         return self
 
 
-@pytest.mark.parametrize("algorithm", ALGORITHMS)
+@pytest.mark.parametrize("algorithm", [pytest.param(name, marks=needs_torch)
+                                       if name in ("predictor_guided", "generator_guided") else name
+                                       for name in ALGORITHMS])
 def test_every_algorithm_runs_at_a_matched_budget_with_hypervolume(algorithm, tmp_path):
     small = {"predictor_guided": {"epochs": 3, "candidate_pool_size": 16},
              "generator_guided": {"epochs": 3, "samples_per_step": 8}}.get(algorithm, {})
