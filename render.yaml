@@ -1,0 +1,51 @@
+# Render Blueprint for the ArchAI API on the Free plan.
+# Official docs (verified 2026-11-26): https://render.com/docs/free
+# Free instances exist only for web services (and unused here: static sites,
+# Render Postgres, Render Key Value). There is NO free Background Worker or
+# Cron Job. This blueprint starts a single free web service and runs the
+# durable worker inside that process (ARCHAI_EMBED_WORKER=1).
+#
+# Do not add a payment method to the Render account. Extra bandwidth or
+# build minutes are billed if a card is on file; without a card, services
+# are suspended when the included quota is exhausted.
+#
+# Do not add a Render Postgres or Key Value instance (free Postgres expires
+# in 30 days). Use Neon and Upstash as documented in docs/deploy/.
+
+services:
+  - type: web
+    name: archai-api
+    runtime: python
+    plan: free
+    autoDeploy: false
+    buildCommand: pip install --upgrade pip && pip install '.[platform]'
+    preDeployCommand: alembic upgrade head
+    startCommand: uvicorn archai_api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: ARCHAI_EMBED_WORKER
+        value: "1"
+      - key: ARCHAI_REQUIRE_API_KEY
+        value: "1"
+      - key: ARCHAI_REQUIRE_REDIS
+        value: "1"
+      - key: ARCHAI_DB_AUTO_CREATE
+        value: "0"
+      - key: ARCHAI_NATS_BENCH_PATH
+        value: datasets/fixtures/natsbench-tss-cifar10-256/cells.jsonl
+      - key: ARCHAI_NATS_BENCH_SHA256
+        value: 4a4b956ad6ae53b9d0b17fcf04b4935d17db030661afe23bbdb111c27ac5a148
+      - key: ARCHAI_NATS_BENCH_INDICES
+        value: fixture
+      - key: ARCHAI_ALLOWED_PATHS
+        value: /tmp:/opt/render/project/src
+      - key: DATABASE_URL
+        sync: false
+      - key: ARCHAI_REDIS_URL
+        sync: false
+      - key: ARCHAI_API_KEY_SHA256
+        sync: false
+      - key: ARCHAI_CORS_ORIGINS
+        sync: false

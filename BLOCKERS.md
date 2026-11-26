@@ -1,13 +1,13 @@
 # Blockers and open questions
 
-Updated 2026-11-26 12:31 AM ET (America/New_York). Each entry names who can unblock it.
+Updated 2026-11-26 1:00 AM ET (America/New_York). Each entry names who can unblock it.
 
 | # | Blocker | Impact | Owner / unblock |
 | --- | --- | --- | --- |
 | B1 | ~~`main` @ e322b6b empties `integrity.py` and `tests/test_benchmark.py`; CI on `main` fails~~ **Resolved.** Imani approved the revert; `28feaa7` is on `main` and `main`'s CI is green. `review/main-benchmark-integrity` is unchanged. | — | — |
 | B2 | ~~Studio page names were in a truncated part of the spec~~ **Resolved.** Exact names and acceptance text are in `docs/SPEC_ACCEPTANCE.md`; the Studio is realigned to those ten pages. | — | — |
-| B3 | Hugging Face publication (M12) | No public model release | Imani: HF authorization and release decision |
-| B4 | GPU / large-scale training | Only CPU smoke-scale training is allowed on the box; ArchAI-V1 quality numbers are smoke-scale only | Imani: approve compute if larger runs are wanted |
+| B3 | Hugging Face publication (M12) | No model has been published. A draft `MODEL_CARD.md` (measured smoke fields + clearly marked GPU placeholders) and `scripts/publish_hf.py` (private by default, `--dry-run` never calls the Hub API) are in the tree. Dry-run was tested locally. | Imani: after a Kaggle run is imported, provide a fine-grained write token when asked and decide whether the private repo can go public. Do not start a paid HF plan. |
+| B4 | GPU / large-scale training | ArchAI-V1 quality numbers are still CPU smoke-scale only. A free Kaggle GPU path is prepared (`notebooks/archai_v1_kaggle_train.ipynb`, `docs/deploy/KAGGLE_RUNBOOK.md`, planned ~9 h inside the 12 h session / 30 h weekly quota). The box only smoke-tested the script on CPU at tiny scale. | Imani: run the notebook with Save & Run All on a free Kaggle GPU (no Colab Pro), then share `metrics.json` and the checksummed `.pt` files. |
 | B5 | ~~The GitHub token lacked `workflow` scope, so `.github/workflows/ci.yml` could not be updated and the python job failed the hardcoded 0006 Alembic grep.~~ **Resolved** at `a69f60a` (11:26–11:27 PM ET, America/New_York). The token now has Workflows read/write. The proposal is applied: ruff, Node 22, `npm ci`, a CPU-only `python-torch` job, and an Alembic check that compares `alembic current` to `alembic heads` (no hardcoded revision). Push and PR CI are green: python 156 passed / 35 skipped; python-torch 188 passed / 3 skipped; web succeeded. | — | — |
 | B6 | ~~Full experiment spec text truncated~~ **Resolved.** Acceptance criteria (including the report title and sections) are in `docs/SPEC_ACCEPTANCE.md`. | — | — |
 | B7 | ~~No research-project entity~~ **Resolved** at `f6ccb2d` (Alembic 0007, API CRUD, Studio create/select). Live E2E step 1 passed at `71756c3`. | — | — |

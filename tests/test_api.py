@@ -318,3 +318,42 @@ def test_rate_limit_response_includes_cors_headers(monkeypatch):
     blocked = client.get("/health", headers=headers)
     assert blocked.status_code == 429
     assert blocked.headers.get("access-control-allow-origin") == "http://127.0.0.1:3000"
+
+
+def test_require_api_key_refuses_boot_without_a_key(monkeypatch):
+    monkeypatch.setenv("ARCHAI_REQUIRE_API_KEY", "1")
+    monkeypatch.delenv("ARCHAI_API_KEY", raising=False)
+    monkeypatch.delenv("ARCHAI_API_KEY_SHA256", raising=False)
+    with pytest.raises(RuntimeError, match="ARCHAI_REQUIRE_API_KEY"):
+        with TestClient(app):
+            pass
+
+
+def test_require_api_key_boots_when_hash_is_configured(monkeypatch):
+    import hashlib
+
+    monkeypatch.setenv("ARCHAI_REQUIRE_API_KEY", "1")
+    monkeypatch.delenv("ARCHAI_API_KEY", raising=False)
+    monkeypatch.setenv("ARCHAI_API_KEY_SHA256", hashlib.sha256(b"boot-secret").hexdigest())
+    with TestClient(app) as client:
+        request = {"algorithm": "random", "dataset_id": "unit", "budget_evaluations": 1}
+        denied = client.post("/v1/searches", json=request)
+        assert denied.status_code == 401
+        allowed = client.post("/v1/searches", json=request, headers={"x-api-key": "boot-secret"})
+        assert allowed.status_code == 200
+
+
+def test_embedded_worker_requires_redis_url(monkeypatch):
+    from archai_api import main as api_main
+    monkeypatch.setenv("ARCHAI_EMBED_WORKER", "1")
+    monkeypatch.delenv("ARCHAI_REDIS_URL", raising=False)
+    with pytest.raises(RuntimeError, match="ARCHAI_REDIS_URL"):
+        api_main.start_embedded_worker()
+
+
+def test_embedded_worker_is_a_no_op_when_disabled(monkeypatch):
+    from archai_api import main as api_main
+    monkeypatch.delenv("ARCHAI_EMBED_WORKER", raising=False)
+    monkeypatch.delenv("ARCHAI_REDIS_URL", raising=False)
+    api_main.start_embedded_worker()
+    assert api_main._embed_thread is None

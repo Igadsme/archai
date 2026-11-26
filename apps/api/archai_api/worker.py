@@ -190,6 +190,27 @@ def predictor_training(job: Job) -> dict:
             "hardware": _hardware_profile("cpu", torch.__version__)}
 
 
+
+def _benchmark_indices(config: dict, path: str | Path) -> list[int]:
+    """Job payload indices, or ARCHAI_NATS_BENCH_INDICES.
+
+    The value `fixture` (or `all`) expands to every index in a fixture path so
+    the hosted demo does not need a 256-long env var.
+    """
+    raw = config.get("indices")
+    if not raw:
+        raw = os.getenv("ARCHAI_NATS_BENCH_INDICES", "")
+    if isinstance(raw, str):
+        token = raw.strip().lower()
+        if token in {"fixture", "all"}:
+            from archai_benchmark.fixture import FixtureAPI, is_fixture_path
+            if not is_fixture_path(path):
+                raise RuntimeError("ARCHAI_NATS_BENCH_INDICES=fixture requires a fixture path")
+            return FixtureAPI.from_path(path).indices()
+        raw = [value for value in raw.split(",") if value.strip()]
+    return [int(value) for value in raw]
+
+
 def benchmark_search(job: Job) -> dict:
     """Run the configured validation-selected benchmark search.
 
@@ -230,8 +251,7 @@ def benchmark_search(job: Job) -> dict:
     if actual_checksum != expected_checksum.lower():
         raise RuntimeError("benchmark archive checksum mismatch")
     config = job.payload
-    raw_indices = config.get("indices") or [int(value) for value in os.getenv("ARCHAI_NATS_BENCH_INDICES", "").split(",") if value.strip()]
-    indices = [int(value) for value in raw_indices]
+    indices = _benchmark_indices(config, path)
     if not indices:
         raise RuntimeError("no benchmark indices configured")
     dataset = str(config.get("dataset_id", "cifar10"))

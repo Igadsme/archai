@@ -8,6 +8,7 @@ import os
 import re
 import threading
 import time
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Literal
@@ -41,7 +42,81 @@ from archai_api.db import (
     database_is_ready,
 )
 
-app = FastAPI(title="ArchAI API", version="v1")
+
+def api_key_is_configured() -> bool:
+    return bool(os.getenv("ARCHAI_API_KEY") or os.getenv("ARCHAI_API_KEY_SHA256"))
+
+
+def enforce_required_api_key() -> None:
+    """Production boot check: ARCHAI_REQUIRE_API_KEY=1 refuses to start without a key."""
+    if os.getenv("ARCHAI_REQUIRE_API_KEY", "0") == "1" and not api_key_is_configured():
+        raise RuntimeError(
+            "ARCHAI_REQUIRE_API_KEY=1 but neither ARCHAI_API_KEY nor ARCHAI_API_KEY_SHA256 is set"
+        )
+
+
+_embed_stop: threading.Event | None = None
+_embed_thread: threading.Thread | None = None
+
+
+def start_embedded_worker() -> None:
+    """Run WorkerRunner in-process. Render has no free background workers or cron."""
+    global _embed_stop, _embed_thread
+    if os.getenv("ARCHAI_EMBED_WORKER", "0") != "1":
+        return
+    url = os.getenv("ARCHAI_REDIS_URL")
+    if not url:
+        raise RuntimeError("ARCHAI_EMBED_WORKER=1 requires ARCHAI_REDIS_URL")
+    from archai_shared.jobs import RedisJobStore
+    from archai_shared.worker import WorkerRunner
+
+    from archai_api.worker import (
+        benchmark_search,
+        candidate_training,
+        generator_training,
+        predictor_training,
+    )
+    store = RedisJobStore.from_url(url)
+    store.client.ping()
+    _embed_stop = threading.Event()
+    runner = WorkerRunner(
+        store,
+        {
+            "search": benchmark_search,
+            "training": candidate_training,
+            "generator_training": generator_training,
+            "predictor_training": predictor_training,
+        },
+    )
+    _embed_thread = threading.Thread(
+        target=runner.run_forever,
+        kwargs={"stop": _embed_stop},
+        daemon=True,
+        name="archai-embed-worker",
+    )
+    _embed_thread.start()
+    logging.getLogger("archai.api").info("embedded worker started")
+
+
+def stop_embedded_worker() -> None:
+    global _embed_stop, _embed_thread
+    if _embed_stop is not None:
+        _embed_stop.set()
+    _embed_stop = None
+    _embed_thread = None
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    enforce_required_api_key()
+    start_embedded_worker()
+    try:
+        yield
+    finally:
+        stop_embedded_worker()
+
+
+app = FastAPI(title="ArchAI API", version="v1", lifespan=lifespan)
 _cors_origins = [origin.strip() for origin in os.getenv(
     "ARCHAI_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if origin.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=_cors_origins, allow_credentials=False,

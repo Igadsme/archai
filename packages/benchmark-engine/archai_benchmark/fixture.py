@@ -48,6 +48,10 @@ class FixtureAPI:
             rows[int(row["index"])] = row
         return cls(rows)
 
+    def indices(self) -> list[int]:
+        """All architecture indices present in the fixture, in sorted order."""
+        return sorted(self._rows)
+
     def __contains__(self, index: int) -> bool:
         return int(index) in self._rows
 

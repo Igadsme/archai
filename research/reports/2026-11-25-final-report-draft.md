@@ -1,6 +1,6 @@
 # ARCHAI — FINAL ENGINEERING & RESEARCH COMPLETION REPORT
 
-Draft, 25 November 2026 (updated 11:28 PM ET), America/New_York. Filled only with executed, labeled numbers. Anything not
+Draft, 25 November 2026 (updated 26 November 2026, 1:00 AM ET), America/New_York. Filled only with executed, labeled numbers. Anything not
 measured is listed under §10. Verdict is in §11.
 
 Template: `docs/FINAL_COMPLETION_REPORT_TEMPLATE.md`. Acceptance list: `docs/SPEC_ACCEPTANCE.md`.
@@ -16,7 +16,9 @@ Template: `docs/FINAL_COMPLETION_REPORT_TEMPLATE.md`. Acceptance list: `docs/SPE
   talks to a real local stack; a 32/32 live browser E2E covers the official-archive journey, and a
   33/33 fixture-only Studio E2E is green in GitHub Actions; at CPU smoke scale the binned budget
   condition now beats uniform random on param-budget satisfaction. Generator and predictor quality
-  numbers remain smoke-scale only; B3 (HF) and B4 (GPU) are still open. COMPLETE AND VERIFIED is
+  numbers remain smoke-scale only; B3 (HF) and B4 (GPU) are still open, but a no-cost plan is
+  prepared (Kaggle notebook for Imani to run, HF dry-run publisher, Vercel/Render/Neon/Upstash
+  runbooks). COMPLETE AND VERIFIED is
   not claimed.
 - Facts that justify the verdict:
   1. At 100 NATS-Bench TSS queries, 10 seeds, Bayesian optimization’s mean best validation accuracy
@@ -313,8 +315,8 @@ Environment (box, 25 Nov 2026):
 | --- | --- | --- | --- | --- |
 | B1 | `main` @ e322b6b broke integrity tests | resolved | Imani | Revert `28feaa7` is on `main`, CI green. `review/main-benchmark-integrity` kept. |
 | B2 / B6 | Truncated spec (page names, acceptance text) | resolved | Imani / Monday | `docs/SPEC_ACCEPTANCE.md` |
-| B3 | Hugging Face publication (M12) | decision | Imani | Authorization and a release decision |
-| B4 | GPU / large-scale training | decision / external | Imani | Approve compute if larger than CPU smoke is wanted |
+| B3 | Hugging Face publication (M12) | decision | Imani | Draft card + dry-run publisher are in-tree. Provide a fine-grained write token when asked, after Kaggle artifacts exist. Stay on the free 100 GB private quota; no PRO. |
+| B4 | GPU / large-scale training | waiting on Imani | Imani | Run `notebooks/archai_v1_kaggle_train.ipynb` on a free Kaggle GPU (Save & Run All, ~9 h plan). No Colab Pro. Quality stays smoke-scale until those metrics are imported. |
 | B5 | Workflow scope / red 0006 grep | resolved | Imani | Applied at `a69f60a`; push and PR CI green (python, python-torch, web) |
 | B7 | Research-project entity | resolved | engineering | Alembic 0007, API CRUD, Studio create/select, E2E step 1 passed |
 | B8 | Constraint inputs plus binned-ceiling condition (CPU smoke): raw satisfaction 0.983 vs random 0.908 | resolved (smoke-scale) | engineering | Still smoke-scale; a larger corpus would be needed for a non-smoke quality claim |
@@ -330,7 +332,7 @@ worker-driven Generate→…→Repeat closed loop that includes real training; a
 Executed in this pass and recorded in `TEST_REPORT.md`: mid-search API / worker (lease recovery) /
 Postgres restarts; `pip-audit` (14 findings in pip 25.1.1 and pytest 8.4.2; torch CPU wheels
 skipped); `npm audit` (0 vulnerabilities); auth/rate-limit unit tests; a secret scan of the git
-tree (live API key not present). The live box API process does not currently enforce a write key.
+tree (live API key not present). The live box API process now enforces a write key (restarted 26 Nov 2026, 1:00 AM ET, America/New_York: 401 without a key, 200 with the configured key). The key is not in git.
 
 ## 11. Final Verdict
 
@@ -343,6 +345,8 @@ scale the binned budget condition beats uniform random on param-budget satisfact
 0.908) without dropping quality below random. COMPLETE AND VERIFIED is reserved for the entire
 acceptance suite, which this is not: every quality number for ArchAI-V1 itself is still
 smoke-scale, and B3 (Hugging Face publication) and B4 (GPU / larger-than-smoke training) remain
-open and untouched.
+open: a free-tier plan, Kaggle notebook, HF dry-run publisher, and hosting runbooks are in the
+tree, but no Kaggle GPU job has been run, no Hub upload has been executed, and no hosting
+accounts have been created.
 
 **Evidence:** §§1–10 of this draft; `docs/COMPLETION_PLAN.md`; `TEST_REPORT.md`; `BLOCKERS.md`.

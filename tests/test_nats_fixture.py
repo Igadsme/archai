@@ -33,3 +33,17 @@ def test_fixture_adapter_queries_costs_and_official_split_protocol():
         other.benchmark_trial_seed != record.benchmark_trial_seed
         or other.validation_accuracy == record.validation_accuracy
     )
+
+
+def test_fixture_indices_cover_all_committed_cells():
+    from archai_benchmark.fixture import FixtureAPI
+
+    assert FixtureAPI.from_path(FIXTURE).indices() == list(range(256))
+
+
+def test_worker_expands_fixture_index_token(monkeypatch):
+    from archai_api.worker import _benchmark_indices
+
+    monkeypatch.setenv("ARCHAI_NATS_BENCH_INDICES", "fixture")
+    assert _benchmark_indices({}, CELLS) == list(range(256))
+    assert _benchmark_indices({"indices": [3, 9]}, CELLS) == [3, 9]
