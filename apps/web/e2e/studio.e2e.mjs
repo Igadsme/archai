@@ -51,6 +51,21 @@ for (const [href, title] of PAGES) {
   await desk.screenshot({ path: `${SCREENS}/desktop${href === "/" ? "-dashboard" : href.replace("/", "-")}.png`, fullPage: true })
 }
 
+// E2E step 1: create a research project on the dashboard and keep it selected.
+await desk.goto(`${STUDIO}/`); await desk.waitForLoadState("networkidle")
+const projectName = `E2E project ${Date.now()}`
+await desk.locator('form[aria-label="Create research project"]').getByLabel(/^Name$/).fill(projectName)
+await desk.getByRole("button", { name: "Create project" }).click()
+const projectCreated = await until(async () => (await desk.getByText(`Created ${projectName}`).count()) > 0, 15000, 500)
+const projectPressed = projectCreated ? await desk.getByRole("button", { name: `Select ${projectName}` }).getAttribute("aria-pressed") : "false"
+check("dashboard: create and select a research project (E2E step 1)", projectCreated && projectPressed === "true",
+  `created=${projectCreated} pressed=${projectPressed}`)
+await desk.screenshot({ path: `${SCREENS}/flow-project.png`, fullPage: true })
+
+await desk.goto(`${STUDIO}/generator`); await desk.waitForLoadState("networkidle")
+check("generator: constraint inputs are available",
+  await desk.getByLabel("Max parameters").count() > 0 && await desk.getByText("constraint-conditioned generation in the Studio").count() === 0)
+
 // Search laboratory: launch a multi-objective search and watch it finish.
 await desk.goto(`${STUDIO}/search`); await desk.waitForLoadState("networkidle")
 await desk.getByLabel("Policy").selectOption("multi_objective")
