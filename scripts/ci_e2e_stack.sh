@@ -35,7 +35,7 @@ fi
 export DATABASE_URL="${DATABASE_URL:?DATABASE_URL is required}"
 export ARCHAI_REDIS_URL="${ARCHAI_REDIS_URL:?ARCHAI_REDIS_URL is required}"
 export ARCHAI_REQUIRE_REDIS="${ARCHAI_REQUIRE_REDIS:-1}"
-export ARCHAI_ALLOWED_PATHS="${ARCHAI_ALLOWED_PATHS:-$ROOT:$WORKDIR}"
+export ARCHAI_ALLOWED_PATHS="${ARCHAI_ALLOWED_PATHS:-$ROOT:$WORKDIR:/tmp}"
 export ARCHAI_NATS_BENCH_PATH="$FIXTURE_CELLS"
 export ARCHAI_NATS_BENCH_SHA256="$FIXTURE_SHA"
 export ARCHAI_BENCHMARK_CACHE="$WORKDIR/benchmark-cache.sqlite"
@@ -48,6 +48,7 @@ export ARCHAI_RATE_LIMIT_GET_PER_MINUTE="${ARCHAI_RATE_LIMIT_GET_PER_MINUTE:-200
 export ARCHAI_CORS_ORIGINS="${ARCHAI_CORS_ORIGINS:-http://127.0.0.1:3000,http://localhost:3000}"
 export NEXT_PUBLIC_ARCHAI_API_URL="${NEXT_PUBLIC_ARCHAI_API_URL:-http://127.0.0.1:8000}"
 export ARCHAI_E2E_API_KEY_FILE="$KEY_FILE"
+export ARCHAI_E2E_CHECKPOINT="$CKPT"
 export ARCHAI_E2E_BUDGET="${ARCHAI_E2E_BUDGET:-8}"
 export ARCHAI_E2E_INDICES="${ARCHAI_E2E_INDICES:-0:256}"
 export STUDIO_URL="${STUDIO_URL:-http://127.0.0.1:3000}"
@@ -114,4 +115,8 @@ wait_http "http://127.0.0.1:3000" "Studio"
 
 # Unset the process env key so child logs are less likely to echo it; E2E reads the file.
 unset ARCHAI_API_KEY
-(cd "$ROOT/apps/web" && node e2e/studio.e2e.mjs)
+if ! (cd "$ROOT/apps/web" && node e2e/studio.e2e.mjs); then
+  echo "E2E failed; last worker/api log lines (fixture-only stack):" >&2
+  tail -n 80 "$LOG_DIR/worker.log" "$LOG_DIR/api.log" >&2 || true
+  exit 1
+fi
