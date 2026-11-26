@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 
@@ -11,9 +12,15 @@ def test_api_image_contains_runtime_ml_dependencies():
     assert "COPY scripts ./scripts" in dockerfile
 
 
-def test_web_image_does_not_require_untracked_lockfile():
+def test_web_image_installs_from_committed_lockfile():
     dockerfile = (ROOT / "apps/web/Dockerfile").read_text()
-    assert "package-lock.json" not in dockerfile
+    lockfile = ROOT / "apps/web/package-lock.json"
+    assert lockfile.is_file()
+    assert "COPY apps/web/package.json apps/web/package-lock.json ./" in dockerfile
+    assert "RUN npm ci" in dockerfile
+    package = json.loads((ROOT / "apps/web/package.json").read_text())
+    locked = json.loads(lockfile.read_text())["packages"][""]["dependencies"]
+    assert locked == package["dependencies"]
 
 
 def test_web_ci_exposes_source_typecheck():
