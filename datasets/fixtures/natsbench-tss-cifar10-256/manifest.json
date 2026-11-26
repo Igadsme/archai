@@ -1,0 +1,12 @@
+{
+  "cells_sha256": "4a4b956ad6ae53b9d0b17fcf04b4935d17db030661afe23bbdb111c27ac5a148",
+  "dataset": "cifar10",
+  "indices": "0-255 inclusive",
+  "kind": "archai_natsbench_fixture",
+  "label": "fixture-only",
+  "n_cells": 256,
+  "not_the_official_benchmark": true,
+  "official_archive_tree_sha256": "183b6ad84c437a36fbbe03f711cdb3a4bd6f3b8675e1af0536d3975f98fa4ba3",
+  "search_space": "tss",
+  "source": "Derived from the official NATS-Bench TSS CIFAR-10 table (costs + three archive trials). This subset is for CI and unit tests only and is not a substitute for the official 15,625-cell archive."
+}

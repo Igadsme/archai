@@ -26,6 +26,10 @@ class NATSBenchAdapter:
         self._api = None
 
     def open(self):
+        from archai_benchmark.fixture import FixtureAPI, is_fixture_path
+        if is_fixture_path(self.path):
+            self._api = FixtureAPI.from_path(self.path)
+            return self
         try:
             from nats_bench import create
         except ImportError as exc:

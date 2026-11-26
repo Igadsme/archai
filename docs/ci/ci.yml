@@ -1,6 +1,3 @@
-# Copy of .github/workflows/ci.yml. Browser E2E is intentionally omitted from
-# GitHub Actions: it needs the live API, worker, Postgres, Redis, and the
-# checksum-verified NATS-Bench archive, which GitHub-hosted runners do not have.
 name: CI
 on: [push, pull_request]
 jobs:
@@ -56,3 +53,53 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+  studio-e2e:
+    name: studio-e2e (fixture-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: archai
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: archai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U archai -d archai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://archai:ci@127.0.0.1:5432/archai
+      ARCHAI_REDIS_URL: redis://127.0.0.1:6379/0
+      NEXT_PUBLIC_ARCHAI_API_URL: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm, cache-dependency-path: apps/web/package-lock.json}
+      - name: Install Python (CPU torch, no official NATS-Bench archive)
+        run: python -m pip install -e '.[dev,platform,ml]' --extra-index-url https://download.pytorch.org/whl/cpu
+      - name: Install Studio and Playwright Chromium
+        working-directory: apps/web
+        run: |
+          npm ci
+          PLAYWRIGHT_VERSION=$(node -p "require('playwright-core/package.json').version")
+          npx --yes playwright@${PLAYWRIGHT_VERSION} install --with-deps chromium
+      - name: Build Studio
+        working-directory: apps/web
+        run: npm run build
+      - name: Run browser E2E against a fixture-only stack
+        run: bash scripts/ci_e2e_stack.sh

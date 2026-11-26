@@ -1,7 +1,10 @@
-// Browser end-to-end check of the ten Studio pages against a LIVE local stack (API + worker + NATS-Bench).
-// Not part of CI (needs the stack). Usage:
+// Browser end-to-end check of the ten Studio pages against a live stack (API + worker + a benchmark).
+// Locally this uses the official NATS-Bench archive. In GitHub Actions it uses the committed
+// 256-cell fixture at datasets/fixtures/natsbench-tss-cifar10-256 (fixture-only, not a research result)
+// with ARCHAI_E2E_INDICES=0:256 and ARCHAI_E2E_BUDGET=8. Usage:
 //   ARCHAI_E2E_API_KEY_FILE=/path/to/key CHROME=/usr/bin/google-chrome SCREENS=/tmp/screens node e2e/studio.e2e.mjs
 // The key is read from a file and typed into the Studio key field; it is never logged.
+// If CHROME is unset, Playwright uses chromium.executablePath() (CI installs Chromium this way).
 import { readFileSync, mkdirSync, statSync } from "node:fs"
 import { chromium } from "playwright-core"
 
@@ -29,7 +32,10 @@ if (CHECKPOINT) {
   check("setup: register smoke checkpoint via API", response.ok || response.status === 409, `HTTP ${response.status}`)
 }
 
-const browser = await chromium.launch({ executablePath: process.env.CHROME ?? "/usr/bin/google-chrome", args: ["--no-sandbox"] })
+const SEARCH_BUDGET = Number(process.env.ARCHAI_E2E_BUDGET ?? "20")
+const SEARCH_INDICES = process.env.ARCHAI_E2E_INDICES ?? "0:15625"
+const chromePath = process.env.CHROME || chromium.executablePath()
+const browser = await chromium.launch({ executablePath: chromePath, args: ["--no-sandbox"] })
 const consoleErrors = []
 async function newPage(viewport) {
   const context = await browser.newContext({ viewport, acceptDownloads: true })
@@ -69,13 +75,13 @@ check("generator: constraint inputs are available",
 // Search laboratory: launch a multi-objective search and watch it finish.
 await desk.goto(`${STUDIO}/search`); await desk.waitForLoadState("networkidle")
 await desk.getByLabel("Policy").selectOption("multi_objective")
-await desk.getByLabel(/^Budget/).fill("20"); await desk.getByLabel(/^Seed/).fill("4"); await desk.getByLabel(/indices/).fill("0:15625")
+await desk.getByLabel(/^Budget/).fill(String(SEARCH_BUDGET)); await desk.getByLabel(/^Seed/).fill("4"); await desk.getByLabel(/indices/).fill(SEARCH_INDICES)
 await desk.getByRole("button", { name: "Launch search" }).click()
 const queued = await until(async () => (await desk.getByText(/^Queued search/).count()) > 0, 15000, 500)
 const finished = queued && await until(async () => (await desk.getByText(/^multi_objective · succeeded/).count()) > 0)
 const historyTable = desk.locator("table", { hasText: "Best so far" })
-const stepRows = finished && await until(async () => (await historyTable.locator("tbody tr").count()) === 20, 20000, 500) ? 20 : await historyTable.locator("tbody tr").count()
-check("search lab: multi_objective search runs on the worker and shows 20 history steps", finished && stepRows === 20, `queued=${queued} finished=${finished} rows=${stepRows}`)
+const stepRows = finished && await until(async () => (await historyTable.locator("tbody tr").count()) === SEARCH_BUDGET, 20000, 500) ? SEARCH_BUDGET : await historyTable.locator("tbody tr").count()
+check(`search lab: multi_objective search runs on the worker and shows ${SEARCH_BUDGET} history steps`, finished && stepRows === SEARCH_BUDGET, `queued=${queued} finished=${finished} rows=${stepRows}`)
 await desk.screenshot({ path: `${SCREENS}/flow-search-session.png`, fullPage: true })
 
 // Pareto explorer: measured fronts chart + the live session's front.
