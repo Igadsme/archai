@@ -16,6 +16,25 @@ def sha256_file(path: str | Path, chunk_size: int = 1024 * 1024) -> str:
     return digest.hexdigest()
 
 
+def sha256_tree(path: str | Path) -> str:
+    """Deterministic digest of a directory: SHA-256 over sorted `relative-path NUL file-sha256` lines."""
+    root = Path(path)
+    if not root.is_dir():
+        raise NotADirectoryError(str(root))
+    digest = hashlib.sha256()
+    for item in sorted(p for p in root.rglob("*") if p.is_file()):
+        digest.update(item.relative_to(root).as_posix().encode())
+        digest.update(b"\0")
+        digest.update(sha256_file(item).encode())
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def sha256_path(path: str | Path) -> str:
+    """SHA-256 of a file, or the `sha256_tree` digest of an extracted archive directory."""
+    return sha256_tree(path) if Path(path).is_dir() else sha256_file(path)
+
+
 def acquire_file(url: str, destination: str | Path, expected_sha256: str) -> Path:
     """Download once, stream to a temporary file, and verify before promotion."""
     if not re.fullmatch(r"[0-9a-fA-F]{64}", expected_sha256 or ""):

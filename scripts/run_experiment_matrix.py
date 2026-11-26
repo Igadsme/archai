@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from archai_benchmark import NATSBenchAdapter, build_research_report
-from archai_benchmark.integrity import sha256_file
+from archai_benchmark.integrity import sha256_path
 
 try:
     from scripts.run_benchmark_search import ALGORITHMS, run_search
@@ -111,7 +111,7 @@ def main() -> int:
         return 0
     if not (args.benchmark_path and args.benchmark_sha256 and args.output):
         parser.error("--benchmark-path, --benchmark-sha256 and --output are required unless --dry-run")
-    actual = sha256_file(args.benchmark_path)
+    actual = sha256_path(args.benchmark_path)
     if actual != args.benchmark_sha256.lower():
         parser.error("benchmark archive checksum mismatch")
     benchmark = config["benchmark"]

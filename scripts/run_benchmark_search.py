@@ -13,7 +13,7 @@ from archai_benchmark import (
     NATSBenchAdapter,
     QueryBudget,
 )
-from archai_benchmark.integrity import sha256_file
+from archai_benchmark.integrity import sha256_path
 
 
 def select_best_validation(records):
@@ -82,7 +82,7 @@ def main() -> int:
     indices = [int(value.strip()) for value in args.indices.split(",") if value.strip()]
     if args.budget <= 0:
         parser.error("budget must be positive")
-    actual_checksum = sha256_file(args.benchmark_path)
+    actual_checksum = sha256_path(args.benchmark_path)
     if actual_checksum != args.benchmark_sha256.lower():
         parser.error("benchmark archive checksum mismatch")
     if args.algorithm == "evolution" and (args.population_size <= 0 or args.sample_size <= 0):

@@ -150,7 +150,7 @@ def predictor_training(job: Job) -> dict:
     try:
         import torch
         from archai_benchmark.adapter import NATSBenchAdapter
-        from archai_benchmark.integrity import sha256_file
+        from archai_benchmark.integrity import sha256_path
         from archai_core.schema import TensorSpec  # noqa: F401 - availability check
         from archai_predictor.data import split_records
         from archai_predictor.model import PerformancePredictor, PredictorConfig
@@ -159,7 +159,7 @@ def predictor_training(job: Job) -> dict:
         from scripts.train_predictor import collect_records
     except ImportError as exc:
         raise RuntimeError("install the benchmark and ml extras for predictor workers") from exc
-    actual_checksum = sha256_file(archive)
+    actual_checksum = sha256_path(archive)
     if actual_checksum != str(expected_checksum).lower():
         raise RuntimeError("benchmark archive checksum mismatch")
     dataset = str(config.get("dataset", "cifar10"))
@@ -208,7 +208,7 @@ def benchmark_search(job: Job) -> dict:
             NATSBenchAdapter,
             QueryBudget,
         )
-        from archai_benchmark.integrity import sha256_file
+        from archai_benchmark.integrity import sha256_path
     except ImportError as exc:
         raise RuntimeError("install the benchmark extra for benchmark search workers") from exc
     path = os.getenv("ARCHAI_NATS_BENCH_PATH")
@@ -218,7 +218,7 @@ def benchmark_search(job: Job) -> dict:
     archive = Path(path)
     if not archive.is_file():
         raise RuntimeError(f"benchmark archive is unavailable: {archive}")
-    actual_checksum = sha256_file(archive)
+    actual_checksum = sha256_path(archive)
     if actual_checksum != expected_checksum.lower():
         raise RuntimeError("benchmark archive checksum mismatch")
     config = job.payload

@@ -1,9 +1,9 @@
 {
-  "dataset_id": "natsbench201",
-  "version": "unresolved",
-  "uri": "https://github.com/D-X-Y/NATS-Bench",
-  "sha256": null,
-  "license": "verify upstream license before download",
+  "dataset_id": "natsbench-tss",
+  "version": "v1_0-3ffb9-simple",
+  "uri": "https://drive.usercontent.google.com/download?id=17_saCsj_krKjlCBLOJEpNtzPXArMCqxU&export=download&confirm=t",
+  "sha256": "580fd8f3425fed9f495640b0f12ccb7744f89dec7aff263bd75aed37ab0b8bb6",
+  "license": "MIT (D-X-Y/NATS-Bench repository license)",
   "search_space": "tss",
-  "source": "NATS-Bench upstream repository"
+  "source": "Official NATS-Bench README (github.com/D-X-Y/NATS-Bench) Google Drive link for NATS-tss-v1_0-3ffb9-simple.tar; 1,145,989,120 bytes; SHA-256 computed locally on 2026-11-25, no upstream SHA-256 is published for this tar. Extracted directory sha256_tree digest: 183b6ad84c437a36fbbe03f711cdb3a4bd6f3b8675e1af0536d3975f98fa4ba3 (15,626 files)."
 }
