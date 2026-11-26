@@ -35,7 +35,7 @@ fi
 export DATABASE_URL="${DATABASE_URL:?DATABASE_URL is required}"
 export ARCHAI_REDIS_URL="${ARCHAI_REDIS_URL:?ARCHAI_REDIS_URL is required}"
 export ARCHAI_REQUIRE_REDIS="${ARCHAI_REQUIRE_REDIS:-1}"
-export ARCHAI_ALLOWED_PATHS="${ARCHAI_ALLOWED_PATHS:-$ROOT,$WORKDIR}"
+export ARCHAI_ALLOWED_PATHS="${ARCHAI_ALLOWED_PATHS:-$ROOT:$WORKDIR}"
 export ARCHAI_NATS_BENCH_PATH="$FIXTURE_CELLS"
 export ARCHAI_NATS_BENCH_SHA256="$FIXTURE_SHA"
 export ARCHAI_BENCHMARK_CACHE="$WORKDIR/benchmark-cache.sqlite"
@@ -56,6 +56,9 @@ export SCREENS="${SCREENS:-$WORKDIR/screens}"
 
 python -m alembic upgrade head
 
+# Save a tiny default-vocabulary generator. /v1/architectures/generate uses sample(),
+# which only builds graphs from GENERATABLE_OPS (not NAS-Bench-201 tokens). This
+# checkpoint is fixture-only and is not a research result.
 python - <<'PY'
 from pathlib import Path
 import os
@@ -64,9 +67,9 @@ from archai_generator.training import save_checkpoint
 
 path = Path(os.environ["ARCHAI_GENERATOR_CHECKPOINT"])
 model = ArchitectureGenerator(GeneratorConfig(latent_dim=8, hidden_dim=64, max_nodes=6, condition_dim=8))
-save_checkpoint(model, path, {"model": "ArchAI-V1", "kind": "generator", "scale": "ci_fixture_untrained",
+save_checkpoint(model, path, {"model": "ArchAI-V1", "kind": "generator", "scale": "ci_fixture",
                               "label": "fixture-only", "not_a_research_result": True})
-print(f"wrote untrained CI generator checkpoint ({path.stat().st_size} bytes)")
+print(f"wrote CI generator checkpoint ({path.stat().st_size} bytes)")
 PY
 
 cleanup() {
