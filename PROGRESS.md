@@ -1,6 +1,6 @@
 # ArchAI progress
 
-Updated 2026-11-21.
+Updated 2026-11-25.
 
 ## Verified in this checkout
 
@@ -103,7 +103,9 @@ Updated 2026-11-21.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 112 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Added `scripts/run_experiment_matrix.py` and `research/experiments/` matched-budget matrices that convert benchmark-search reports into `build_report.py` run records with per-run query caches (exercised with a synthetic test adapter only).
+- ArchAI Studio now pins dependencies with a committed lockfile on Next.js 16.4.6 / React 19 (`npm audit`: 0 vulnerabilities); `npm ci`, `tsc --noEmit` and `next build` pass on the box.
+- Test suite (2026-11-25, box, CPU torch 2.15 with all extras except `benchmark`): 118 passed, 0 skipped.
 
 ## Evidence boundaries
 
@@ -114,7 +116,7 @@ No NATS-Bench archive, trained research checkpoint, benchmark table, GPU run, re
 1. A real NATS-Bench/NATS-Bench-201 archive and its verified checksum are needed to run benchmark queries and train the predictor on real labels.
 2. PostgreSQL/Redis services and durable worker code are implemented but were not run as live services in this environment; production authentication and the complete frontend remain incomplete.
 3. Hugging Face publishing requires user-provided authorization and release decisions.
-4. Frontend dependency installation repeatedly hung or failed in this environment; the clean offline attempt failed with npm `ENOTCACHED` for TypeScript, and `next build` therefore could not run because the dependency tree is unavailable.
+4. ~~Frontend dependency installation/build~~ resolved 2026-11-25: `npm ci`, typecheck and `next build` pass on the box.
 
 ## Repository state
 

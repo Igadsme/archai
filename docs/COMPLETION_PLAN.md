@@ -14,12 +14,15 @@ Status key: **done** = implemented and exercised by an executed test or command 
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Python tests | `pytest -q` with `.[dev,platform]` + torch/torchvision/numpy/scikit-learn/safetensors (CPU) | **113 passed, 0 skipped** |
+| Python tests (base 30dc46a) | `pytest -q` with `.[dev,platform]` + torch/torchvision/numpy/scikit-learn/safetensors (CPU) | **113 passed, 0 skipped** |
+| Python tests (this branch, after matrix runner) | same | **118 passed, 0 skipped** |
+| API boot | `uvicorn archai_api.main:app` then `GET /health`, `GET /readiness` | `ok`, `ready` (local mode, no DB/Redis) |
 | Byte-compile | `python -m compileall -q packages apps scripts` | ok |
 | Fresh Alembic schema | `alembic upgrade head` on SQLite, `alembic current` | `0006_experiment_started_at (head)` |
 | Controller smoke | `python scripts/smoke_search.py` | `{'evaluations': 3, 'unique': 3, 'status': 'controller_smoke_passed'}` (deterministic, no benchmark data) |
 | Frontend typecheck | `npm run typecheck` (apps/web) | pass |
-| Frontend build | `npm run build` (Next 14.2.5) | pass (static `/` and `/_not-found`) — clears PROGRESS blocker 4 |
+| Frontend build | `npm run build` (Next 14.2.5 at base; Next 16.4.6 after upgrade) | pass both times; clears PROGRESS blocker 4 |
+| Frontend audit | `npm audit --omit=dev` | 14.2.5/14.2.35: 1 critical + 1 high; 16.4.6: 0 |
 | Lint (informational, not a CI gate) | `ruff check .` | 130 findings (56 import-order, 16 UP017, 14 UP037, 10 unused-import, …) |
 | Docker Compose config | — | not run: no Docker on the box |
 | GitHub Actions `CI` on master/feat @ 30dc46a | run #3 / #2 | success |
@@ -48,6 +51,12 @@ Status key: **done** = implemented and exercised by an executed test or command 
 | R1 | README quick start runs the API | partial | `python -m archai.apps.api.main` is not an importable module; correct entry is `uvicorn archai_api.main:app` |
 | R2 | Experiment protocol fields on every result | done (records) | `archai_shared/records.py`, worker provenance tests |
 | S1 | Security: allowlisted compiler ops, safe checkpoints, auth, quotas, audit log | partial | allowlist + safetensors + API key + size/rate limits done; no audit log, rate limiter is process-local |
+
+## Progress on this branch
+
+- M10: done for build reproducibility (lockfile, Next 16.4.6, `npm ci` image). The launch UI is still pending.
+- M7/M11 key mismatch: fixed by `scripts/run_experiment_matrix.py` and `research/experiments/*.json` (tested with a synthetic adapter only). Real runs still need the archive.
+- R1: fixed (README now uses `uvicorn archai_api.main:app`, checked by booting it).
 
 ## Priority order for this branch (no real data, no paid compute)
 

@@ -11,8 +11,8 @@
 - [partial] M7 seeded random, evolution, Bayesian, learned-search policies, and research summaries; matched real-data comparisons pending
 - [partial] M8 safe training engine, candidate compiler path, CIFAR adapters, Redis job adapter, durable worker runner, benchmark search handlers, and candidate/generator/predictor training workers; measured larger real runs and real-dataset execution pending
 - [partial] M9 schema, SQLAlchemy/Alembic entry points, identity/dataset/checkpoint metadata, database-backed architecture/search/experiment registries, training/job API lifecycle, model registry API, checkpoint-backed generator API, and runtime dependency/container wiring; live production services pending
-- [partial] M10 connected ArchAI Studio dashboard with live architecture/search/experiment/dataset/job/model reads, evidence cards, and architecture graph inspection; package installation/build pending environment network
-- [partial] M11 repeated-seed report builder with leakage checks; real repeated-seed results and ablations pending
+- [partial] M10 connected ArchAI Studio dashboard with live architecture/search/experiment/dataset/job/model reads, evidence cards, architecture graph inspection, lockfile-pinned Next 16 build verified; search/job launch UI pending
+- [partial] M11 repeated-seed report builder with leakage checks and matched-budget experiment matrix runner; real repeated-seed results and ablations pending
 - [ ] M12 authorized Hugging Face publication
 
 Unchecked milestones are intentionally not represented as complete capabilities.
