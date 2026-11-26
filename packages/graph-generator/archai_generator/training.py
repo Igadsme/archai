@@ -47,6 +47,45 @@ def fit_generator(model: ArchitectureGenerator, architectures, *, conditions=Non
     return history
 
 
+def fit_sequences(model: ArchitectureGenerator, sequences, *, conditions=None, epochs: int = 20,
+                  lr: float = 1e-3, seed: int = 0, optimizer=None, weights=None):
+    """Teacher-forced maximum likelihood on token sequences with prior latents.
+
+    Latents are drawn from N(0, I) at every step, matching `sample_tokens`, so the
+    decoder learns p(tokens | condition) rather than an autoencoder whose sampling
+    distribution would differ from training. Returns per-epoch losses.
+    """
+    import torch
+    import torch.nn.functional as F
+    if epochs <= 0:
+        raise ValueError("epochs must be positive")
+    if not sequences:
+        raise ValueError("at least one sequence is required")
+    vocabulary = model.config.vocabulary
+    targets = torch.tensor([[vocabulary.index(token) for token in sequence] for sequence in sequences],
+                           dtype=torch.long)
+    condition_rows = conditions if conditions is not None else [(0.0,) * model.config.condition_dim] * len(sequences)
+    if len(condition_rows) != len(sequences) or any(len(row) != model.config.condition_dim for row in condition_rows):
+        raise ValueError("every condition must match config.condition_dim")
+    condition_tensor = torch.tensor([list(row) for row in condition_rows], dtype=torch.float32)
+    weight_tensor = (torch.tensor(weights, dtype=torch.float32) if weights is not None
+                     else torch.ones(len(sequences)))
+    generator = torch.Generator().manual_seed(seed)
+    optimizer = optimizer or torch.optim.Adam(model.parameters(), lr=lr)
+    model.train()
+    history = []
+    for _ in range(epochs):
+        latent = torch.randn(len(sequences), model.config.latent_dim, generator=generator)
+        logits = model.forward(latent, condition_tensor, teacher_tokens=targets)
+        per_token = F.cross_entropy(logits.transpose(1, 2), targets, reduction="none").mean(dim=1)
+        loss = (per_token * weight_tensor).sum() / weight_tensor.sum()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        history.append(float(loss.detach()))
+    return history
+
+
 def generation_metrics(candidates):
     from archai_core.validation import validate_architecture
     valid = []

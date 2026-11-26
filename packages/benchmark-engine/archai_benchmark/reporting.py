@@ -39,6 +39,9 @@ def build_research_report(records: list[dict], *, seed: int = 0,
         summary = {"best_validation_accuracy": summarize_seeds([float(run["best_validation_accuracy"]) for run in runs], seed=seed)}
         if all("final_test_accuracy" in run for run in runs):
             summary["final_test_accuracy"] = summarize_seeds([float(run["final_test_accuracy"]) for run in runs], seed=seed)
+        if all("hypervolume_validation_params" in run for run in runs):
+            summary["hypervolume_validation_params"] = summarize_seeds(
+                [float(run["hypervolume_validation_params"]) for run in runs], seed=seed)
         if all("search_cost" in run for run in runs):
             summary["search_cost"] = summarize_seeds([float(run["search_cost"]) for run in runs], seed=seed)
         summary["runs"] = len(runs)

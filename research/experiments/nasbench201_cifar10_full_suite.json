@@ -1,0 +1,22 @@
+{
+  "name": "nasbench201_cifar10_full_suite",
+  "description": "Matched-budget comparison of seven search policies on NATS-Bench TSS (NAS-Bench-201) CIFAR-10: random, regularized evolution, REINFORCE, GP-UCB Bayesian optimization, ArchAI predictor-guided, ArchAI-V1 generator-guided, and multi-objective (accuracy vs. parameters) Pareto evolution, plus four ablations. Selection uses cifar10-valid validation accuracy only; cifar10 test accuracy of the selected cell is reported separately. Learned models are fitted online on in-budget observations only. Hyperparameters were fixed before any run and not tuned.",
+  "benchmark": {"search_space": "tss", "dataset": "cifar10"},
+  "indices": {"start": 0, "stop": 15625},
+  "budget": 100,
+  "seeds": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+  "algorithms": ["random", "evolution", "reinforce", "bayesian", "predictor_guided", "generator_guided", "multi_objective"],
+  "evolution": {"population_size": 20, "sample_size": 5},
+  "reinforce": {"learning_rate": 0.5, "baseline_momentum": 0.9},
+  "bayesian": {"warmup": 10, "beta": 2.0, "lengthscale": 2.0, "candidate_pool_size": 512},
+  "predictor_guided": {"warmup": 10, "refit_every": 5, "epochs": 60, "candidate_pool_size": 256},
+  "generator_guided": {"warmup": 10, "elite_size": 10, "finetune_every": 5, "epochs": 40, "samples_per_step": 64},
+  "multi_objective": {"population_size": 20, "sample_size": 5, "cost_key": "params_m"},
+  "ablations": [
+    {"name": "bayesian_no_uncertainty", "algorithm": "bayesian", "params": {"beta": 0.0}},
+    {"name": "evolution_no_tournament", "algorithm": "evolution", "params": {"sample_size": 1}},
+    {"name": "predictor_guided_small_pool", "algorithm": "predictor_guided", "params": {"candidate_pool_size": 16}},
+    {"name": "generator_guided_no_learning", "algorithm": "generator_guided", "params": {"learn": false}}
+  ],
+  "report": {"bootstrap_seed": 0}
+}

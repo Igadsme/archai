@@ -9,12 +9,17 @@ from archai_benchmark import (
     BenchmarkCache,
     BenchmarkEvaluator,
     IndexBayesianOptimization,
+    IndexGeneratorGuided,
+    IndexParetoEvolution,
+    IndexPredictorGuided,
     IndexRandomSearch,
     IndexRegularizedEvolution,
+    IndexREINFORCE,
     NATSBenchAdapter,
     QueryBudget,
 )
 from archai_benchmark.integrity import sha256_path
+from archai_benchmark.research_metrics import hypervolume_2d
 
 
 def select_best_validation(records):
@@ -23,14 +28,31 @@ def select_best_validation(records):
     return max(records, key=lambda record: record.validation_accuracy)
 
 
-ALGORITHMS = ("random", "evolution", "bayesian")
+ALGORITHMS = ("random", "evolution", "bayesian", "reinforce", "predictor_guided", "generator_guided",
+              "multi_objective")
 EVOLUTION_PARAMS = ("population_size", "sample_size")
 BAYESIAN_PARAMS = ("warmup", "beta", "lengthscale", "noise", "candidate_pool_size")
+POLICY_PARAMS = {
+    "random": (),
+    "evolution": EVOLUTION_PARAMS,
+    "bayesian": BAYESIAN_PARAMS,
+    "reinforce": ("learning_rate", "baseline_momentum", "max_resamples"),
+    "predictor_guided": ("warmup", "refit_every", "epochs", "candidate_pool_size", "learning_rate"),
+    "generator_guided": ("warmup", "elite_size", "finetune_every", "epochs", "samples_per_step",
+                         "learning_rate", "temperature", "learn"),
+    "multi_objective": ("population_size", "sample_size", "cost_key"),
+}
+POLICY_CLASSES = {"evolution": IndexRegularizedEvolution, "bayesian": IndexBayesianOptimization,
+                  "reinforce": IndexREINFORCE, "predictor_guided": IndexPredictorGuided,
+                  "generator_guided": IndexGeneratorGuided, "multi_objective": IndexParetoEvolution}
+# Declared before any run: (validation accuracy %, parameters in millions). Every NATS-Bench
+# TSS cell has fewer than 1.6M parameters, so the reference point is dominated by all cells.
+HYPERVOLUME_REFERENCE = (0.0, 1.6)
 
 
 def build_policy(adapter, indices, algorithm: str, seed: int, params: dict | None = None):
     params = dict(params or {})
-    allowed = {"random": (), "evolution": EVOLUTION_PARAMS, "bayesian": BAYESIAN_PARAMS}
+    allowed = POLICY_PARAMS
     if algorithm not in allowed:
         raise ValueError(f"unsupported algorithm: {algorithm}")
     unknown = sorted(set(params) - set(allowed[algorithm]))
@@ -39,9 +61,7 @@ def build_policy(adapter, indices, algorithm: str, seed: int, params: dict | Non
     if algorithm == "random":
         return IndexRandomSearch(indices, seed=seed)
     architecture_strings = {index: adapter.architecture_string(index) for index in indices}
-    if algorithm == "evolution":
-        return IndexRegularizedEvolution(indices, architecture_strings, seed=seed, **params)
-    return IndexBayesianOptimization(indices, architecture_strings, seed=seed, **params)
+    return POLICY_CLASSES[algorithm](indices, architecture_strings, seed=seed, **params)
 
 
 def run_search(adapter, indices, *, budget: int, algorithm: str, seed: int, cache_path: Path,
@@ -63,19 +83,35 @@ def run_search(adapter, indices, *, budget: int, algorithm: str, seed: int, cach
     policy = build_policy(adapter, indices, algorithm, seed, params)
     evaluator = BenchmarkEvaluator(adapter, QueryBudget(min(budget, len(indices))),
                                    BenchmarkCache(cache_path))
-    records = []
+    records, costs = [], []
+    has_cost = callable(getattr(adapter, "cost", None))
+    if getattr(policy, "uses_cost", False) and not has_cost:
+        raise ValueError(f"{algorithm} needs an adapter that exposes static cell costs")
     while len(records) < budget:
         index = policy.ask()
         if index is None:
             break
         record = evaluator.evaluate_index(index, seed=seed)
         records.append(record)
-        if hasattr(policy, "tell"):
+        cost = adapter.cost(index) if has_cost else None
+        costs.append(cost)
+        if getattr(policy, "uses_cost", False):
+            policy.tell(index, record.validation_accuracy, cost)
+        elif hasattr(policy, "tell"):
             policy.tell(index, record.validation_accuracy)
     if not records:
         raise ValueError("no benchmark indices were evaluated")
     best = select_best_validation(records)
-    return {"algorithm": algorithm, "seed": seed, "budget": budget, "queries": evaluator.queries,
+    extras = {}
+    if has_cost:
+        extras["hypervolume_validation_params"] = hypervolume_2d(
+            [(record.validation_accuracy, cost["params_m"]) for record, cost in zip(records, costs)],
+            HYPERVOLUME_REFERENCE)
+        extras["hypervolume_reference"] = list(HYPERVOLUME_REFERENCE)
+        extras["selected_params_m"] = costs[records.index(best)]["params_m"]
+    if hasattr(policy, "fallbacks"):
+        extras["policy_random_fallbacks"] = policy.fallbacks
+    return {**extras,"algorithm": algorithm, "seed": seed, "budget": budget, "queries": evaluator.queries,
             "policy_params": params,
             "selected_on": "validation_accuracy", "selected_index": best.architecture_index,
             "selected_validation_accuracy": best.validation_accuracy,

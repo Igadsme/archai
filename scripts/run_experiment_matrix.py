@@ -90,13 +90,45 @@ def to_run_record(report: dict, plan: dict) -> dict:
             "final_test_accuracy": report["held_out_test_accuracy"],
             "search_cost": report["queries"], "selected_index": report["selected_index"],
             "evidence_type": report["evidence_type"],
-            "validation_trace": report["validation_trace"]}
+            "validation_trace": report["validation_trace"],
+            "evaluated_indices": report.get("evaluated_indices", []),
+            **{key: report[key] for key in ("hypervolume_validation_params", "hypervolume_reference",
+                                            "selected_params_m", "policy_random_fallbacks") if key in report}}
 
 
-def run_matrix(config: dict, adapter, output: Path, *, archive_sha256: str | None = None) -> dict:
+def code_revision() -> str:
+    """HEAD commit, suffixed with +dirty when tracked files differ from it."""
+    import subprocess
+    try:
+        head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL).strip()
+        dirty = subprocess.run(["git", "diff", "--quiet", "HEAD"], stderr=subprocess.DEVNULL).returncode != 0
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
+    return head + ("+dirty" if dirty else "")
+
+
+def run_matrix(config: dict, adapter, output: Path, *, archive_sha256: str | None = None,
+               resume: bool = False, reopen_adapter: bool = False, revision: str | None = None) -> dict:
+    """Run every planned (variant, seed). Completed runs are appended to runs.partial.jsonl
+    as they finish, so an interrupted matrix can continue with resume=True."""
     output.mkdir(parents=True, exist_ok=True)
+    partial = output / "runs.partial.jsonl"
+    done: dict[str, dict] = {}
+    if resume and partial.exists():
+        for line in partial.read_text().splitlines():
+            if line.strip():
+                row = json.loads(line)
+                done[row["run_id"]] = row
+    elif partial.exists():
+        partial.unlink()
     records = []
-    for plan in planned_runs(config):
+    plans = planned_runs(config)
+    for position, plan in enumerate(plans, start=1):
+        if plan["run_id"] in done:
+            records.append(done[plan["run_id"]])
+            continue
+        if reopen_adapter:
+            adapter.open()  # drop the archive's per-cell cache between runs to bound memory
         cache = output / "cache" / f"{plan['algorithm']}-seed{plan['seed']}.sqlite"
         cache.parent.mkdir(parents=True, exist_ok=True)
         cache.unlink(missing_ok=True)  # fresh cache per run keeps query budgets matched
@@ -108,7 +140,14 @@ def run_matrix(config: dict, adapter, output: Path, *, archive_sha256: str | Non
         record["wall_clock_seconds"] = round(time.monotonic() - started, 3)
         if archive_sha256:
             record["archive_sha256"] = archive_sha256
+        if revision:
+            record["code_revision"] = revision
         records.append(record)
+        with partial.open("a") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+        print(json.dumps({"run": position, "of": len(plans), "run_id": plan["run_id"],
+                          "best_validation_accuracy": record["best_validation_accuracy"],
+                          "wall_clock_seconds": record["wall_clock_seconds"]}), flush=True)
     (output / "runs.json").write_text(json.dumps(records, indent=2, sort_keys=True))
     report = build_research_report(records,
                                    seed=int(config.get("report", {}).get("bootstrap_seed", 0)),
@@ -120,6 +159,9 @@ def run_matrix(config: dict, adapter, output: Path, *, archive_sha256: str | Non
                    "ablations": [v["name"] for v in config["variants"] if v["ablation"]]})
     if archive_sha256:
         report["archive_sha256"] = archive_sha256
+    revisions = sorted({record.get("code_revision") for record in records if record.get("code_revision")})
+    if revisions:
+        report["code_revisions"] = revisions
     (output / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True))
     return report
 
@@ -131,6 +173,7 @@ def main() -> int:
     parser.add_argument("--benchmark-sha256")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--dry-run", action="store_true", help="print planned runs only")
+    parser.add_argument("--resume", action="store_true", help="keep finished runs from runs.partial.jsonl")
     args = parser.parse_args()
     try:
         config = load_matrix(args.config)
@@ -148,7 +191,8 @@ def main() -> int:
     benchmark = config["benchmark"]
     adapter = NATSBenchAdapter(args.benchmark_path, benchmark.get("search_space", "tss"),
                                benchmark.get("dataset", "cifar10")).open()
-    report = run_matrix(config, adapter, args.output, archive_sha256=actual)
+    report = run_matrix(config, adapter, args.output, archive_sha256=actual, resume=args.resume,
+                        reopen_adapter=True, revision=code_revision())
     print(json.dumps(report, sort_keys=True))
     return 0
 

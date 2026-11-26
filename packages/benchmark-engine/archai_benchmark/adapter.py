@@ -55,6 +55,18 @@ class NATSBenchAdapter:
                                architecture_string=architecture_string,
                                benchmark_trial_seed=trial_seed)
 
+    def cost(self, architecture_index: int) -> dict[str, float]:
+        """Static cost of a cell (parameters and FLOPs in millions, benchmark latency in seconds).
+
+        These are properties of the architecture, not training outcomes.
+        """
+        if self._api is None:
+            raise BenchmarkUnavailable("adapter is not open")
+        validation_dataset, _ = self.metric_sources(self.dataset)
+        info = self._api.get_cost_info(architecture_index, validation_dataset, hp=200)
+        return {"params_m": float(info["params"]), "flops_m": float(info["flops"]),
+                "latency_s": float(info["latency"])}
+
     @staticmethod
     def metric_sources(dataset: str) -> tuple[str, str]:
         """(validation split, test split) following the NAS-Bench-201/NATS-Bench protocol.
