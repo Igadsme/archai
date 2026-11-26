@@ -92,7 +92,7 @@ def test_api_uses_shared_limiter_and_reports_backend(monkeypatch):
     from archai_api import main as api_main
     redis = FakeRedis()
     monkeypatch.setattr(api_main, "_rate_limiter", RedisRateLimiter(redis))
-    monkeypatch.setenv("ARCHAI_RATE_LIMIT_PER_MINUTE", "2")
+    monkeypatch.setenv("ARCHAI_RATE_LIMIT_GET_PER_MINUTE", "2")
     client = TestClient(api_main.app)
     assert client.get("/health").status_code == 200
     readiness = client.get("/readiness")

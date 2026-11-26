@@ -234,8 +234,12 @@ async def request_limits(request: Request, call_next):
         body = await request.body()
         if len(body) > max_bytes:
             return _early_response(request, "request body too large", 413)
-    limit = int(os.getenv("ARCHAI_RATE_LIMIT_PER_MINUTE", "120"))
-    key = request.client.host if request.client else "unknown"
+    write_limit = int(os.getenv("ARCHAI_RATE_LIMIT_PER_MINUTE", "120"))
+    read_limit = int(os.getenv("ARCHAI_RATE_LIMIT_GET_PER_MINUTE", "600"))
+    is_write = request.method in {"POST", "PUT", "PATCH", "DELETE"}
+    limit = write_limit if is_write else read_limit
+    host = request.client.host if request.client else "unknown"
+    key = f"{host}:{'write' if is_write else 'read'}"
     decision = _rate_limiter.hit(key, limit)
     if not decision.allowed:
         return _early_response(request, "rate limit exceeded", 429,

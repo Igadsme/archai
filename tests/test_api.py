@@ -310,7 +310,7 @@ def test_rate_limited_writes_are_audited(monkeypatch, tmp_path):
 
 def test_rate_limit_response_includes_cors_headers(monkeypatch):
     from archai_api import main as api_main
-    monkeypatch.setenv("ARCHAI_RATE_LIMIT_PER_MINUTE", "1")
+    monkeypatch.setenv("ARCHAI_RATE_LIMIT_GET_PER_MINUTE", "1")
     monkeypatch.setattr(api_main, "_rate_limiter", api_main.make_rate_limiter(""))
     client = TestClient(app)
     headers = {"Origin": "http://127.0.0.1:3000"}
