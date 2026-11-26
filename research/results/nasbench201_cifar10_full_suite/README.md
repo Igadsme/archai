@@ -73,3 +73,13 @@ run's archive trial minus the best validation accuracy found.
 
 `pareto.json` holds each run's Pareto front (validation vs. params) and the full-space front.
 `runs.json` holds the full per-run records, including every evaluated index and the validation trace.
+
+## Reproducibility check (2026-11-25 22:50 ET)
+
+Evidence type: `benchmark_lookup`. The random and Bayesian seed-0 runs were repeated on the same
+archive (SHA-256 `183b6ad8…4ba3`) at code revision `07d729c` (the policy code is unchanged since the
+original revision `2fe79d1`). Selected index, validation accuracy, held-out test accuracy and
+hypervolume all matched the recorded values *exactly*. See `reproducibility_seed0.json`.
+
+This does not repeat the other nine seeds or the learned (torch) policies. Documented tolerance for
+the two re-run benchmark_lookup policies is exact equality of those four fields.
