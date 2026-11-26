@@ -1,6 +1,6 @@
 from archai_core.schema import Architecture, Edge, Node, TensorSpec
-from archai_search.policies import RegularizedEvolution, mutate_architecture
 from archai_core.validation import validate_architecture
+from archai_search.policies import RegularizedEvolution, mutate_architecture
 
 
 def candidate():

@@ -81,7 +81,7 @@ class Architecture(BaseModel):
     def content_hash(self) -> str:
         return hashlib.sha256(self.canonical_json().encode()).hexdigest()[:24]
 
-    def with_id(self) -> "Architecture":
+    def with_id(self) -> Architecture:
         if self.architecture_id == self.content_hash():
             return self
         return self.model_copy(update={"architecture_id": self.content_hash()})

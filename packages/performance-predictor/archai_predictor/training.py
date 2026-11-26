@@ -7,7 +7,6 @@ from .evaluation import gaussian_calibration_error, regression_metrics
 
 
 def gaussian_nll(output, target):
-    import torch
     mean, log_variance = output[:, 0], output[:, 1].clamp(-8.0, 8.0)
     return 0.5 * (log_variance + (target - mean).pow(2) / log_variance.exp()).mean()
 

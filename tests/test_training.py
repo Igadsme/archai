@@ -3,8 +3,8 @@ import pytest
 
 def test_training_engine_runs_and_writes_safe_checkpoint(tmp_path):
     torch = pytest.importorskip("torch")
-    from torch.utils.data import DataLoader, TensorDataset
     from archai_training.engine import TrainingConfig, train_model
+    from torch.utils.data import DataLoader, TensorDataset
 
     torch.manual_seed(1)
     inputs = torch.randn(12, 3, 4, 4)

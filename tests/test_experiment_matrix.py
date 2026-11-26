@@ -2,8 +2,8 @@ import json
 from pathlib import Path
 
 import pytest
-
 from archai_benchmark.adapter import BenchmarkRecord
+
 from scripts.run_experiment_matrix import load_matrix, main, planned_runs, run_matrix
 
 ROOT = Path(__file__).parents[1]

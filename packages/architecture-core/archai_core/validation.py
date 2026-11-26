@@ -27,8 +27,8 @@ def validate_architecture(architecture: Architecture) -> Architecture:
     edge_pairs = [(edge.source, edge.target) for edge in architecture.edges]
     if len(edge_pairs) != len(set(edge_pairs)):
         errors.append("duplicate edges are not allowed")
-    incoming = {node_id: 0 for node_id in by_id}
-    outgoing = {node_id: 0 for node_id in by_id}
+    incoming = dict.fromkeys(by_id, 0)
+    outgoing = dict.fromkeys(by_id, 0)
     adjacency = {node_id: [] for node_id in by_id}
     for edge in architecture.edges:
         if edge.source in by_id and edge.target in by_id:
@@ -49,7 +49,7 @@ def validate_architecture(architecture: Architecture) -> Architecture:
         errors.append("non-input nodes must have an incoming path")
     if any(node.op not in {"input", "output"} and outgoing[node.id] == 0 for node in architecture.nodes):
         errors.append("non-output nodes must have an outgoing path")
-    state = {node_id: 0 for node_id in by_id}
+    state = dict.fromkeys(by_id, 0)
     def visit(node_id: str) -> None:
         if state[node_id] == 1:
             errors.append("graph contains a cycle")

@@ -1,5 +1,4 @@
 import pytest
-
 from archai_benchmark.reporting import build_research_report
 
 

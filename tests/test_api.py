@@ -1,10 +1,10 @@
 import hashlib
 import os
 from uuid import uuid4
-import pytest
-from fastapi.testclient import TestClient
 
+import pytest
 from archai_api.main import app
+from fastapi.testclient import TestClient
 
 
 def payload():
@@ -256,7 +256,7 @@ def test_generator_endpoint_is_explicitly_unavailable_without_checkpoint(monkeyp
 
 
 def test_generator_endpoint_loads_checkpoint_and_returns_valid_architectures(monkeypatch, tmp_path):
-    torch = pytest.importorskip("torch")
+    pytest.importorskip("torch")
     from archai_generator.model import ArchitectureGenerator, GeneratorConfig
     from archai_generator.training import save_checkpoint
 
@@ -295,6 +295,7 @@ def test_write_requests_are_audited_without_leaking_credentials(monkeypatch, tmp
 
 def test_rate_limited_writes_are_audited(monkeypatch, tmp_path):
     import json
+
     from archai_api import main as api_main
     audit = tmp_path / "events.jsonl"
     monkeypatch.setenv("ARCHAI_AUDIT_LOG", str(audit))

@@ -1,5 +1,5 @@
 # PROPOSED replacement for .github/workflows/ci.yml (apply manually: token may lack `workflow` scope).
-# Changes vs current: npm ci from the committed lockfile, lockfile-keyed npm cache, Node 22 for Next 16.
+# Changes vs current: npm ci from the committed lockfile, lockfile-keyed npm cache, Node 22 for Next 16, ruff lint gate.
 name: CI
 on: [push, pull_request]
 jobs:
@@ -10,6 +10,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.11'}
       - run: python -m pip install -e '.[dev,platform]'
+      - run: ruff check .
       - run: pytest
       - run: python -m compileall -q packages apps scripts
       - name: Verify fresh Alembic schema

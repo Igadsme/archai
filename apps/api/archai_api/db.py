@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from archai_core.schema import Architecture
@@ -11,8 +11,16 @@ if TYPE_CHECKING:
 def sqlalchemy_components():
     """Return optional SQLAlchemy primitives without making local API depend on them."""
     try:
-        from sqlalchemy import (DateTime, ForeignKey, ForeignKeyConstraint, JSON, Integer, String, Text,
-                                create_engine)
+        from sqlalchemy import (
+            JSON,
+            DateTime,
+            ForeignKey,
+            ForeignKeyConstraint,
+            Integer,
+            String,
+            Text,
+            create_engine,
+        )
         from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError("install the 'platform' extra for SQLAlchemy support") from exc
@@ -131,14 +139,14 @@ class SqlAlchemyArchitectureStore:
         self._row = architecture_row
 
     @classmethod
-    def from_url(cls, url: str, *, initialize: bool = False) -> "SqlAlchemyArchitectureStore":
+    def from_url(cls, url: str, *, initialize: bool = False) -> SqlAlchemyArchitectureStore:
         Base, architecture_row, _search_row, _experiment_row, make_engine, make_session_factory = sqlalchemy_components()
         engine = make_engine(url)
         if initialize:
             Base.metadata.create_all(engine)
         return cls(make_session_factory(url, engine), architecture_row)
 
-    def put(self, architecture: "Architecture") -> "Architecture":
+    def put(self, architecture: Architecture) -> Architecture:
         from archai_core.schema import Architecture
 
         canonical = architecture.with_id()
@@ -170,7 +178,7 @@ class SqlAlchemyArchitectureStore:
         finally:
             session.close()
 
-    def get(self, architecture_id: str) -> "Architecture | None":
+    def get(self, architecture_id: str) -> Architecture | None:
         from archai_core.schema import Architecture
 
         session = self._session_factory()
@@ -185,7 +193,7 @@ class SqlAlchemyArchitectureStore:
         finally:
             session.close()
 
-    def list(self, limit: int = 50) -> list["Architecture"]:
+    def list(self, limit: int = 50) -> list[Architecture]:
         from archai_core.schema import Architecture
         from sqlalchemy import select
 
@@ -211,7 +219,7 @@ class SqlAlchemySearchStore:
         self._row = search_row
 
     @classmethod
-    def from_url(cls, url: str, *, initialize: bool = False) -> "SqlAlchemySearchStore":
+    def from_url(cls, url: str, *, initialize: bool = False) -> SqlAlchemySearchStore:
         Base, _architecture_row, search_row, _experiment_row, make_engine, make_session_factory = sqlalchemy_components()
         engine = make_engine(url)
         if initialize:
@@ -281,7 +289,7 @@ class SqlAlchemyExperimentStore:
         self._row = experiment_row
 
     @classmethod
-    def from_url(cls, url: str, *, initialize: bool = False) -> "SqlAlchemyExperimentStore":
+    def from_url(cls, url: str, *, initialize: bool = False) -> SqlAlchemyExperimentStore:
         Base, _architecture_row, _search_row, experiment_row, make_engine, make_session_factory = sqlalchemy_components()
         engine = make_engine(url)
         if initialize:
@@ -330,8 +338,8 @@ class SqlAlchemyExperimentStore:
             session.close()
 
     def list(self, limit: int = 50):
-        from sqlalchemy import select
         from archai_shared.records import ExperimentRecord, Provenance
+        from sqlalchemy import select
 
         session = self._session_factory()
         try:
@@ -358,7 +366,7 @@ class SqlAlchemyModelRegistry:
         self._row = checkpoint_row
 
     @classmethod
-    def from_url(cls, url: str, *, initialize: bool = False) -> "SqlAlchemyModelRegistry":
+    def from_url(cls, url: str, *, initialize: bool = False) -> SqlAlchemyModelRegistry:
         Base, _architecture_row, _search_row, _experiment_row, make_engine, make_session_factory = sqlalchemy_components()
         engine = make_engine(url)
         if initialize:
@@ -370,8 +378,9 @@ class SqlAlchemyModelRegistry:
 
     def register(self, *, model_id: str, kind: str, version: str, artifact_path: str | Path,
                  metadata: dict | None = None):
-        from archai_shared.registry import ModelArtifact, sha256_file
         from uuid import uuid4
+
+        from archai_shared.registry import ModelArtifact, sha256_file
 
         artifact_path = Path(artifact_path).resolve()
         if not artifact_path.is_file():
@@ -422,7 +431,7 @@ class SqlAlchemyDatasetStore:
         self._row = dataset_row
 
     @classmethod
-    def from_url(cls, url: str, *, initialize: bool = False) -> "SqlAlchemyDatasetStore":
+    def from_url(cls, url: str, *, initialize: bool = False) -> SqlAlchemyDatasetStore:
         Base, _architecture_row, _search_row, _experiment_row, make_engine, make_session_factory = sqlalchemy_components()
         engine = make_engine(url)
         if initialize:

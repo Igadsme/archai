@@ -6,8 +6,7 @@ import os
 import platform
 from pathlib import Path
 
-from archai_shared.jobs import RedisJobStore
-from archai_shared.jobs import Job
+from archai_shared.jobs import Job, RedisJobStore
 from archai_shared.paths import allowed_path
 from archai_shared.worker import WorkerRunner
 
@@ -42,10 +41,10 @@ def candidate_training(job: Job) -> dict:
         raise RuntimeError("training jobs require an architecture object")
     try:
         import torch
-        from torch.utils.data import DataLoader, TensorDataset
         from archai_core.schema import Architecture
         from archai_training.candidate import train_candidate
         from archai_training.engine import TrainingConfig
+        from torch.utils.data import DataLoader, TensorDataset
     except ImportError as exc:
         raise RuntimeError("install the ml extra for training workers") from exc
 
@@ -109,6 +108,7 @@ def generator_training(job: Job) -> dict:
         import torch
         from archai_generator.model import ArchitectureGenerator, GeneratorConfig
         from archai_generator.training import fit_generator, generation_metrics, save_checkpoint
+
         from scripts.train_generator import load_examples
     except ImportError as exc:
         raise RuntimeError("install the ml extra for generator workers") from exc
@@ -151,10 +151,11 @@ def predictor_training(job: Job) -> dict:
         import torch
         from archai_benchmark.adapter import NATSBenchAdapter
         from archai_benchmark.integrity import sha256_file
-        from archai_core.schema import TensorSpec
+        from archai_core.schema import TensorSpec  # noqa: F401 - availability check
         from archai_predictor.data import split_records
         from archai_predictor.model import PerformancePredictor, PredictorConfig
         from archai_predictor.training import evaluate_predictor, fit_predictor, save_checkpoint
+
         from scripts.train_predictor import collect_records
     except ImportError as exc:
         raise RuntimeError("install the benchmark and ml extras for predictor workers") from exc
@@ -199,8 +200,14 @@ def benchmark_search(job: Job) -> dict:
     if algorithm not in {"random", "evolution"}:
         raise RuntimeError("benchmark worker supports algorithm=random or evolution")
     try:
-        from archai_benchmark import (BenchmarkCache, BenchmarkEvaluator, IndexRandomSearch,
-                                      IndexRegularizedEvolution, NATSBenchAdapter, QueryBudget)
+        from archai_benchmark import (
+            BenchmarkCache,
+            BenchmarkEvaluator,
+            IndexRandomSearch,
+            IndexRegularizedEvolution,
+            NATSBenchAdapter,
+            QueryBudget,
+        )
         from archai_benchmark.integrity import sha256_file
     except ImportError as exc:
         raise RuntimeError("install the benchmark extra for benchmark search workers") from exc

@@ -1,33 +1,38 @@
 from __future__ import annotations
 
-import os
 import hashlib
 import hmac
 import json
 import logging
-import threading
+import os
 import re
+import threading
 import time
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-
+from archai_compiler.metrics import analytical_metrics
 from archai_core.schema import Architecture
 from archai_core.validation import ValidationError, validate_architecture
-from archai_compiler.metrics import analytical_metrics
-from archai_api.db import (SqlAlchemyArchitectureStore, SqlAlchemyExperimentStore,
-                           SqlAlchemyDatasetStore, SqlAlchemyModelRegistry, SqlAlchemySearchStore,
-                           database_is_ready)
 from archai_shared.jobs import InMemoryJobStore, RedisJobStore
 from archai_shared.paths import allowed_path
 from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance
 from archai_shared.registry import ModelRegistry, sha256_file
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
+
+from archai_api.db import (
+    SqlAlchemyArchitectureStore,
+    SqlAlchemyDatasetStore,
+    SqlAlchemyExperimentStore,
+    SqlAlchemyModelRegistry,
+    SqlAlchemySearchStore,
+    database_is_ready,
+)
 
 app = FastAPI(title="ArchAI API", version="v1")
 _cors_origins = [origin.strip() for origin in os.getenv(
@@ -241,7 +246,7 @@ async def audit_writes(request: Request, call_next):
         return response
     finally:
         _write_audit_event({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "method": request.method,
             "path": request.url.path,
             "status": status_code,
@@ -596,7 +601,7 @@ def update_experiment(experiment_id: str, request: ExperimentUpdate):
         raise HTTPException(status_code=422, detail="invalid experiment status")
     if request.status not in allowed[record.status]:
         raise HTTPException(status_code=409, detail=f"invalid experiment transition {record.status}->{request.status}")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     updated = record.model_copy(update={"status": request.status,
         "metrics": request.metrics if request.metrics is not None else record.metrics,
         "failure_detail": request.failure_detail,
@@ -673,9 +678,9 @@ def generate_architectures(request: GenerateRequest):
     try:
         allowed_path(checkpoint, field="generator checkpoint")
         import torch
+        from archai_core.schema import TensorSpec
         from archai_generator.model import ArchitectureGenerator, GeneratorConfig
         from archai_generator.training import load_checkpoint
-        from archai_core.schema import TensorSpec
 
         payload = torch.load(checkpoint, map_location="cpu", weights_only=True)
         saved_config = payload.get("state_dict", {}).get("config", {})

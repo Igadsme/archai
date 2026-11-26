@@ -11,7 +11,6 @@ import subprocess
 from pathlib import Path
 
 from archai_benchmark.adapter import NATSBenchAdapter
-from archai_benchmark.integrity import sha256_file
 from archai_benchmark.nasbench201 import architecture_from_string
 from archai_core.schema import TensorSpec
 from archai_predictor.data import ArchitectureRecord, split_records

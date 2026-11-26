@@ -1,5 +1,4 @@
 import pytest
-
 from archai_benchmark.research_metrics import hypervolume_2d, search_regret, summarize_seeds
 
 

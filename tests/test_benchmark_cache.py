@@ -1,4 +1,4 @@
-from archai_benchmark.adapter import BenchmarkRecord, NATSBenchAdapter
+from archai_benchmark.adapter import NATSBenchAdapter
 from archai_benchmark.cache import BenchmarkCache
 from archai_benchmark.manifest import load_manifest
 from archai_benchmark.search import BenchmarkEvaluator, IndexRandomSearch, QueryBudget
@@ -6,7 +6,7 @@ from archai_benchmark.search import BenchmarkEvaluator, IndexRandomSearch, Query
 
 class FakeNATS:
     def arch(self, index):
-        return f"|skip_connect~0|+|skip_connect~0|skip_connect~1|+|skip_connect~0|skip_connect~1|skip_connect~2|"
+        return "|skip_connect~0|+|skip_connect~0|skip_connect~1|+|skip_connect~0|skip_connect~1|skip_connect~2|"
 
     def get_more_info(self, index, dataset, hp, is_random):
         return {"valid-accuracy": 80.0 + index, "test-accuracy": 79.0 + index, "train-all-time": 1.5}

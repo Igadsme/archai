@@ -24,7 +24,7 @@ class ArchitectureGenerator:
     """
     def __init__(self, config: GeneratorConfig = GeneratorConfig()):
         try:
-            import torch
+            import torch  # noqa: F401 - availability check
             from torch import nn
         except ImportError as exc:  # pragma: no cover
             raise RuntimeError("install the 'ml' extra to use the generator") from exc

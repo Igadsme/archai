@@ -1,8 +1,8 @@
 import json
-import pytest
 
-from archai_core.schema import Architecture, Edge, Node, TensorSpec
+import pytest
 from archai_compiler.export import export_architecture_json
+from archai_core.schema import Architecture, Edge, Node, TensorSpec
 
 
 def architecture():
@@ -21,8 +21,8 @@ def test_canonical_architecture_export(tmp_path):
 
 def test_safetensors_export_is_explicitly_dependency_gated(tmp_path):
     torch = pytest.importorskip("torch")
-    from archai_compiler.pytorch_compiler import compile_architecture
     from archai_compiler.export import export_safetensors, model_fingerprint
+    from archai_compiler.pytorch_compiler import compile_architecture
     model = compile_architecture(architecture())
     model(torch.randn(1, 3, 8, 8))
     assert len(model_fingerprint(model)) == 64

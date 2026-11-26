@@ -1,7 +1,6 @@
 """Allow named model IDs independent of model kind."""
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "0004_model_identifiers"
 down_revision = "0003_platform_metadata"

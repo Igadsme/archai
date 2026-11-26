@@ -59,7 +59,7 @@ def architecture_from_string(architecture_string: str, *, input_spec: TensorSpec
     operation_offset = 0
     for target, group in enumerate(groups, start=1):
         group_matches = _EDGE.findall(group)
-        for operation, source_text in group_matches:
+        for _operation, source_text in group_matches:
             source = int(source_text)
             source_id = "input" if source == 0 else f"merge_{source}"
             operation_id = f"edge_{index}"

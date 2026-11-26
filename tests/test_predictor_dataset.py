@@ -1,5 +1,4 @@
 import pytest
-
 from archai_core.schema import Architecture, Edge, Node, TensorSpec
 from archai_core.validation import validate_architecture
 from archai_predictor.data import ArchitectureDataset, ArchitectureRecord, make_loader

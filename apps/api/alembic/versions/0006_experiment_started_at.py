@@ -1,7 +1,6 @@
 """Make experiment start timestamps durable and non-null."""
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "0006_experiment_started_at"
 down_revision = "0005_integrity_constraints"

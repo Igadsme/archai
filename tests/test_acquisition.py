@@ -1,5 +1,4 @@
 import pytest
-
 from archai_search.acquisition import expected_improvement, rank_candidates, upper_confidence_bound
 
 

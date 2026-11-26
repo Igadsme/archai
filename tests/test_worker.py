@@ -1,10 +1,9 @@
 import hashlib
 import json
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from archai_shared.jobs import InMemoryJobStore
 from archai_shared.worker import WorkerRunner, run_job
 
@@ -224,7 +223,7 @@ def test_redis_store_recovers_only_jobs_without_live_worker_lease():
     stale = store.create("training")
     store.transition(stale.job_id, "running")
     raw = json.loads(client.values[store._key(stale.job_id)])
-    raw["updated_at"] = (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat()
+    raw["updated_at"] = (datetime.now(UTC) - timedelta(minutes=2)).isoformat()
     client.values[store._key(stale.job_id)] = json.dumps(raw)
     assert store.recover_stale_jobs(stale_after_seconds=30) == [stale.job_id]
     assert store.get(stale.job_id).status == "queued"
@@ -233,7 +232,7 @@ def test_redis_store_recovers_only_jobs_without_live_worker_lease():
     protected = store.create("training")
     store.transition(protected.job_id, "running")
     raw = json.loads(client.values[store._key(protected.job_id)])
-    raw["updated_at"] = (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat()
+    raw["updated_at"] = (datetime.now(UTC) - timedelta(minutes=2)).isoformat()
     client.values[store._key(protected.job_id)] = json.dumps(raw)
     store.heartbeat("worker-live", active_job_id=protected.job_id)
     assert store.recover_stale_jobs(stale_after_seconds=30) == []
@@ -260,13 +259,13 @@ def test_worker_runner_emits_redis_heartbeats():
     from archai_shared.jobs import RedisJobStore
 
     store = RedisJobStore(FakeRedis())
-    job = store.create("training")
+    store.create("training")
     runner = WorkerRunner(store, {"training": lambda _job: {"ok": True}}, worker_id="worker-test")
     assert runner.run_once().status == "succeeded"
     worker = store.list_workers()[0]
     assert worker["worker_id"] == "worker-test"
     assert worker["status"] == "idle"
-    assert datetime.fromisoformat(worker["last_seen"]).tzinfo == timezone.utc
+    assert datetime.fromisoformat(worker["last_seen"]).tzinfo == UTC
 
 
 def test_worker_runner_refreshes_heartbeat_during_long_handler():

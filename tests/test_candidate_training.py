@@ -1,5 +1,4 @@
 import pytest
-
 from archai_core.schema import Architecture, Edge, Node, TensorSpec
 from archai_training.candidate import train_candidate
 from archai_training.engine import TrainingConfig

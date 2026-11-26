@@ -1,4 +1,5 @@
 from archai_shared.registry import ModelRegistry, sha256_file
+
 from scripts.register_model import main as register_model_main
 
 

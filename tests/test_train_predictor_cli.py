@@ -1,6 +1,6 @@
 import pytest
-
 from archai_benchmark.adapter import BenchmarkRecord
+
 from scripts.train_predictor import collect_records, main
 
 

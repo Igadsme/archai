@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import random
 import math
+import random
 from collections import deque
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Callable, Iterable
 
-from archai_core.schema import Architecture, OP_TYPES
+from archai_core.schema import OP_TYPES, Architecture
 from archai_core.validation import validate_architecture
 
 

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from archai_benchmark import NATSBenchAdapter, build_research_report
 from archai_benchmark.integrity import sha256_file
+
 try:
     from scripts.run_benchmark_search import ALGORITHMS, run_search
 except ModuleNotFoundError:  # executed as `python scripts/run_experiment_matrix.py`

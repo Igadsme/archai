@@ -1,5 +1,4 @@
 import pytest
-
 from archai_shared.jobs import InMemoryJobStore
 
 

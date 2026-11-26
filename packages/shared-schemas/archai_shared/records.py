@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -27,7 +26,7 @@ class ExperimentRecord(BaseModel):
     status: Literal["created", "running", "completed", "failed", "cancelled"]
     metrics: dict[str, float] = Field(default_factory=dict)
     provenance: Provenance
-    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     completed_at: datetime | None = None
     failure_detail: str | None = None
 

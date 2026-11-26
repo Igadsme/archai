@@ -5,8 +5,14 @@ import argparse
 import json
 from pathlib import Path
 
-from archai_benchmark import (BenchmarkCache, BenchmarkEvaluator, IndexRandomSearch,
-                               IndexRegularizedEvolution, NATSBenchAdapter, QueryBudget)
+from archai_benchmark import (
+    BenchmarkCache,
+    BenchmarkEvaluator,
+    IndexRandomSearch,
+    IndexRegularizedEvolution,
+    NATSBenchAdapter,
+    QueryBudget,
+)
 from archai_benchmark.integrity import sha256_file
 
 

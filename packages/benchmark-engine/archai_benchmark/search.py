@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import random
 import re
 from collections import deque
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
-from archai_core.schema import Architecture
 from .adapter import BenchmarkRecord, NATSBenchAdapter
 from .cache import BenchmarkCache
 
