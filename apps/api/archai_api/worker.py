@@ -145,7 +145,7 @@ def predictor_training(job: Job) -> dict:
     archive = Path(benchmark_path)
     allowed_path(str(archive), field="benchmark_path")
     allowed_path(str(checkpoint_path), field="checkpoint_path")
-    if not archive.is_file():
+    if not archive.exists():  # a file, or an extracted NATS-Bench "-simple" directory
         raise RuntimeError(f"benchmark archive is unavailable: {archive}")
     try:
         import torch
@@ -197,12 +197,13 @@ def benchmark_search(job: Job) -> dict:
     unverified or stale benchmark file.
     """
     algorithm = job.payload.get("algorithm", "random")
-    if algorithm not in {"random", "evolution"}:
-        raise RuntimeError("benchmark worker supports algorithm=random or evolution")
+    if algorithm not in {"random", "evolution", "bayesian"}:
+        raise RuntimeError("benchmark worker supports algorithm=random, evolution or bayesian")
     try:
         from archai_benchmark import (
             BenchmarkCache,
             BenchmarkEvaluator,
+            IndexBayesianOptimization,
             IndexRandomSearch,
             IndexRegularizedEvolution,
             NATSBenchAdapter,
@@ -216,7 +217,7 @@ def benchmark_search(job: Job) -> dict:
     if not path or not expected_checksum:
         raise RuntimeError("ARCHAI_NATS_BENCH_PATH and ARCHAI_NATS_BENCH_SHA256 are required")
     archive = Path(path)
-    if not archive.is_file():
+    if not archive.exists():  # a file, or an extracted NATS-Bench "-simple" directory
         raise RuntimeError(f"benchmark archive is unavailable: {archive}")
     actual_checksum = sha256_path(archive)
     if actual_checksum != expected_checksum.lower():
@@ -234,6 +235,12 @@ def benchmark_search(job: Job) -> dict:
     evaluator = BenchmarkEvaluator(adapter, QueryBudget(budget), BenchmarkCache(cache_path))
     if algorithm == "random":
         policy = IndexRandomSearch(indices, seed=int(config.get("seed", 0)))
+    elif algorithm == "bayesian":
+        architecture_strings = {index: adapter.architecture_string(index) for index in indices}
+        policy = IndexBayesianOptimization(indices, architecture_strings,
+                                           seed=int(config.get("seed", 0)),
+                                           warmup=int(config.get("warmup", 5)),
+                                           candidate_pool_size=int(config.get("candidate_pool_size", 256)))
     else:
         architecture_strings = {index: adapter.architecture_string(index) for index in indices}
         policy = IndexRegularizedEvolution(
@@ -249,7 +256,7 @@ def benchmark_search(job: Job) -> dict:
             break
         record = evaluator.evaluate_index(index, seed=int(config.get("seed", 0)))
         records.append(record)
-        if algorithm == "evolution":
+        if algorithm != "random":
             policy.tell(index, record.validation_accuracy)
     if not records:
         raise RuntimeError("benchmark search evaluated no architectures")

@@ -132,8 +132,8 @@ def test_benchmark_handler_does_not_mislabel_unsupported_algorithm(monkeypatch):
 
     monkeypatch.setenv("ARCHAI_NATS_BENCH_PATH", "/tmp/archive")
     monkeypatch.setenv("ARCHAI_NATS_BENCH_SHA256", "a" * 64)
-    job = InMemoryJobStore().create("search", {"algorithm": "bayesian", "budget_evaluations": 1})
-    with pytest.raises(RuntimeError, match="random or evolution"):
+    job = InMemoryJobStore().create("search", {"algorithm": "reinforcement", "budget_evaluations": 1})
+    with pytest.raises(RuntimeError, match="random, evolution or bayesian"):
         benchmark_search(job)
 
 
