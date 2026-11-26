@@ -2,6 +2,12 @@
 
 ## Unreleased (feat/complete-archai, PR #1)
 
+- Research projects: Alembic 0007, API CRUD, Studio create/select, optional `project_id` on search/generate/training/experiment (`f6ccb2d`).
+- Architecture constraints (param/FLOP/latency budgets, allowed ops) on projects, generate, and search; unevaluable constraints are rejected rather than ignored (`a61f4e7`).
+- Measured CPU-smoke generator retraining with sampled budget ceilings (`research/results/generator_budget_ceiling_smoke/`); raw satisfaction still worse than random; hard rejection keeps the quality edge.
+- Live browser E2E now creates a research project (step 1) and checks generator constraint fields: **32/32** at `71756c3`.
+- 429 responses from the request-limit middleware include CORS headers; GET polls use a separate 600/min default (`8a7cb36`, `71756c3`).
+- Applying `.github/workflows/ci.yml` updates (Alembic 0007 grep, ruff, Node 22, CPU-torch, E2E job) was rejected for missing `workflow` scope; the proposal is in `docs/ci/ci.yml` only. GitHub python CI is red on the stale 0006 grep.
 - Completion audit and plan (`docs/COMPLETION_PLAN.md`) and the required docs set (ARCHITECTURE, BLOCKERS, CHANGELOG, TEST_REPORT).
 - Studio: committed lockfile; Next 16.4.6 / React 19 (`npm audit`: 0 vulnerabilities); the web image uses `npm ci`.
 - Matched-budget experiment matrix runner (`scripts/run_experiment_matrix.py`, `research/experiments/`).
@@ -21,7 +27,7 @@
 - Measured full NATS-Bench TSS suite: 7 policies + 4 ablations, 10 seeds, budget 100 (`research/results/nasbench201_cifar10_full_suite/`).
 - ArchAI-V1 predictor and generator trained at CPU smoke scale; checkpoints live outside git with SHA-256 verification.
 - Studio realigned to the ten spec pages (Research Dashboard, Architecture Generator, Architecture Graph Explorer, Autonomous Search Laboratory, Pareto Optimization Explorer, Training Laboratory, Model Comparison, Research Results, Model Registry, System Administration), with Pareto explorer, model comparison, TorchScript export, checkpoint inspection, explicit Unavailable notes, and desktop/mobile layouts.
-- Live browser E2E (`apps/web/e2e/studio.e2e.mjs`) against the local API + worker + NATS-Bench: 31/31 at 1280×900 and 390×844 (not in CI).
+- Live browser E2E (`apps/web/e2e/studio.e2e.mjs`) against the local API + worker + NATS-Bench (not in CI).
 - Worker job results are read from `job.payload.result` (where `WorkerRunner` stores them).
 - Random and Bayesian seed-0 runs repeat exactly at a later revision (`reproducibility_seed0.json`).
 

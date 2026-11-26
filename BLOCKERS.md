@@ -1,6 +1,6 @@
 # Blockers and open questions
 
-Updated 2026-11-25 10:50 PM ET (America/New_York). Each entry names who can unblock it.
+Updated 2026-11-25 11:15 PM ET (America/New_York). Each entry names who can unblock it.
 
 | # | Blocker | Impact | Owner / unblock |
 | --- | --- | --- | --- |
@@ -8,8 +8,8 @@ Updated 2026-11-25 10:50 PM ET (America/New_York). Each entry names who can unbl
 | B2 | ~~Studio page names were in a truncated part of the spec~~ **Resolved.** Exact names and acceptance text are in `docs/SPEC_ACCEPTANCE.md`; the Studio is realigned to those ten pages. | — | — |
 | B3 | Hugging Face publication (M12) | No public model release | Imani: HF authorization and release decision |
 | B4 | GPU / large-scale training | Only CPU smoke-scale training is allowed on the box; ArchAI-V1 quality numbers are smoke-scale only | Imani: approve compute if larger runs are wanted |
-| B5 | CI installs `.[dev,platform]` (no torch). Workflow file edits may need the token's `workflow` scope | Torch tests skip in GitHub Actions (`5670f3f`); `docs/ci/ci.yml` remains a proposal | Imani: add the ml extra to CI, or apply the proposal / grant scope |
+| B5 | The GitHub token lacks `workflow` scope, so `.github/workflows/ci.yml` cannot be updated. The workflow still greps Alembic head `0006_experiment_started_at`. After `0007_research_projects` landed, the python job fails that grep (pytest and compileall on the same job succeed; the web job is green). Exact push error, 25 Nov 2026 10:55 PM and 11:14 PM ET: `refusing to allow a Personal Access Token to create or update workflow `.github/workflows/ci.yml` without \`workflow\` scope`. Local workflow commits were reset, not force-pushed. | Torch tests still skip in Actions; GitHub CI is red on `feat/complete-archai` from `f6ccb2d` onward. The proposal (ruff, Node 22, npm ci, 0007 grep, CPU-torch job, dispatch-only E2E) is in `docs/ci/ci.yml` only. | Imani: grant `workflow` scope (or apply the proposal in the GitHub UI) so the 0007 grep and the new jobs can land |
 | B6 | ~~Full experiment spec text truncated~~ **Resolved.** Acceptance criteria (including the report title and sections) are in `docs/SPEC_ACCEPTANCE.md`. | — | — |
-| B7 | No research-project entity | E2E journey step 1 is NOT STARTED | Engineering: add a project resource and a Studio flow |
-| B8 | Architecture constraints are not inputs to the API generator; at smoke scale the NB201 parameter-budget condition is not met better than random | E2E journey step 3 is NOT STARTED; no constraint-satisfaction quality claim | Engineering: constraint inputs, and a non-smoke corpus if quality is to be claimed |
-| B9 | Browser E2E and the live Postgres/Redis tests are not in GitHub Actions | Green CI does not imply the 31/31 live Studio journey still passes | Engineering: a CI job would need the stack (currently out of scope) |
+| B7 | ~~No research-project entity~~ **Resolved** at `f6ccb2d` (Alembic 0007, API CRUD, Studio create/select). Live E2E step 1 passed at `71756c3`. | — | — |
+| B8 | Constraint *inputs* are in the API, generator, search, and Studio (`a61f4e7`). At CPU smoke scale, ceiling conditioning improved raw param-budget satisfaction from 0.690 (earlier point estimate) to 0.762, but that is still worse than uniform random (0.915). Hard rejection (yield 0.781, 1000/1280 draws) keeps a quality edge (mean val 89.82% vs 82.73% random feasible). | No honest claim that the condition alone meets a param budget better than random. A non-smoke corpus would be needed to revisit that. | Imani: approve more compute only if a larger training run is wanted |
+| B9 | Browser E2E and live-stack tests are still not in GitHub Actions. The dispatch-only E2E job in `docs/ci/ci.yml` could not be applied (same `workflow` scope error as B5). Local E2E is **32/32** at `71756c3`. | Actions does not run the live Studio journey | Imani: same as B5, plus a runner that has the live stack / archive |

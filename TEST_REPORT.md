@@ -46,3 +46,13 @@ Executed results only. Nothing here is predicted or estimated. Every row was run
 | 2026-11-25 | 02a6b00 (local) | CI mimic without torch | **146 passed, 31 skipped** |
 | 2026-11-25 | 02a6b00 (local) | `pytest tests/test_live_services.py` against local Redis/Postgres | **3 passed** |
 | 2026-11-25 22:50 ET | 07d729c (local) | Repeat random + Bayesian seed 0 on the same archive | exact match to the recorded `2fe79d1` runs (`reproducibility_seed0.json`) |
+
+| 2026-11-25 23:06 ET | a61f4e7 | `scripts/train_generator_nb201.py --condition-mode ceiling` (2000 cells, 300 epochs, seed 0, CPU smoke) | wall ~5.3 s; loss 1.613→1.405; checkpoint SHA-256 `524b81c8…c6b9ae` (outside git). Raw constraint satisfaction 0.762 vs random 0.915 vs untrained 0.850 vs earlier point-estimate 0.690. Mean val acc 89.73% vs random 82.72%. Hard reject: 1000 accepted / 1280 draws, yield 0.781, mean val 89.82% vs 82.73% random feasible. Evidence: `research/results/generator_budget_ceiling_smoke/` |
+| 2026-11-25 | 71756c3 (local) | `pytest -q` (no live env) | **187 passed, 3 skipped**; ruff clean |
+| 2026-11-25 | 71756c3 (local) | CI mimic without torch (`PYTHONPATH=/tmp/notorch`) | **157 passed, 33 skipped** |
+| 2026-11-25 | 71756c3 (local) | `npx vitest run` / `tsc --noEmit` / `npm run build` | 26 vitest passed; tsc clean; Next 16.4.6 build, 10 routes |
+| 2026-11-25 | 71756c3 (local) | `pytest tests/test_live_services.py` against local Redis/Postgres | **3 passed** |
+| 2026-11-25 | live Postgres | `alembic upgrade head` | `0007_research_projects (head)` |
+| 2026-11-25 23:14 ET | 71756c3 (local) | Browser E2E at 1280×900 and 390×844 against the live stack | **32/32 passed**, 0 console errors (project create/select and generator constraint fields included) |
+| 2026-11-25 23:13 ET | 71756c3 | GitHub Actions | **python failed** (Alembic grep still requires `0006_experiment_started_at`; pytest and compileall on that job succeeded). **web succeeded**. https://github.com/Igadsme/archai/actions/runs/45753820023 |
+| 2026-11-25 22:55 PM and 11:14 PM ET | local attempts `47eec5f`, `5bc54e9` (reset, not pushed) | `git push` of `.github/workflows/ci.yml` | rejected: `refusing to allow a Personal Access Token to create or update workflow `.github/workflows/ci.yml` without \`workflow\` scope` |

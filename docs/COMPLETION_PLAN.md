@@ -9,20 +9,22 @@ alone never count as success. Evidence points at tests, scripts, or `TEST_REPORT
 means GitHub Actions. CI installs `.[dev,platform]` without torch, so torch-dependent tests run on
 the box only (see BLOCKERS B5).
 
-**Current verdict: PARTIALLY COMPLETE.** COMPLETE AND VERIFIED requires the entire acceptance suite;
-E2E steps 1 and 3 (projects, architecture constraints) are not implemented, and several ML/deployment
-checks are smoke-scale or single-run only.
+**Current verdict: PARTIALLY COMPLETE.** E2E steps 1 (research project) and 3 (constraint inputs)
+are implemented and covered by the live 32/32 browser E2E at `71756c3`. COMPLETE AND VERIFIED is
+still not claimed: GitHub python CI is red because the workflow cannot be updated (B5), ArchAI-V1
+quality remains CPU smoke-scale, and the generator's param-budget *condition* is still not better
+than random (hard filtering is required).
 
 "Browser E2E" below = `apps/web/e2e/studio.e2e.mjs` executed against the live local stack (API + Redis
-worker + Postgres + NATS-Bench), 31/31 checks at 1280×900 and 390×844 (TEST_REPORT.md, 02a6b00). It is not in
-CI because it needs the stack.
+worker + Postgres + NATS-Bench), 32/32 checks at 1280×900 and 390×844 (TEST_REPORT.md, 71756c3). It is not in
+CI because the workflow file cannot be updated without `workflow` scope (B5/B9) and because it needs the stack.
 
 ## 1. Studio pages (§10)
 
 | # | Spec page | Route | Status | Verified by / gap |
 | --- | --- | --- | --- | --- |
-| 1 | Research Dashboard | `/` | COMPLETE | browser E2E (loads registry/job/model counts, measured-suite table, failed jobs) |
-| 2 | Architecture Generator | `/generator` | IN PROGRESS | E2E: generate → save to registry works; constraint-conditioned generation is marked Unavailable, and the configured API checkpoint is a 2-example smoke checkpoint |
+| 1 | Research Dashboard | `/` | COMPLETE | browser E2E (loads registry/job/model counts, measured-suite table, failed jobs; create/select research project) |
+| 2 | Architecture Generator | `/generator` | IN PROGRESS | E2E: generate → save to registry works; constraint *inputs* are in the form (no longer Unavailable). The API checkpoint is still a 2-example smoke checkpoint. At smoke scale, ceiling conditioning is not better than random on raw budget satisfaction (TEST_REPORT). |
 | 3 | Architecture Graph Explorer | `/explorer` | COMPLETE | E2E: register → SVG DAG → JSON + TorchScript export; export loaded and run without archai (TEST_REPORT) |
 | 4 | Autonomous Search Laboratory | `/search` | COMPLETE | E2E: multi_objective search launched, run on the worker, 20-step history shown; all 7 policies selectable |
 | 5 | Pareto Optimization Explorer | `/pareto` | COMPLETE | E2E: measured-suite fronts per policy/seed + live-session front and hypervolume (TS hypervolume = Python, vitest + pytest fixture) |
