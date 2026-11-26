@@ -4,6 +4,7 @@ import { Empty, Errors, Loaded, PageHeader, Unavailable } from "../components/Sh
 import { items, usePoll } from "../components/usePoll"
 import { postJson } from "../lib/api"
 import { buildTrainingRequest, defaultTrainingForm, type TrainingForm, type TrainingKind } from "../lib/forms"
+import { jobResult } from "../lib/results"
 import type { JobDetail, JobItem } from "../lib/types"
 
 const TRAINING_KINDS = new Set(["training", "generator_training", "predictor_training"])
@@ -29,7 +30,7 @@ export default function TrainingLaboratory() {
     if (!outcome.ok) setErrors([`${outcome.status}: ${outcome.detail}`])
     jobs.refresh(); detail.refresh()
   }
-  const result = detail.data?.result as Record<string, unknown> | null | undefined
+  const result = jobResult(detail.data)
   const rawCurve = Array.isArray(result?.training_loss) ? result?.training_loss as unknown[] : Array.isArray(result?.history) ? result?.history as unknown[] : []
   const curve: Record<string, number>[] = rawCurve.map((row) => typeof row === "number" ? { training_loss: row } : (row && typeof row === "object" ? row as Record<string, number> : {}))
   const curveKeys = Array.from(new Set(curve.flatMap((row) => Object.keys(row)))).filter((key) => key !== "epoch")

@@ -17,3 +17,9 @@ export function ci(summary: SeedSummary | undefined, digits = 2): string {
 export function separated(a: SeedSummary | undefined, b: SeedSummary | undefined): boolean {
   return !!a && !!b && (a.ci_low > b.ci_high || b.ci_low > a.ci_high)
 }
+
+/** The worker stores a handler's return value at job.payload.result (archai_shared.worker.WorkerRunner). */
+export function jobResult<T = Record<string, unknown>>(job: { payload?: Record<string, unknown>; result?: unknown } | null | undefined): T | null {
+  const value = job?.payload?.result ?? job?.result
+  return value && typeof value === "object" ? value as T : null
+}

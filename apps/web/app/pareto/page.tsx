@@ -4,6 +4,7 @@ import { Scatter, type Series } from "../components/Scatter"
 import { Empty, Loaded, PageHeader } from "../components/Shell"
 import { items, usePoll } from "../components/usePoll"
 import { historyPoints, hypervolume, paretoFront } from "../lib/pareto"
+import { jobResult } from "../lib/results"
 import type { HistoryStep, JobDetail, ResearchResult, SearchItem } from "../lib/types"
 
 const COLORS = ["#7fe0d2", "#e7aa67", "#9db7ff", "#e36b79", "#c49bff", "#b7e07f", "#f0d27f", "#8fa3c2"]
@@ -16,7 +17,7 @@ export default function ParetoOptimizationExplorer() {
   const [shown, setShown] = useState<string[]>(["multi_objective", "random", "bayesian"])
   const [sessionId, setSessionId] = useState("")
   const session = items(searches.data).find((item) => item.search_id === sessionId)
-  const sessionHistory = ((session?.job?.result as { history?: HistoryStep[] } | null | undefined)?.history) ?? []
+  const sessionHistory = jobResult<{ history?: HistoryStep[] }>(session?.job)?.history ?? []
   const sessionPoints = historyPoints(sessionHistory)
   return <>
     <PageHeader eyebrow="PARETO OPTIMIZATION EXPLORER" title="Accuracy vs. parameters" note="Objectives: maximize NATS-Bench cifar10-valid validation accuracy, minimize parameters (M). Evidence: benchmark_lookup. Hypervolume reference (0 %, 1.6 M)." />

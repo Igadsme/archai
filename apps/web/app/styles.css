@@ -34,3 +34,6 @@ nav a[aria-current="page"] { font-weight: 600; }
   h2 { font-size: 28px; } li { flex-direction: column; gap: 4px; } .error-text { max-width: 100%; text-align: left; }
   table { font-size: 12px; } th, td { padding: 7px 5px; }
 }
+/* keep wide content (tables, code, long option labels) inside the viewport */
+.grid > *, .panel, .content { min-width: 0; } select, input, textarea, pre { max-width: 100%; } code { overflow-wrap: anywhere; }
+.panel > table { display: block; overflow-x: auto; }

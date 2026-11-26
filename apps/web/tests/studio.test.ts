@@ -5,7 +5,7 @@ import { PAGES } from "../app/components/Shell"
 import { SEARCH_ALGORITHMS } from "../app/lib/forms"
 import { layoutDag } from "../app/lib/graph"
 import { historyPoints, hypervolume, paretoFront } from "../app/lib/pareto"
-import { ci, separated, splitAblations } from "../app/lib/results"
+import { ci, jobResult, separated, splitAblations } from "../app/lib/results"
 import type { ParetoPoint, ResearchResult, SeedSummary } from "../app/lib/types"
 
 describe("Studio pages", () => {
@@ -64,5 +64,13 @@ describe("result helpers", () => {
     expect(ci(undefined)).toBe("—")
     expect(separated(s(91.6, 91.5, 91.7), s(91.0, 90.9, 91.1))).toBe(true)
     expect(separated(s(91.2, 91.0, 91.4), s(91.0, 90.9, 91.1))).toBe(false)
+  })
+})
+
+describe("jobResult", () => {
+  it("reads the worker result from payload.result (where WorkerRunner stores it)", () => {
+    expect(jobResult({ payload: { algorithm: "random", result: { evaluations: 3 } } })).toEqual({ evaluations: 3 })
+    expect(jobResult({ payload: { algorithm: "random" } })).toBeNull()
+    expect(jobResult(null)).toBeNull()
   })
 })

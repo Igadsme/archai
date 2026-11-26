@@ -4,6 +4,7 @@ import { Empty, Errors, Loaded, PageHeader, Unavailable } from "../components/Sh
 import { items, usePoll } from "../components/usePoll"
 import { postJson } from "../lib/api"
 import { buildSearchRequest, defaultSearchForm, type SearchForm } from "../lib/forms"
+import { jobResult } from "../lib/results"
 import type { HistoryStep, JobDetail, SearchAlgorithm, SearchItem } from "../lib/types"
 
 type Session = SearchItem & { job?: JobDetail }
@@ -35,7 +36,7 @@ export default function AutonomousSearchLaboratory() {
     if (!outcome.ok) setErrors([`${outcome.status}: ${outcome.detail}`])
     searches.refresh(); selected.refresh()
   }
-  const result = selected.data?.job?.result as (Record<string, unknown> & { history?: HistoryStep[] }) | null | undefined
+  const result = jobResult<Record<string, unknown> & { history?: HistoryStep[] }>(selected.data?.job)
   return <>
     <PageHeader eyebrow="AUTONOMOUS SEARCH LABORATORY" title="Budgeted architecture search" note="Searches run on the Redis worker against the checksum-verified NATS-Bench archive (evidence: benchmark_lookup). Selection uses validation accuracy only; test accuracy is reported for the selected cell." />
     <div className="grid">
