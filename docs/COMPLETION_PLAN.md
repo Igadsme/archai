@@ -57,6 +57,7 @@ Status key: **done** = implemented and exercised by an executed test or command 
 - M10: done for build reproducibility (lockfile, Next 16.4.6, `npm ci` image). The launch UI is still pending.
 - M7/M11 key mismatch: fixed by `scripts/run_experiment_matrix.py` and `research/experiments/*.json` (tested with a synthetic adapter only). Real runs still need the archive.
 - R1: fixed (README now uses `uvicorn archai_api.main:app`, checked by booting it).
+- S1 audit log: done. State-changing requests, rejected ones included, are written as JSONL audit events with a fingerprint instead of the credential. Tests: 120 passed, 0 skipped.
 
 ## Priority order for this branch (no real data, no paid compute)
 
@@ -64,7 +65,7 @@ Status key: **done** = implemented and exercised by an executed test or command 
 2. **Studio reproducibility/security:** commit `package-lock.json`, bump Next to patched 14.2.x, re-verify typecheck/build.
 3. **M7/M11 pipeline gap:** `research/experiments/*.json` matched-budget matrices and `scripts/run_experiment_matrix.py`, which runs seeds × algorithms through `run_benchmark_search` and emits run records `build_report.py` accepts. Tested with a fake evaluator; real numbers only after a verified archive.
 4. **README quick start fix.**
-5. Next (later passes): audit log for write endpoints; Studio launch-search form; ruff cleanup; Redis-backed rate limiting.
+5. Next (later passes): Studio launch-search form; ruff cleanup; Redis-backed rate limiting.
 
 Blocked on Imani: NATS-Bench archive + checksum (M1c/M4/M6/M7 real runs); live Postgres/Redis host (M9);
 Hugging Face authorization (M12); applying `docs/ci/ci.yml` changes if the token lacks `workflow` scope.
