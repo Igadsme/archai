@@ -260,6 +260,7 @@ class SearchRequest(BaseModel):
     budget_evaluations: int = Field(gt=0, le=1_000_000)
     seed: int = 0
     indices: list[int] = Field(default_factory=list, max_length=100_000)
+    params: dict[str, float | int | bool | str] = Field(default_factory=dict, max_length=16)
 
 
 class TrainingJobRequest(BaseModel):
@@ -426,6 +427,17 @@ def get_architecture(architecture_id: str):
 
 @app.post("/v1/searches", dependencies=[Depends(require_write_access)])
 def create_search(request: SearchRequest):
+    try:
+        from archai_benchmark.policy_registry import POLICIES
+    except ImportError:  # pragma: no cover - benchmark package is part of the platform install
+        POLICIES = None
+    if POLICIES is not None:
+        if request.algorithm not in POLICIES:
+            raise HTTPException(status_code=422, detail=f"unknown algorithm {request.algorithm!r}; "
+                                                        f"choose one of {', '.join(POLICIES)}")
+        unknown = sorted(set(request.params) - set(POLICIES[request.algorithm]["params"]))
+        if unknown:
+            raise HTTPException(status_code=422, detail=f"unsupported {request.algorithm} parameters: {', '.join(unknown)}")
     job = _jobs.create("search", request.model_dump())
     return _search_store.put(job.job_id, request.model_dump())
 
@@ -702,6 +714,131 @@ def generate_architectures(request: GenerateRequest):
     return {"items": [{"architecture": candidate.model_dump(),
                        "architecture_id": candidate.content_hash()} for candidate in generated],
             "count": len(generated), "checkpoint": checkpoint, "metadata": metadata}
+
+
+@app.get("/v1/search/algorithms")
+def search_algorithms():
+    """Search policies the benchmark worker can run, with availability on this API host."""
+    from archai_benchmark.policy_registry import describe
+    return {"items": describe()}
+
+
+@app.get("/v1/architectures/{architecture_id}/export")
+def export_architecture(architecture_id: str, format: Literal["json", "pytorch"] = "json"):
+    """Download a stored architecture as canonical JSON or as a TorchScript (PyTorch) module.
+
+    The TorchScript file loads with plain `torch.jit.load`, without ArchAI installed.
+    """
+    from fastapi.responses import Response
+    architecture = _architecture_store.get(architecture_id)
+    if architecture is None:
+        raise HTTPException(status_code=404, detail="architecture not found")
+    if format == "json":
+        body = json.dumps(architecture.model_dump(), indent=2, sort_keys=True).encode()
+        media, suffix = "application/json", "json"
+    else:
+        try:
+            import io
+
+            import torch
+            from archai_compiler.pytorch_compiler import compile_architecture
+        except ImportError as exc:
+            raise HTTPException(status_code=503, detail="PyTorch export is unavailable: torch is not installed on the API host") from exc
+        try:
+            model = compile_architecture(architecture).eval()
+            spec = architecture.input_spec
+            example = torch.zeros(1, spec.channels, spec.height, spec.width)
+            with torch.no_grad():
+                model(example)  # materialize lazily-initialized layers before tracing
+                traced = torch.jit.trace(model, example)
+                output_shape = list(traced(example).shape)
+            buffer = io.BytesIO()
+            torch.jit.save(traced, buffer)
+        except (ValueError, RuntimeError) as exc:
+            raise HTTPException(status_code=422, detail=f"architecture could not be exported: {exc}") from exc
+        body, media, suffix = buffer.getvalue(), "application/octet-stream", "pt"
+    digest = hashlib.sha256(body).hexdigest()
+    headers = {"content-disposition": f'attachment; filename="{architecture_id[:16]}.{suffix}"',
+               "x-archai-sha256": digest}
+    if format == "pytorch":
+        headers["x-archai-output-shape"] = json.dumps(output_shape)
+    return Response(content=body, media_type=media, headers=headers)
+
+
+@app.get("/v1/models/{model_id}/inspect")
+def inspect_model_checkpoint(model_id: str, version: str | None = None):
+    """Checkpoint inspection: integrity, saved metadata, and tensor/parameter counts."""
+    artifact = _model_registry.get(model_id, version)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="model not found")
+    response = _model_response(artifact)
+    if not response["artifact_exists"]:
+        raise HTTPException(status_code=404, detail="checkpoint file is missing")
+    if not response["integrity_verified"]:
+        raise HTTPException(status_code=409, detail="checkpoint SHA-256 does not match the registry; refusing to load it")
+    try:
+        import torch
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="checkpoint inspection is unavailable: torch is not installed") from exc
+    try:
+        payload = torch.load(artifact.path, map_location="cpu", weights_only=True)
+    except Exception as exc:  # corrupt or non-tensor checkpoints
+        raise HTTPException(status_code=422, detail=f"checkpoint could not be read safely: {type(exc).__name__}") from exc
+    tensors: list[tuple[str, object]] = []
+
+    def walk(prefix: str, value):
+        if isinstance(value, torch.Tensor):
+            tensors.append((prefix, value))
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                walk(f"{prefix}.{key}" if prefix else str(key), item)
+
+    walk("", payload)
+    metadata = payload.get("metadata") if isinstance(payload, dict) else None
+    return {**response, "top_level_keys": sorted(payload) if isinstance(payload, dict) else [],
+            "tensor_count": len(tensors), "parameter_count": int(sum(t.numel() for _, t in tensors)),
+            "tensors": [{"name": name, "shape": list(t.shape), "dtype": str(t.dtype)} for name, t in tensors[:200]],
+            "checkpoint_metadata": metadata if isinstance(metadata, dict) else None}
+
+
+_RESULT_NAME = re.compile(r"^[a-z0-9_]{1,80}$")
+
+
+def _results_root() -> Path:
+    return Path(os.getenv("ARCHAI_RESULTS_DIR", str(Path(__file__).resolve().parents[3] / "research" / "results")))
+
+
+@app.get("/v1/research/results")
+def list_research_results():
+    """Committed, measured result sets (benchmark lookups and smoke-scale training reports)."""
+    root = _results_root()
+    if not root.is_dir():
+        return {"items": [], "root_available": False}
+    items = []
+    for path in sorted(root.iterdir()):
+        if path.is_dir() and _RESULT_NAME.match(path.name):
+            files = sorted(item.name for item in path.iterdir() if item.is_file())
+            items.append({"name": path.name, "files": files})
+    return {"items": items, "root_available": True}
+
+
+@app.get("/v1/research/results/{name}")
+def get_research_result(name: str):
+    if not _RESULT_NAME.match(name):
+        raise HTTPException(status_code=404, detail="result set not found")
+    path = _results_root() / name
+    if not path.is_dir():
+        raise HTTPException(status_code=404, detail="result set not found")
+    result: dict[str, object] = {"name": name}
+    for file_name, key in (("report.json", "report"), ("pareto.json", "pareto"),
+                           ("predictor_report.json", "predictor"), ("generator_report.json", "generator"),
+                           ("checkpoint_verification.json", "checkpoint_verification")):
+        if (path / file_name).is_file():
+            result[key] = json.loads((path / file_name).read_text())
+    for file_name, key in (("README.md", "readme"), ("results.md", "tables")):
+        if (path / file_name).is_file():
+            result[key] = (path / file_name).read_text()
+    return result
 
 
 if __name__ == "__main__":

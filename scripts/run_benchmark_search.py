@@ -8,17 +8,11 @@ from pathlib import Path
 from archai_benchmark import (
     BenchmarkCache,
     BenchmarkEvaluator,
-    IndexBayesianOptimization,
-    IndexGeneratorGuided,
-    IndexParetoEvolution,
-    IndexPredictorGuided,
-    IndexRandomSearch,
-    IndexRegularizedEvolution,
-    IndexREINFORCE,
     NATSBenchAdapter,
     QueryBudget,
 )
 from archai_benchmark.integrity import sha256_path
+from archai_benchmark.policy_registry import ALGORITHMS, POLICIES, build_policy
 from archai_benchmark.research_metrics import hypervolume_2d
 
 
@@ -28,40 +22,12 @@ def select_best_validation(records):
     return max(records, key=lambda record: record.validation_accuracy)
 
 
-ALGORITHMS = ("random", "evolution", "bayesian", "reinforce", "predictor_guided", "generator_guided",
-              "multi_objective")
-EVOLUTION_PARAMS = ("population_size", "sample_size")
-BAYESIAN_PARAMS = ("warmup", "beta", "lengthscale", "noise", "candidate_pool_size")
-POLICY_PARAMS = {
-    "random": (),
-    "evolution": EVOLUTION_PARAMS,
-    "bayesian": BAYESIAN_PARAMS,
-    "reinforce": ("learning_rate", "baseline_momentum", "max_resamples"),
-    "predictor_guided": ("warmup", "refit_every", "epochs", "candidate_pool_size", "learning_rate"),
-    "generator_guided": ("warmup", "elite_size", "finetune_every", "epochs", "samples_per_step",
-                         "learning_rate", "temperature", "learn"),
-    "multi_objective": ("population_size", "sample_size", "cost_key"),
-}
-POLICY_CLASSES = {"evolution": IndexRegularizedEvolution, "bayesian": IndexBayesianOptimization,
-                  "reinforce": IndexREINFORCE, "predictor_guided": IndexPredictorGuided,
-                  "generator_guided": IndexGeneratorGuided, "multi_objective": IndexParetoEvolution}
+EVOLUTION_PARAMS = POLICIES["evolution"]["params"]
+BAYESIAN_PARAMS = POLICIES["bayesian"]["params"]
+POLICY_PARAMS = {name: spec["params"] for name, spec in POLICIES.items()}
 # Declared before any run: (validation accuracy %, parameters in millions). Every NATS-Bench
 # TSS cell has fewer than 1.6M parameters, so the reference point is dominated by all cells.
 HYPERVOLUME_REFERENCE = (0.0, 1.6)
-
-
-def build_policy(adapter, indices, algorithm: str, seed: int, params: dict | None = None):
-    params = dict(params or {})
-    allowed = POLICY_PARAMS
-    if algorithm not in allowed:
-        raise ValueError(f"unsupported algorithm: {algorithm}")
-    unknown = sorted(set(params) - set(allowed[algorithm]))
-    if unknown:
-        raise ValueError(f"unsupported {algorithm} parameters: {', '.join(unknown)}")
-    if algorithm == "random":
-        return IndexRandomSearch(indices, seed=seed)
-    architecture_strings = {index: adapter.architecture_string(index) for index in indices}
-    return POLICY_CLASSES[algorithm](indices, architecture_strings, seed=seed, **params)
 
 
 def run_search(adapter, indices, *, budget: int, algorithm: str, seed: int, cache_path: Path,

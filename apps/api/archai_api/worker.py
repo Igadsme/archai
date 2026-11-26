@@ -196,22 +196,29 @@ def benchmark_search(job: Job) -> dict:
     The archive checksum is mandatory so a worker cannot silently query an
     unverified or stale benchmark file.
     """
-    algorithm = job.payload.get("algorithm", "random")
-    if algorithm not in {"random", "evolution", "bayesian"}:
-        raise RuntimeError("benchmark worker supports algorithm=random, evolution or bayesian")
     try:
         from archai_benchmark import (
             BenchmarkCache,
             BenchmarkEvaluator,
-            IndexBayesianOptimization,
-            IndexRandomSearch,
-            IndexRegularizedEvolution,
             NATSBenchAdapter,
             QueryBudget,
         )
         from archai_benchmark.integrity import sha256_path
+        from archai_benchmark.policy_registry import ALGORITHMS, POLICIES, available, build_policy
+        from archai_benchmark.research_metrics import hypervolume_2d
     except ImportError as exc:
         raise RuntimeError("install the benchmark extra for benchmark search workers") from exc
+    algorithm = job.payload.get("algorithm", "random")
+    if algorithm not in POLICIES:
+        raise RuntimeError(f"benchmark worker supports algorithm={', '.join(ALGORITHMS)}")
+    usable, reason = available(algorithm)
+    if not usable:
+        raise RuntimeError(f"{algorithm} is unavailable on this worker: {reason}")
+    params = dict(job.payload.get("params") or {})
+    legacy_defaults = {"bayesian": {"warmup": 5, "candidate_pool_size": 256},
+                       "evolution": {"population_size": 8, "sample_size": 3}}.get(algorithm, {})
+    for key, default in legacy_defaults.items():  # top-level keys predate the params object
+        params.setdefault(key, job.payload.get(key, default))
     path = os.getenv("ARCHAI_NATS_BENCH_PATH")
     expected_checksum = os.getenv("ARCHAI_NATS_BENCH_SHA256")
     if not path or not expected_checksum:
@@ -233,33 +240,32 @@ def benchmark_search(job: Job) -> dict:
     cache_path = os.getenv("ARCHAI_BENCHMARK_CACHE", "/tmp/archai-benchmark-cache.sqlite")
     adapter = NATSBenchAdapter(str(archive), search_space, dataset).open()
     evaluator = BenchmarkEvaluator(adapter, QueryBudget(budget), BenchmarkCache(cache_path))
-    if algorithm == "random":
-        policy = IndexRandomSearch(indices, seed=int(config.get("seed", 0)))
-    elif algorithm == "bayesian":
-        architecture_strings = {index: adapter.architecture_string(index) for index in indices}
-        policy = IndexBayesianOptimization(indices, architecture_strings,
-                                           seed=int(config.get("seed", 0)),
-                                           warmup=int(config.get("warmup", 5)),
-                                           candidate_pool_size=int(config.get("candidate_pool_size", 256)))
-    else:
-        architecture_strings = {index: adapter.architecture_string(index) for index in indices}
-        policy = IndexRegularizedEvolution(
-            indices, architecture_strings,
-            population_size=int(config.get("population_size", 8)),
-            sample_size=int(config.get("sample_size", 3)),
-            seed=int(config.get("seed", 0)),
-        )
-    records = []
+    policy = build_policy(adapter, indices, algorithm, int(config.get("seed", 0)), params)
+    uses_cost = getattr(policy, "uses_cost", False)
+    records, costs = [], []
     while len(records) < budget:
         index = policy.ask()
         if index is None:
             break
         record = evaluator.evaluate_index(index, seed=int(config.get("seed", 0)))
         records.append(record)
-        if algorithm != "random":
+        cost = adapter.cost(index) if callable(getattr(adapter, "cost", None)) else None
+        costs.append(cost)
+        if uses_cost:
+            policy.tell(index, record.validation_accuracy, cost)
+        elif hasattr(policy, "tell"):
             policy.tell(index, record.validation_accuracy)
     if not records:
         raise RuntimeError("benchmark search evaluated no architectures")
+    history = [{"step": step, "index": record.architecture_index,
+                "architecture_string": record.architecture_string,
+                "validation_accuracy": record.validation_accuracy,
+                **({"params_m": cost["params_m"], "flops_m": cost["flops_m"]} if cost else {})}
+               for step, (record, cost) in enumerate(zip(records, costs), start=1)]
+    extras = {}
+    if all(costs):
+        extras["hypervolume_validation_params"] = hypervolume_2d(
+            [(record.validation_accuracy, cost["params_m"]) for record, cost in zip(records, costs)], (0.0, 1.6))
     best = max(records, key=lambda record: record.validation_accuracy)
     return {"algorithm": algorithm, "dataset": dataset, "search_space": search_space,
             "seed": int(config.get("seed", 0)), "budget": int(config["budget_evaluations"]),
@@ -271,6 +277,7 @@ def benchmark_search(job: Job) -> dict:
             "held_out_test_accuracy": best.test_accuracy,
             "evidence_type": "benchmark_lookup",
             "evaluated_indices": [record.architecture_index for record in records],
+            "history": history, "policy_params": params, **extras,
             "archive_sha256": actual_checksum}
 
 
