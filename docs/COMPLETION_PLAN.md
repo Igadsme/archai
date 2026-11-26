@@ -6,18 +6,18 @@ The earlier audit-driven plan (passes 1–3) is kept in `docs/history/COMPLETION
 **Status vocabulary (spec):** COMPLETE = implemented *and* verified by an executed check ·
 IN PROGRESS · BLOCKED · NOT STARTED · FAILED. Interface-only work is never COMPLETE, and smoke tests
 alone never count as success. Evidence points at tests, scripts, or `TEST_REPORT.md` rows. "CI"
-means GitHub Actions. CI installs `.[dev,platform]` without torch, so torch-dependent tests run on
-the box only (see BLOCKERS B5).
+means GitHub Actions. Since `a69f60a`, CI has a no-torch `python` job and a CPU-only `python-torch` job
+(see BLOCKERS B5, resolved).
 
 **Current verdict: PARTIALLY COMPLETE.** E2E steps 1 (research project) and 3 (constraint inputs)
-are implemented and covered by the live 32/32 browser E2E at `71756c3`. COMPLETE AND VERIFIED is
-still not claimed: GitHub python CI is red because the workflow cannot be updated (B5), ArchAI-V1
-quality remains CPU smoke-scale, and the generator's param-budget *condition* is still not better
-than random (hard filtering is required).
+are implemented and covered by the live 32/32 browser E2E at `71756c3`. GitHub Actions python,
+python-torch, and web are green at `a69f60a`. COMPLETE AND VERIFIED is still not claimed:
+ArchAI-V1 quality remains CPU smoke-scale, the generator's param-budget *condition* is still not
+better than random (hard filtering is required), and browser E2E is not in CI (B9).
 
 "Browser E2E" below = `apps/web/e2e/studio.e2e.mjs` executed against the live local stack (API + Redis
 worker + Postgres + NATS-Bench), 32/32 checks at 1280×900 and 390×844 (TEST_REPORT.md, 71756c3). It is not in
-CI because the workflow file cannot be updated without `workflow` scope (B5/B9) and because it needs the stack.
+CI because it needs the live stack and NATS-Bench archive, which GitHub-hosted runners do not have (B9).
 
 ## 1. Studio pages (§10)
 

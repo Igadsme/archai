@@ -56,3 +56,6 @@ Executed results only. Nothing here is predicted or estimated. Every row was run
 | 2026-11-25 23:14 ET | 71756c3 (local) | Browser E2E at 1280×900 and 390×844 against the live stack | **32/32 passed**, 0 console errors (project create/select and generator constraint fields included) |
 | 2026-11-25 23:13 ET | 71756c3 | GitHub Actions | **python failed** (Alembic grep still requires `0006_experiment_started_at`; pytest and compileall on that job succeeded). **web succeeded**. https://github.com/Igadsme/archai/actions/runs/45753820023 |
 | 2026-11-25 22:55 PM and 11:14 PM ET | local attempts `47eec5f`, `5bc54e9` (reset, not pushed) | `git push` of `.github/workflows/ci.yml` | rejected: `refusing to allow a Personal Access Token to create or update workflow `.github/workflows/ci.yml` without \`workflow\` scope` |
+
+| 2026-11-25 11:26–11:27 PM ET | a69f60a | GitHub Actions CI (push) | **success**: python 156 passed, 35 skipped (no torch); Alembic `current` matches `heads` (`0007_research_projects (head)`); ruff clean; python-torch 188 passed, 3 skipped (CPU torch extra-index); web typecheck + build, 26 vitest. https://github.com/Igadsme/archai/actions/runs/45755199041 |
+| 2026-11-25 11:26–11:27 PM ET | a69f60a | GitHub Actions CI (pull_request) | **success** (python, python-torch, web). https://github.com/Igadsme/archai/actions/runs/45755205996 |

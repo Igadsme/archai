@@ -7,7 +7,7 @@
 - Measured CPU-smoke generator retraining with sampled budget ceilings (`research/results/generator_budget_ceiling_smoke/`); raw satisfaction still worse than random; hard rejection keeps the quality edge.
 - Live browser E2E now creates a research project (step 1) and checks generator constraint fields: **32/32** at `71756c3`.
 - 429 responses from the request-limit middleware include CORS headers; GET polls use a separate 600/min default (`8a7cb36`, `71756c3`).
-- Applying `.github/workflows/ci.yml` updates (Alembic 0007 grep, ruff, Node 22, CPU-torch, E2E job) was rejected for missing `workflow` scope; the proposal is in `docs/ci/ci.yml` only. GitHub python CI is red on the stale 0006 grep.
+- CI workflow applied at `a69f60a` once the token had Workflows read/write: ruff, Node 22, `npm ci`, CPU-only `python-torch` job, Alembic `current` vs `heads` (no hardcoded revision). Push and PR CI are green. Browser E2E is not in Actions (needs the live NATS-Bench stack).
 - Completion audit and plan (`docs/COMPLETION_PLAN.md`) and the required docs set (ARCHITECTURE, BLOCKERS, CHANGELOG, TEST_REPORT).
 - Studio: committed lockfile; Next 16.4.6 / React 19 (`npm audit`: 0 vulnerabilities); the web image uses `npm ci`.
 - Matched-budget experiment matrix runner (`scripts/run_experiment_matrix.py`, `research/experiments/`).

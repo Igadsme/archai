@@ -1,6 +1,6 @@
 # ARCHAI — FINAL ENGINEERING & RESEARCH COMPLETION REPORT
 
-Draft, 25 November 2026 (updated 11:15 PM ET), America/New_York. Filled only with executed, labeled numbers. Anything not
+Draft, 25 November 2026 (updated 11:28 PM ET), America/New_York. Filled only with executed, labeled numbers. Anything not
 measured is listed under §10. Verdict is in §11.
 
 Template: `docs/FINAL_COMPLETION_REPORT_TEMPLATE.md`. Acceptance list: `docs/SPEC_ACCEPTANCE.md`.
@@ -10,13 +10,13 @@ Template: `docs/FINAL_COMPLETION_REPORT_TEMPLATE.md`. Acceptance list: `docs/SPE
 - Scope: complete the ArchAI monorepo on `feat/complete-archai` (draft PR #1) against Imani’s
   acceptance list: measured NATS-Bench search-suite comparison, smoke-scale ArchAI-V1 training,
   Studio realigned to the ten spec pages, and this report.
-- Head of the branch at this update: `71756c3` and a following docs commit on `feat/complete-archai`
-  (draft PR #1). All of this work is pushed (no force-push).
+- Head of the branch at this update: `a69f60a` on `feat/complete-archai` (draft PR #1). All of this
+  work is pushed (no force-push).
 - **Verdict: PARTIALLY COMPLETE.** A matched-budget search suite is measured with CIs; the Studio
   talks to a real local stack; a 32/32 live browser E2E covers research-project create/select,
   constraint inputs, and the previous journey steps; generator and predictor quality numbers exist
-  only at CPU smoke scale. GitHub python CI is red because the workflow still greps Alembic 0006
-  and cannot be updated without `workflow` scope. COMPLETE AND VERIFIED is not claimed.
+  only at CPU smoke scale. GitHub Actions python, python-torch (CPU), and web are green at
+  `a69f60a`. COMPLETE AND VERIFIED is not claimed.
 - Facts that justify the verdict:
   1. At 100 NATS-Bench TSS queries, 10 seeds, Bayesian optimization’s mean best validation accuracy
      is 91.59% [91.47, 91.67] vs. random 91.03% [90.93, 91.16] (`benchmark_lookup`; CIs do not
@@ -66,9 +66,9 @@ Statuses use the spec vocabulary. Details and gaps: `docs/COMPLETION_PLAN.md`.
 | Search policies | COMPLETE | unit tests + measured 10-seed matrix + API/worker registry | EI acquisition unit-tested, not benchmarked |
 | Benchmark adapter | COMPLETE | official TSS protocol, checksum, measured matrices, live worker jobs | |
 | Training engine | COMPLETE | param-update and reload test; live synthetic candidate job in E2E | no live per-epoch progress channel |
-| API | COMPLETE | contract and Studio-endpoint tests; project CRUD; constraint merge; live `/readiness` | no audit-log read API; GitHub python CI red on stale Alembic grep |
+| API | COMPLETE | contract and Studio-endpoint tests; project CRUD; constraint merge; live `/readiness` | no audit-log read API |
 | Worker / queue | COMPLETE | Redis worker ran the measured searches and E2E jobs; `tests/test_live_services.py` | closed-loop `LearnedSearch` not driven by the worker |
-| Persistence | COMPLETE | Alembic 0007 on PostgreSQL 17 (live) and on local SQLite tests; experiment records and research projects | GitHub Actions still greps 0006, so the python job is red |
+| Persistence | COMPLETE | Alembic 0007 on PostgreSQL 17 (live); CI fresh-schema step compares `alembic current` to `alembic heads` | |
 | Studio | IN PROGRESS | ten spec pages, real backend, 32/32 live E2E (including project + constraint fields), desktop + mobile | E2E not in GitHub Actions (B9) |
 
 **Evidence:** `docs/COMPLETION_PLAN.md`; `TEST_REPORT.md`; `tests/`.
@@ -247,7 +247,7 @@ log; there is no read endpoint. Dataset, archive and checkpoint SHA-256 gates ar
 | Lint | `ruff check .` | same | All checks passed |
 | Studio unit / typecheck / build | `npx vitest run`, `npm run typecheck`, `npm run build` | `71756c3` | 26 vitest passed; tsc clean; Next 16.4.6 build, 10 routes prerendered |
 | Browser E2E (desktop + mobile) | `apps/web/e2e/studio.e2e.mjs` against live API + worker + NATS-Bench | `71756c3` | **32/32 passed**, 0 console errors |
-| GitHub Actions | python + web | `71756c3` | **python failed** (Alembic grep still requires 0006; pytest and compileall succeeded). **web succeeded**. https://github.com/Igadsme/archai/actions/runs/45753820023 |
+| GitHub Actions | python + python-torch + web | `a69f60a` | **success**. python 156 passed / 35 skipped, Alembic at `0007_research_projects (head)`; python-torch 188 passed / 3 skipped (CPU index); web succeeded. https://github.com/Igadsme/archai/actions/runs/45755199041 (push), https://github.com/Igadsme/archai/actions/runs/45755205996 (PR) |
 
 **Evidence:** `TEST_REPORT.md`; `/tmp/pt.txt`; `/workspace/archai-notes/e2e-run5.log` (API key redacted).
 
@@ -256,7 +256,7 @@ log; there is no read endpoint. Dataset, archive and checkpoint SHA-256 gates ar
 | Check | Status | Evidence |
 | --- | --- | --- |
 | Services start reliably | IN PROGRESS | Started from `infrastructure/local/README.md` twice (second time after the box replacement, including Postgres crash recovery). No automated repeated-start test. |
-| Migrations succeed | IN PROGRESS | Alembic 0007 on PostgreSQL 17.12 (live) and local SQLite tests; GitHub Actions still greps 0006 and fails |
+| Migrations succeed | COMPLETE | Alembic 0007 on PostgreSQL 17.12 (live); CI compares `alembic current` to `alembic heads` at `a69f60a` |
 | Workers connect | COMPLETE | Heartbeat on `/v1/infrastructure/workers`; E2E jobs ran |
 | Auth works | COMPLETE | pytest + live E2E; after a log leak the local key was rotated and the old key received HTTP 401 |
 | APIs respond | COMPLETE | `/readiness` = ready, redis rate limits, database ready (25 Nov 2026, 10:35 PM ET and after) |
@@ -300,10 +300,10 @@ Environment (box, 25 Nov 2026):
 | B2 / B6 | Truncated spec (page names, acceptance text) | resolved | Imani / Monday | `docs/SPEC_ACCEPTANCE.md` |
 | B3 | Hugging Face publication (M12) | decision | Imani | Authorization and a release decision |
 | B4 | GPU / large-scale training | decision / external | Imani | Approve compute if larger than CPU smoke is wanted |
-| B5 | Token lacks `workflow` scope; CI still greps Alembic 0006 and the python job is red from `f6ccb2d` | engineering / decision | Imani | Grant `workflow` scope or apply `docs/ci/ci.yml` in the GitHub UI |
+| B5 | Workflow scope / red 0006 grep | resolved | Imani | Applied at `a69f60a`; push and PR CI green (python, python-torch, web) |
 | B7 | Research-project entity | resolved | engineering | Alembic 0007, API CRUD, Studio create/select, E2E step 1 passed |
 | B8 | Constraint inputs are implemented; smoke-scale param-budget *condition* is still worse than random (0.762 vs 0.915) | engineering (quality) | Imani | Hard filter is the honest enforcement path at this scale; a larger corpus if the condition itself is to be improved |
-| B9 | Browser E2E is not in GitHub Actions (same `workflow` scope rejection as B5) | engineering / decision | Imani | Same as B5, plus a runner that has the live stack |
+| B9 | Browser E2E is not in GitHub Actions: runners lack the live stack and NATS-Bench archive | engineering / decision | Imani | A runner with the archive and services, if CI E2E is wanted |
 | — | Local API key was rotated 25 Nov 2026, 10:42 PM ET after an E2E Playwright error echoed the key field | process | engineering | Already rotated; E2E now redacts stdout/stderr. The key lives in `/workspace/archai-data/live/api-key` (never committed). |
 | — | `GITHUB_TOKEN` is present again; later commits were pushed normally | process | — | — |
 
@@ -321,9 +321,8 @@ The search suite is implemented and measured at a matched budget with CIs and fa
 controls; the Studio’s ten spec pages talk to a real local backend and a live browser E2E covers
 journey steps 4–10 at desktop and mobile widths; smoke-scale predictor and generator metrics exist
 and are labeled as such. COMPLETE AND VERIFIED is reserved for the entire acceptance suite, which
-this is not: GitHub python CI is red because the workflow cannot be edited without `workflow`
-scope; the generator's param-budget condition is still not better than random at smoke scale
-(filtering is required); CI does not install torch or run the browser E2E; and every quality
-number for ArchAI-V1 itself is smoke-scale.
+this is not: the generator's param-budget condition is still not better than random at smoke
+scale (filtering is required); browser E2E is not in GitHub Actions (it needs the live
+NATS-Bench stack); and every quality number for ArchAI-V1 itself is smoke-scale.
 
 **Evidence:** §§1–10 of this draft; `docs/COMPLETION_PLAN.md`; `TEST_REPORT.md`; `BLOCKERS.md`.
