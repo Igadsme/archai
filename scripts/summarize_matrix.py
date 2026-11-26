@@ -29,6 +29,49 @@ def oracle_by_seed(table_path: Path, seeds: list[int]) -> dict[int, dict]:
     return best
 
 
+def load_cells(table_path: Path) -> dict[int, dict]:
+    cells = {}
+    for line in table_path.read_text().splitlines():
+        if line.strip():
+            row = json.loads(line)
+            cells[row["index"]] = row
+    return cells
+
+
+def validation_for(row: dict, seed: int) -> float:
+    available = list(dict.fromkeys(trial["trial_seed"] for trial in row["trials"]))
+    by_trial = {trial["trial_seed"]: trial for trial in row["trials"]}
+    return by_trial[available[seed % len(available)]]["validation_accuracy"]
+
+
+def front(points: list[dict]) -> list[dict]:
+    """Non-dominated points: maximize validation accuracy, minimize params."""
+    ordered = sorted(points, key=lambda item: (item["params_m"], -item["validation_accuracy"]))
+    result, best = [], float("-inf")
+    for item in ordered:
+        if item["validation_accuracy"] > best:
+            result.append(item)
+            best = item["validation_accuracy"]
+    return result
+
+
+def pareto_payload(runs: list[dict], cells: dict[int, dict]) -> dict:
+    policies: dict[str, dict] = {}
+    for run in runs:
+        seed = int(run["seed"])
+        points = [{"index": index, "architecture_string": cells[index]["architecture_string"],
+                   "validation_accuracy": validation_for(cells[index], seed), "params_m": cells[index]["params_m"],
+                   "flops_m": cells[index]["flops_m"]} for index in run["evaluated_indices"]]
+        policies.setdefault(run["algorithm"], {})[str(seed)] = {
+            "front": front(points), "hypervolume": run.get("hypervolume_validation_params")}
+    space = [{"index": index, "architecture_string": row["architecture_string"],
+              "validation_accuracy": validation_for(row, 0), "params_m": row["params_m"], "flops_m": row["flops_m"]}
+             for index, row in cells.items()]
+    return {"objectives": {"maximize": "validation_accuracy (cifar10-valid, %)", "minimize": "params_m (millions)"},
+            "evidence_type": "benchmark_lookup", "hypervolume_reference": [0.0, 1.6],
+            "full_space_front_trial_seed_for_seed0": front(space), "policies": policies}
+
+
 def fmt(summary: dict, digits: int = 2) -> str:
     return f"{summary['mean']:.{digits}f} [{summary['ci_low']:.{digits}f}, {summary['ci_high']:.{digits}f}]"
 
@@ -68,6 +111,8 @@ def main() -> int:
     text = "\n".join(["Values are means over seeds with 95% bootstrap CIs [low, high]. Evidence type: benchmark_lookup.", "",
                       *lines, "", "Full-space oracle per seed (context only, never visible to any policy):", "", *oracle_lines, ""])
     args.output.write_text(text)
+    pareto = pareto_payload(runs, load_cells(args.table))
+    (args.output.parent / "pareto.json").write_text(json.dumps(pareto, sort_keys=True))
     args.output.with_suffix(".regret.json").write_text(json.dumps(regrets, indent=2, sort_keys=True))
     print(text)
     return 0

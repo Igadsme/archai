@@ -1,0 +1,450 @@
+{
+  "algorithms": {
+    "bayesian": {
+      "best_validation_accuracy": {
+        "ci_high": 91.66759998706054,
+        "ci_low": 91.47439998242187,
+        "max": 91.71999999023437,
+        "mean": 91.58879998486329,
+        "min": 91.17999997802734,
+        "n_seeds": 10.0,
+        "std": 0.1601532630371867
+      },
+      "final_test_accuracy": {
+        "ci_high": 94.404,
+        "ci_low": 94.146,
+        "max": 94.68,
+        "mean": 94.284,
+        "min": 93.82,
+        "n_seeds": 10.0,
+        "std": 0.2216202959016996
+      },
+      "hypervolume_validation_params": {
+        "ci_high": 136.40701315493416,
+        "ci_low": 134.0642819344318,
+        "max": 137.69068243516853,
+        "mean": 135.2744461914706,
+        "min": 131.01816151882053,
+        "n_seeds": 10.0,
+        "std": 2.0926956598582525
+      },
+      "runs": 10,
+      "search_cost": {
+        "ci_high": 100.0,
+        "ci_low": 100.0,
+        "max": 100.0,
+        "mean": 100.0,
+        "min": 100.0,
+        "n_seeds": 10.0,
+        "std": 0.0
+      }
+    },
+    "bayesian_no_uncertainty": {
+      "best_validation_accuracy": {
+        "ci_high": 91.62599998266602,
+        "ci_low": 91.32079998657227,
+        "max": 91.68399999267578,
+        "mean": 91.48639998266601,
+        "min": 90.94799998535156,
+        "n_seeds": 10.0,
+        "std": 0.26359025412043396
+      },
+      "final_test_accuracy": {
+        "ci_high": 94.19200000000001,
+        "ci_low": 93.826,
+        "max": 94.41,
+        "mean": 94.02,
+        "min": 93.38,
+        "n_seeds": 10.0,
+        "std": 0.31790984046843856
+      },
+      "hypervolume_validation_params": {
+        "ci_high": 136.04984477968947,
+        "ci_low": 133.11389579240438,
+        "max": 137.5121018001226,
+        "mean": 134.69617109291156,
+        "min": 128.37951364809962,
+        "n_seeds": 10.0,
+        "std": 2.6151140791979515
+      },
+      "runs": 10,
+      "search_cost": {
+        "ci_high": 100.0,
+        "ci_low": 100.0,
+        "max": 100.0,
+        "mean": 100.0,
+        "min": 100.0,
+        "n_seeds": 10.0,
+        "std": 0.0
+      }
+    },
+    "evolution": {
+      "best_validation_accuracy": {
+        "ci_high": 91.55359998828125,
+        "ci_low": 91.22719999511719,
+        "max": 91.71999999023437,
+        "mean": 91.40919999194335,
+        "min": 90.88000000976562,
+        "n_seeds": 10.0,
+        "std": 0.27037455059285664
+      },
+      "final_test_accuracy": {
+        "ci_high": 94.39,
+        "ci_low": 93.979,
+        "max": 94.68,
+        "mean": 94.18900000000001,
+        "min": 93.51,
+        "n_seeds": 10.0,
+        "std": 0.35846741677436894
+      },
+      "hypervolume_validation_params": {
+        "ci_high": 137.71915299240985,
+        "ci_low": 136.69927894089872,
+        "max": 138.10424330558342,
+        "mean": 137.25144165358822,
+        "min": 135.41530825432665,
+        "n_seeds": 10.0,
+        "std": 0.8933398617399253
+      },
+      "runs": 10,
+      "search_cost": {
+        "ci_high": 100.0,
+        "ci_low": 100.0,
+        "max": 100.0,
+        "mean": 100.0,
+        "min": 100.0,
+        "n_seeds": 10.0,
+        "std": 0.0
+      }
+    },
+    "evolution_no_tournament": {
+      "best_validation_accuracy": {
+        "ci_high": 91.32359998657228,
+        "ci_low": 90.93679998999023,
+        "max": 91.65199997070313,
+        "mean": 91.12399998779297,
+        "min": 90.67600001220703,
+        "n_seeds": 10.0,
+        "std": 0.3359153264613734
+      },
+      "final_test_accuracy": {
+        "ci_high": 93.909,
+        "ci_low": 93.46,
+        "max": 94.2,
+        "mean": 93.702,
+        "min": 92.97,
+        "n_seeds": 10.0,
+        "std": 0.3887244096614811
+      },
+      "hypervolume_validation_params": {
+        "ci_high": 137.78777139914422,
+        "ci_low": 137.37766743765226,
+        "max": 138.10975714362667,
+        "mean": 137.57901239252342,
+        "min": 137.0043681954723,
+        "n_seeds": 10.0,
+        "std": 0.35493481046920433
+      },
+      "runs": 10,
+      "search_cost": {
+        "ci_high": 100.0,
+        "ci_low": 100.0,
+        "max": 100.0,
+        "mean": 100.0,
+        "min": 100.0,
+        "n_seeds": 10.0,
+        "std": 0.0
+      }
+    },
+    "generator_guided": {
+      "best_validation_accuracy": {
+        "ci_high": 91.32159998803711,
+        "ci_low": 91.01159999389648,
+        "max": 91.71999999023437,
+        "mean": 91.15319999072265,
+        "min": 90.79999999267578,
+        "n_seeds": 10.0,
+        "std": 0.2629950549883982
+      },
+      "final_test_accuracy": {
+        "ci_high": 94.02000000000001,
+        "ci_low": 93.568,
+        "max": 94.68,
+        "mean": 93.784,
+        "min": 93.26,
+        "n_seeds": 10.0,
+        "std": 0.3979447197790176
+      },
+      "hypervolume_validation_params": {
+        "ci_high": 137.58505991199422,
+        "ci_low": 136.52529060681678,
+        "max": 138.0585984225198,
+        "mean": 137.1248818425634,
+        "min": 134.950376882551,
+        "n_seeds": 10.0,
+        "std": 0.9142545522642016
+      },
+      "runs": 10,
+      "search_cost": {
+        "ci_high": 100.0,
+        "ci_low": 100.0,
+        "max": 100.0,
+        "mean": 100.0,
+        "min": 100.0,
+        "n_seeds": 10.0,
+        "std": 0.0
+      }
+    },
+    "generator_guided_no_learning": {
+      "best_validation_accuracy": {
+        "ci_high": 91.33639998730469,
+        "ci_low": 90.81679998754883,
+        "max": 91.68399999267578,
+        "mean": 91.0867999855957,
+        "min": 90.23599997558594,
+        "n_seeds": 10.0,
+        "std": 0.4337251594319394
+      },
+      "final_test_accuracy": {
+        "ci_high": 94.069,
+        "ci_low": 93.542,
+        "max": 94.28,
+        "mean": 93.815,
+        "min": 92.95,
+        "n_seeds": 10.0,
+        "std": 0.43762617228253725
+      },
+      "hypervolume_validation_params": {
+        "ci_high": 137.75255499975862,
+        "ci_low": 137.24716514072966,
+        "max": 138.20034068219582,
+        "mean": 137.4920470194046,
+        "min": 136.85505374742837,
+        "n_seeds": 10.0,
+        "std": 0.4181815471953822
+      },
+      "runs": 10,
+      "search_cost": {
+        "ci_high": 100.0,
+        "ci_low": 100.0,
+        "max": 100.0,
+        "mean": 100.0,
+        "min": 100.0,
+        "n_seeds": 10.0,
+        "std": 0.0
+      }
+    },
+    "multi_objective": {
+      "best_validation_accuracy": {
+        "ci_high": 91.17359999023438,
+        "ci_low": 90.7787999855957,
+        "max": 91.43199998535157,
+        "mean": 90.97359998730468,
+        "min": 90.47599997558594,
+        "n_seeds": 10.0,
+        "std": 0.33700484655436336
+      },
+      "final_test_accuracy": {
+        "ci_high": 93.789,
+        "ci_low": 93.312,
+        "max": 94.01,
+        "mean": 93.557,
+        "min": 92.95,
+        "n_seeds": 10.0,
+        "std": 0.408657694300636
+      },
+      "hypervolume_validation_params": {
+        "ci_high": 137.78036732771716,
+        "ci_low": 137.39063646774494,
+        "max": 138.07151088255858,
+        "mean": 137.58587665470102,
+        "min": 137.013126632885,
+        "n_seeds": 10.0,
+        "std": 0.3167403419231503
+      },
+      "runs": 10,
+      "search_cost": {
+        "ci_high": 100.0,
+        "ci_low": 100.0,
+        "max": 100.0,
+        "mean": 100.0,
+        "min": 100.0,
+        "n_seeds": 10.0,
+        "std": 0.0
+      }
+    },
+    "predictor_guided": {
+      "best_validation_accuracy": {
+        "ci_high": 91.63959998901367,
+        "ci_low": 91.19159998852538,
+        "max": 91.71999999023437,
+        "mean": 91.44159998901367,
+        "min": 90.5880000024414,
+        "n_seeds": 10.0,
+        "std": 0.3868468514626224
+      },
+      "final_test_accuracy": {
+        "ci_high": 94.393,
+        "ci_low": 93.899,
+        "max": 94.68,
+        "mean": 94.177,
+        "min": 93.2,
+        "n_seeds": 10.0,
+        "std": 0.4280199891490023
+      },
+      "hypervolume_validation_params": {
+        "ci_high": 135.84307189514888,
+        "ci_low": 133.23032148178788,
+        "max": 137.38769556717924,
+        "mean": 134.57893559453433,
+        "min": 129.9564049815438,
+        "n_seeds": 10.0,
+        "std": 2.285728084224687
+      },
+      "runs": 10,
+      "search_cost": {
+        "ci_high": 100.0,
+        "ci_low": 100.0,
+        "max": 100.0,
+        "mean": 100.0,
+        "min": 100.0,
+        "n_seeds": 10.0,
+        "std": 0.0
+      }
+    },
+    "predictor_guided_small_pool": {
+      "best_validation_accuracy": {
+        "ci_high": 91.52679998486327,
+        "ci_low": 91.30079998632813,
+        "max": 91.65199997070313,
+        "mean": 91.4219999855957,
+        "min": 91.00799998291015,
+        "n_seeds": 10.0,
+        "std": 0.19082277799285907
+      },
+      "final_test_accuracy": {
+        "ci_high": 94.156,
+        "ci_low": 93.999,
+        "max": 94.36,
+        "mean": 94.075,
+        "min": 93.85,
+        "n_seeds": 10.0,
+        "std": 0.13810221657244506
+      },
+      "hypervolume_validation_params": {
+        "ci_high": 136.70237888830806,
+        "ci_low": 134.67697384845954,
+        "max": 137.74865016000606,
+        "mean": 135.71458249894366,
+        "min": 132.7012740939864,
+        "n_seeds": 10.0,
+        "std": 1.7438135248396356
+      },
+      "runs": 10,
+      "search_cost": {
+        "ci_high": 100.0,
+        "ci_low": 100.0,
+        "max": 100.0,
+        "mean": 100.0,
+        "min": 100.0,
+        "n_seeds": 10.0,
+        "std": 0.0
+      }
+    },
+    "random": {
+      "best_validation_accuracy": {
+        "ci_high": 91.16239998510743,
+        "ci_low": 90.92999998413086,
+        "max": 91.48799998535156,
+        "mean": 91.03239998608399,
+        "min": 90.78799999267578,
+        "n_seeds": 10.0,
+        "std": 0.1961083594862143
+      },
+      "final_test_accuracy": {
+        "ci_high": 93.92699999999999,
+        "ci_low": 93.63900000000001,
+        "max": 94.17,
+        "mean": 93.783,
+        "min": 93.29,
+        "n_seeds": 10.0,
+        "std": 0.2415252459773996
+      },
+      "hypervolume_validation_params": {
+        "ci_high": 137.7187941684558,
+        "ci_low": 137.30512164640848,
+        "max": 138.04734929558896,
+        "mean": 137.5039032196681,
+        "min": 136.99190523645595,
+        "n_seeds": 10.0,
+        "std": 0.35240744490374093
+      },
+      "runs": 10,
+      "search_cost": {
+        "ci_high": 100.0,
+        "ci_low": 100.0,
+        "max": 100.0,
+        "mean": 100.0,
+        "min": 100.0,
+        "n_seeds": 10.0,
+        "std": 0.0
+      }
+    },
+    "reinforce": {
+      "best_validation_accuracy": {
+        "ci_high": 91.32639998144532,
+        "ci_low": 90.93959998217774,
+        "max": 91.55199999023438,
+        "mean": 91.14119998364258,
+        "min": 90.53199998535156,
+        "n_seeds": 10.0,
+        "std": 0.32093225381510926
+      },
+      "final_test_accuracy": {
+        "ci_high": 94.174,
+        "ci_low": 93.92099999999999,
+        "max": 94.3,
+        "mean": 94.047,
+        "min": 93.74,
+        "n_seeds": 10.0,
+        "std": 0.21150518774830304
+      },
+      "hypervolume_validation_params": {
+        "ci_high": 137.8235702090307,
+        "ci_low": 137.24126601678546,
+        "max": 138.09412049511323,
+        "mean": 137.55954282154,
+        "min": 136.38139590783888,
+        "n_seeds": 10.0,
+        "std": 0.4959627684659734
+      },
+      "runs": 10,
+      "search_cost": {
+        "ci_high": 100.0,
+        "ci_low": 100.0,
+        "max": 100.0,
+        "mean": 100.0,
+        "min": 100.0,
+        "n_seeds": 10.0,
+        "std": 0.0
+      }
+    }
+  },
+  "matched_budget": 100.0,
+  "minimum_seeds": 10,
+  "required_algorithms": [
+    "bayesian",
+    "bayesian_no_uncertainty",
+    "evolution",
+    "evolution_no_tournament",
+    "generator_guided",
+    "generator_guided_no_learning",
+    "multi_objective",
+    "predictor_guided",
+    "predictor_guided_small_pool",
+    "random",
+    "reinforce"
+  ],
+  "run_count": 110,
+  "test_selection_policy": "validation_only"
+}
