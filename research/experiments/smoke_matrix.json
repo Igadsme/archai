@@ -1,0 +1,11 @@
+{
+  "name": "smoke_matrix",
+  "description": "Smoke-scale matrix (tiny index pool, 2 seeds) for checking the pipeline end to end against a real archive. Results are smoke-scale and not a research claim.",
+  "benchmark": {"search_space": "tss", "dataset": "cifar10"},
+  "indices": {"start": 0, "stop": 64},
+  "budget": 8,
+  "seeds": [0, 1],
+  "algorithms": ["random", "evolution"],
+  "evolution": {"population_size": 4, "sample_size": 2},
+  "report": {"bootstrap_seed": 0}
+}
