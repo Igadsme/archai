@@ -1,0 +1,13 @@
+{
+  "generator": {
+    "checkpoint": "/workspace/archai-data/checkpoints/archai_v1_generator_smoke.pt",
+    "reload_reproduces_samples": true,
+    "sha256_matches_report": true
+  },
+  "predictor": {
+    "checkpoint": "/workspace/archai-data/checkpoints/archai_v1_predictor_smoke.pt",
+    "code_revision": "2fe79d1992f544f7cdb6e43a868487f2a21e390e",
+    "reloaded_test_metrics_match_report": true,
+    "sha256_matches_report": true
+  }
+}
