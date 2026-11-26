@@ -138,7 +138,8 @@ check("research results: smoke result set shows its predictor report", await unt
 await desk.goto(`${STUDIO}/admin`); await desk.waitForLoadState("networkidle")
 check("system administration: readiness ready and a live worker listed", (await desk.getByRole("cell", { name: "ready", exact: true }).count()) > 0 && (await desk.locator("li code").count()) > 0)
 
-// ---- mobile: layout + menu on every page ----
+// ---- mobile: layout + menu on every page (close desktop first so its polls do not share the rate-limit budget) ----
+await desk.context().close()
 const mobile = await newPage({ width: 390, height: 844 })
 for (const [href, title] of PAGES) {
   await mobile.goto(`${STUDIO}${href}`); await mobile.waitForLoadState("networkidle")

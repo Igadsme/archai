@@ -210,22 +210,36 @@ def _redis_is_ready() -> bool:
         return False
 
 
+def _early_response(request: Request, detail: str, status_code: int, extra_headers: dict[str, str] | None = None) -> JSONResponse:
+    """Return an early status from request_limits with CORS headers.
+
+    `@app.middleware("http")` sits outside CORSMiddleware, so a bare JSONResponse
+    would otherwise be reported as a CORS failure in the browser.
+    """
+    headers = dict(extra_headers or {})
+    origin = request.headers.get("origin")
+    if origin and origin in _cors_origins:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Vary"] = "Origin"
+    return JSONResponse({"detail": detail}, status_code=status_code, headers=headers)
+
+
 @app.middleware("http")
 async def request_limits(request: Request, call_next):
     max_bytes = int(os.getenv("ARCHAI_MAX_REQUEST_BYTES", str(1024 * 1024)))
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > max_bytes:
-        return JSONResponse({"detail": "request body too large"}, status_code=413)
+        return _early_response(request, "request body too large", 413)
     if not content_length and request.method in {"POST", "PUT", "PATCH"}:
         body = await request.body()
         if len(body) > max_bytes:
-            return JSONResponse({"detail": "request body too large"}, status_code=413)
+            return _early_response(request, "request body too large", 413)
     limit = int(os.getenv("ARCHAI_RATE_LIMIT_PER_MINUTE", "120"))
     key = request.client.host if request.client else "unknown"
     decision = _rate_limiter.hit(key, limit)
     if not decision.allowed:
-        return JSONResponse({"detail": "rate limit exceeded"}, status_code=429,
-                            headers={"x-ratelimit-backend": decision.backend})
+        return _early_response(request, "rate limit exceeded", 429,
+                               {"x-ratelimit-backend": decision.backend})
     return await call_next(request)
 
 
