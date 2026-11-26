@@ -3,6 +3,9 @@ from __future__ import annotations
 import os
 import hashlib
 import hmac
+import json
+import logging
+import threading
 import re
 import time
 from collections import defaultdict, deque
@@ -191,6 +194,62 @@ async def request_limits(request: Request, call_next):
     window.append(now)
     return await call_next(request)
 
+
+
+_audit_logger = logging.getLogger("archai.audit")
+_audit_lock = threading.Lock()
+_AUDITED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def _credential_fingerprint(request: Request) -> str | None:
+    """Short SHA-256 fingerprint of the presented credential; the secret itself is never logged."""
+    supplied = request.headers.get("x-api-key")
+    authorization = request.headers.get("authorization")
+    if supplied is None and authorization and authorization.startswith("Bearer "):
+        supplied = authorization.removeprefix("Bearer ")
+    if not supplied:
+        return None
+    return hashlib.sha256(supplied.encode()).hexdigest()[:12]
+
+
+def _write_audit_event(event: dict) -> None:
+    line = json.dumps(event, sort_keys=True)
+    _audit_logger.info(line)
+    destination = os.getenv("ARCHAI_AUDIT_LOG")
+    if not destination:
+        return
+    path = Path(destination)
+    with _audit_lock:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(line + "\n")
+
+
+@app.middleware("http")
+async def audit_writes(request: Request, call_next):
+    """Append-only audit trail for every state-changing request, including rejected ones.
+
+    Registered after `request_limits`, so it wraps it and also records 413/429 rejections.
+    """
+    if request.method not in _AUDITED_METHODS:
+        return await call_next(request)
+    started = time.monotonic()
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        _write_audit_event({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "method": request.method,
+            "path": request.url.path,
+            "status": status_code,
+            "outcome": "allowed" if status_code < 400 else "rejected",
+            "client": request.client.host if request.client else None,
+            "credential_fingerprint": _credential_fingerprint(request),
+            "duration_ms": round((time.monotonic() - started) * 1000, 3),
+        })
 
 class SearchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")

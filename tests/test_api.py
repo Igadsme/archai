@@ -270,3 +270,38 @@ def test_generator_endpoint_loads_checkpoint_and_returns_valid_architectures(mon
     assert body["count"] == 2
     assert len(body["items"]) == 2
     assert all(item["architecture_id"] for item in body["items"])
+
+
+def test_write_requests_are_audited_without_leaking_credentials(monkeypatch, tmp_path):
+    import json
+    audit = tmp_path / "audit" / "events.jsonl"
+    monkeypatch.setenv("ARCHAI_AUDIT_LOG", str(audit))
+    monkeypatch.setenv("ARCHAI_API_KEY", "audit-secret-key")
+    client = TestClient(app)
+    assert client.post("/v1/architectures", json=payload()).status_code == 401
+    assert client.post("/v1/architectures", json=payload(),
+                       headers={"x-api-key": "audit-secret-key"}).status_code == 200
+    client.get("/health")
+    text = audit.read_text()
+    assert "audit-secret-key" not in text
+    events = [json.loads(line) for line in text.splitlines()]
+    assert [(event["method"], event["path"], event["status"], event["outcome"]) for event in events] == [
+        ("POST", "/v1/architectures", 401, "rejected"),
+        ("POST", "/v1/architectures", 200, "allowed"),
+    ]
+    assert events[0]["credential_fingerprint"] is None
+    assert events[1]["credential_fingerprint"] == hashlib.sha256(b"audit-secret-key").hexdigest()[:12]
+
+
+def test_rate_limited_writes_are_audited(monkeypatch, tmp_path):
+    import json
+    from archai_api import main as api_main
+    audit = tmp_path / "events.jsonl"
+    monkeypatch.setenv("ARCHAI_AUDIT_LOG", str(audit))
+    monkeypatch.setenv("ARCHAI_RATE_LIMIT_PER_MINUTE", "1")
+    monkeypatch.setattr(api_main, "_rate_windows", api_main.defaultdict(api_main.deque))
+    client = TestClient(app)
+    client.post("/v1/architectures/validate", json=payload())
+    assert client.post("/v1/architectures/validate", json=payload()).status_code == 429
+    statuses = [json.loads(line)["status"] for line in audit.read_text().splitlines()]
+    assert statuses[-1] == 429
