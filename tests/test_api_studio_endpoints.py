@@ -116,3 +116,22 @@ def test_research_results_are_listed_and_names_are_restricted(monkeypatch, tmp_p
 def test_committed_research_results_are_served():
     names = [item["name"] for item in TestClient(app).get("/v1/research/results").json()["items"]]
     assert "archai_v1_smoke" in names and "nasbench201_cifar10_cpu_small" in names
+
+
+def test_research_result_includes_regret_and_its_experiment_config(monkeypatch, tmp_path):
+    root = tmp_path / "results"
+    (root / "unit_suite").mkdir(parents=True)
+    (root / "unit_suite" / "results.regret.json").write_text(json.dumps({"random": {"mean": 0.5}}))
+    (tmp_path / "experiments").mkdir()
+    (tmp_path / "experiments" / "unit_suite.json").write_text(json.dumps({"name": "unit_suite", "ablations": []}))
+    monkeypatch.setenv("ARCHAI_RESULTS_DIR", str(root))
+    detail = TestClient(app).get("/v1/research/results/unit_suite").json()
+    assert detail["regret"] == {"random": {"mean": 0.5}}
+    assert detail["experiment"]["name"] == "unit_suite"
+
+
+def test_committed_full_suite_serves_its_ablation_config():
+    detail = TestClient(app).get("/v1/research/results/nasbench201_cifar10_full_suite").json()
+    ablations = {item["name"] for item in detail["experiment"]["ablations"]}
+    assert ablations and ablations <= set(detail["report"]["algorithms"])
+    assert set(detail["regret"]) == set(detail["report"]["algorithms"])

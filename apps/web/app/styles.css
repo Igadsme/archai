@@ -13,3 +13,24 @@ label { display: grid; gap: 6px; font-size: 12px; color: #aab9d0; } input, selec
 .key-field { margin-top: 24px; } .errors { color: #f0a0aa; font-size: 13px; } .errors li { border: 0; padding: 4px 0; }
 table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; } th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); } th { color: var(--muted); font-weight: 600; }
 .cards { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+/* Studio realignment: accessibility, explicit unavailable states, charts, mobile layout */
+.skip-link { position: absolute; left: -999px; top: 8px; background: #254e5a; color: #fff; padding: 8px 12px; border-radius: 6px; z-index: 10; } .skip-link:focus { left: 8px; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #7fe0d2; outline-offset: 2px; }
+nav a[aria-current="page"] { font-weight: 600; }
+.brand-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; } .menu-toggle { display: none; }
+.tagline { margin-top: 4px; }
+.unavailable { display: grid; gap: 4px; border: 1px dashed #8a5a62; background: #241820; color: #f0c7cd; border-radius: 8px; padding: 12px 14px; margin: 12px 0; font-size: 13px; } .unavailable span { color: #cfa9b0; }
+.error-text { color: #f0a0aa; max-width: 60%; text-align: right; overflow-wrap: anywhere; }
+.chart { margin: 12px 0 0; } .chart svg { width: 100%; height: auto; background: #0c1322; border: 1px solid var(--line); border-radius: 8px; }
+.chart figcaption { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--muted); } .chart figcaption i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.dag-scroll { overflow-x: auto; margin-top: 12px; background: #0c1322; border: 1px solid var(--line); border-radius: 8px; }
+.table-scroll { overflow-x: auto; } .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.readme { white-space: pre-wrap; font-size: 12px; color: var(--muted); max-height: 360px; overflow: auto; background: #0c1322; padding: 12px; border-radius: 8px; }
+.checks { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; } .checks label { display: flex; align-items: center; gap: 6px; }
+@media (max-width: 800px) {
+  .menu-toggle { display: inline-block; }
+  .sidebar nav { display: none; } .sidebar nav.open { display: grid; }
+  .content { padding: 20px 14px; } .topbar { flex-direction: column; align-items: flex-start; gap: 10px; }
+  h2 { font-size: 28px; } li { flex-direction: column; gap: 4px; } .error-text { max-width: 100%; text-align: left; }
+  table { font-size: 12px; } th, td { padding: 7px 5px; }
+}

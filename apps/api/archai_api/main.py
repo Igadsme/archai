@@ -832,12 +832,16 @@ def get_research_result(name: str):
     result: dict[str, object] = {"name": name}
     for file_name, key in (("report.json", "report"), ("pareto.json", "pareto"),
                            ("predictor_report.json", "predictor"), ("generator_report.json", "generator"),
-                           ("checkpoint_verification.json", "checkpoint_verification")):
+                           ("checkpoint_verification.json", "checkpoint_verification"),
+                           ("results.regret.json", "regret")):
         if (path / file_name).is_file():
             result[key] = json.loads((path / file_name).read_text())
     for file_name, key in (("README.md", "readme"), ("results.md", "tables")):
         if (path / file_name).is_file():
             result[key] = (path / file_name).read_text()
+    experiment = _results_root().parent / "experiments" / f"{name}.json"
+    if experiment.is_file():  # the committed config that produced this result set
+        result["experiment"] = json.loads(experiment.read_text())
     return result
 
 

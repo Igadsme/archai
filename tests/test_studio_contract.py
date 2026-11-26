@@ -29,3 +29,15 @@ def test_api_accepts_every_studio_training_request():
         assert created.status_code == 200, (name, created.text)
         assert created.json()["kind"] == kind
         assert client.post(f"/v1/jobs/{created.json()['job_id']}/cancel").status_code == 200
+
+
+def test_studio_policy_list_matches_the_backend_registry():
+    from archai_benchmark.policy_registry import ALGORITHMS
+    assert FIXTURES["algorithms"] == list(ALGORITHMS)
+
+
+def test_studio_hypervolume_fixture_matches_python():
+    from archai_benchmark.research_metrics import hypervolume_2d
+    fixture = json.loads((Path(__file__).resolve().parents[1] / "apps/web/app/lib/fixtures/pareto.json").read_text())
+    points = [(p["validation_accuracy"], p["params_m"]) for p in fixture["points"]]
+    assert hypervolume_2d(points, tuple(fixture["reference"])) == fixture["hypervolume"]

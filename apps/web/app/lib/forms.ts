@@ -3,7 +3,7 @@
 
 export type Result<T> = { ok: true; value: T } | { ok: false; errors: string[] }
 
-export const SEARCH_ALGORITHMS = ["random", "evolution", "bayesian"] as const
+export const SEARCH_ALGORITHMS = ["random", "evolution", "reinforce", "bayesian", "predictor_guided", "generator_guided", "multi_objective"] as const
 export type SearchForm = { algorithm: string; datasetId: string; budget: string; seed: string; indices: string }
 export type SearchRequest = { algorithm: string; dataset_id: string; budget_evaluations: number; seed: number; indices: number[] }
 
@@ -33,7 +33,7 @@ export function parseIndices(raw: string, maxCount = 100_000): Result<number[]> 
 
 export function buildSearchRequest(form: SearchForm): Result<SearchRequest> {
   const errors: string[] = []
-  if (!(SEARCH_ALGORITHMS as readonly string[]).includes(form.algorithm)) errors.push("algorithm must be random, evolution or bayesian")
+  if (!(SEARCH_ALGORITHMS as readonly string[]).includes(form.algorithm)) errors.push(`algorithm must be one of ${SEARCH_ALGORITHMS.join(", ")}`)
   const datasetId = form.datasetId.trim()
   if (!datasetId || datasetId.length > 128) errors.push("dataset is required (max 128 characters)")
   const budget = integer(form.budget)

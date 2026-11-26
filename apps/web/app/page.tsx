@@ -1,30 +1,39 @@
 "use client"
 import Link from "next/link"
-import { Empty, PageHeader } from "./components/Shell"
+import { Empty, Loaded, PageHeader } from "./components/Shell"
 import { items, usePoll } from "./components/usePoll"
-import type { ArchitectureItem, DatasetItem, ExperimentItem, JobItem, ModelItem, Readiness, SearchItem } from "./lib/types"
+import { ci, splitAblations } from "./lib/results"
+import type { ArchitectureItem, ExperimentItem, JobItem, ModelItem, Readiness, ResearchResult, SearchItem } from "./lib/types"
 
-export default function Overview() {
-  const architectures = items(usePoll<{ items: ArchitectureItem[] }>("/v1/architectures").data)
-  const searches = items(usePoll<{ items: SearchItem[] }>("/v1/searches").data)
-  const experiments = items(usePoll<{ items: ExperimentItem[] }>("/v1/experiments").data)
-  const datasets = items(usePoll<{ items: DatasetItem[] }>("/v1/datasets").data)
-  const jobs = items(usePoll<{ items: JobItem[] }>("/v1/jobs").data)
-  const models = items(usePoll<{ items: ModelItem[] }>("/v1/models").data)
-  const readiness = usePoll<Readiness>("/readiness").data
-  const cards: [string, number, string, string][] = [
-    ["Architectures", architectures.length, "API-backed records", "/architectures"],
-    ["Search sessions", searches.length, `${searches.filter((item) => item.status === "running").length} running`, "/search"],
-    ["Experiments", experiments.length, `${experiments.filter((item) => item.status === "completed").length} completed`, "/experiments"],
-    ["Datasets", datasets.length, "Checksum-registered", "/datasets"],
-    ["Jobs", jobs.length, `${jobs.filter((item) => item.status === "running").length} running`, "/training"],
+export default function ResearchDashboard() {
+  const architectures = usePoll<{ items: ArchitectureItem[] }>("/v1/architectures")
+  const searches = usePoll<{ items: SearchItem[] }>("/v1/searches")
+  const experiments = usePoll<{ items: ExperimentItem[] }>("/v1/experiments")
+  const jobs = usePoll<{ items: JobItem[] }>("/v1/jobs")
+  const models = usePoll<{ items: ModelItem[] }>("/v1/models")
+  const readiness = usePoll<Readiness>("/readiness")
+  const suite = usePoll<ResearchResult>("/v1/research/results/nasbench201_cifar10_full_suite", 0)
+  const count = (poll: { data: { items?: unknown[] } | null; error: string | null }) => poll.error ? "—" : String(items(poll.data).length)
+  const failed = items(jobs.data).filter((job) => job.status === "failed")
+  const cards: [string, string, string, string][] = [
+    ["Architectures", count(architectures), "validated, hash-addressed", "/explorer"],
+    ["Search sessions", count(searches), `${items(searches.data).filter((s) => s.status === "running").length} running`, "/search"],
+    ["Experiments", count(experiments), `${items(experiments.data).filter((e) => e.status === "completed").length} completed`, "/results"],
+    ["Jobs", count(jobs), `${failed.length} failed`, "/training"],
+    ["Checkpoints", count(models), "integrity-checked", "/models"],
   ]
   return <>
-    <PageHeader eyebrow="RESEARCH OVERVIEW" title="Controlled discovery workspace" note={readiness ? `Readiness: ${readiness.status} · rate limits: ${readiness.rate_limit_backend ?? "unknown"}` : "API unreachable"} />
+    <PageHeader eyebrow="RESEARCH DASHBOARD" title="Controlled discovery workspace"
+      note={readiness.data ? `Readiness: ${readiness.data.status} · rate limits: ${readiness.data.rate_limit_backend ?? "unknown"}` : `API: ${readiness.error ?? "checking"}`} />
     <div className="cards">{cards.map(([label, value, note, href]) => <Link className="card-link" href={href} key={label}><article><span className="label">{label}</span><strong>{value}</strong><small>{note}</small></article></Link>)}</div>
     <div className="grid">
-      <article className="panel"><p className="eyebrow">EVIDENCE LOG</p><h3>Recent experiments</h3>{experiments.length === 0 ? <Empty>No experiment evidence recorded.</Empty> : <ul>{experiments.slice(0, 6).map((item) => <li key={item.experiment_id}><code>{item.evidence_type}</code><span>{item.status}</span></li>)}</ul>}</article>
-      <article className="panel"><p className="eyebrow">MODEL REGISTRY</p><h3>Checkpoints</h3>{models.length === 0 ? <Empty>No model checkpoints registered.</Empty> : <ul>{models.slice(0, 6).map((item) => <li key={`${item.model_id}-${item.version}`}><code>{item.model_id}</code><span>{item.kind} · {item.version}</span></li>)}</ul>}</article>
+      <article className="panel"><p className="eyebrow">MEASURED BENCHMARK (benchmark_lookup)</p><h3>Best validation accuracy at 100 queries</h3>
+        <Loaded poll={suite}>{(data) => data.report ? <table><thead><tr><th>Policy</th><th>Mean [95% CI], 10 seeds</th></tr></thead><tbody>
+          {splitAblations(data).policies.map((name) => <tr key={name}><td>{name}</td><td className="num">{ci(data.report!.algorithms[name].best_validation_accuracy)}</td></tr>)}
+        </tbody></table> : <Empty>No report in this result set.</Empty>}</Loaded>
+        <p><Link href="/results">All measured results →</Link></p></article>
+      <article className="panel"><p className="eyebrow">ERRORS</p><h3>Failed jobs</h3>
+        <Loaded poll={jobs} isEmpty={() => failed.length === 0} empty="No failed jobs.">{() => <ul>{failed.slice(0, 8).map((job) => <li key={job.job_id}><code>{job.kind} · {job.job_id.slice(0, 8)}</code><span className="error-text">{job.error}</span></li>)}</ul>}</Loaded></article>
     </div>
   </>
 }
