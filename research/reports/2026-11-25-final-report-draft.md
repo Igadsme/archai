@@ -13,10 +13,11 @@ Template: `docs/FINAL_COMPLETION_REPORT_TEMPLATE.md`. Acceptance list: `docs/SPE
 - Head of the branch at this update: `a69f60a` on `feat/complete-archai` (draft PR #1). All of this
   work is pushed (no force-push).
 - **Verdict: PARTIALLY COMPLETE.** A matched-budget search suite is measured with CIs; the Studio
-  talks to a real local stack; a 32/32 live browser E2E covers research-project create/select,
-  constraint inputs, and the previous journey steps; generator and predictor quality numbers exist
-  only at CPU smoke scale. GitHub Actions python, python-torch (CPU), and web are green at
-  `a69f60a`. COMPLETE AND VERIFIED is not claimed.
+  talks to a real local stack; a 32/32 live browser E2E covers the official-archive journey, and a
+  33/33 fixture-only Studio E2E is green in GitHub Actions; at CPU smoke scale the binned budget
+  condition now beats uniform random on param-budget satisfaction. Generator and predictor quality
+  numbers remain smoke-scale only; B3 (HF) and B4 (GPU) are still open. COMPLETE AND VERIFIED is
+  not claimed.
 - Facts that justify the verdict:
   1. At 100 NATS-Bench TSS queries, 10 seeds, Bayesian optimization’s mean best validation accuracy
      is 91.59% [91.47, 91.67] vs. random 91.03% [90.93, 91.16] (`benchmark_lookup`; CIs do not
@@ -26,13 +27,16 @@ Template: `docs/FINAL_COMPLETION_REPORT_TEMPLATE.md`. Acceptance list: `docs/SPE
   3. ArchAI-V1 predictor, smoke-scale, held-out n=100: MAE 0.0539, Spearman 0.753 (`predicted`
      outputs scored against `benchmark_lookup` labels; training itself is smoke-scale).
   4. Live browser E2E, 32/32 checks at 1280×900 and 390×844 against API + Redis worker + Postgres +
-     the verified archive (not in CI), including E2E step 1 (create/select project).
-  5. CPU-smoke generator with sampled budget-ceiling conditioning (`a61f4e7`, 2000 cells, 300
-     epochs, ~5.3 s): raw param-budget satisfaction 0.762 vs uniform random 0.915 vs the earlier
-     point-estimate run 0.690. Hard rejection yield 0.781 (1000/1280), mean val acc 89.82% vs
-     82.73% random feasible (`benchmark_lookup`). The condition alone is still not better than
-     random; a budget must be enforced by filtering.
-  5. Random and Bayesian seed-0 runs repeated at `07d729c` matched the recorded `2fe79d1` values
+     the verified archive (local), including E2E step 1 (create/select project). GitHub Actions
+     `studio-e2e (fixture-only)` is **33/33** at `0dff0de` on a 256-cell committed fixture (not a
+     research result).
+  5. CPU-smoke generator with binned budget-ceiling conditioning (`6ca450d`, 2000 cells, 300
+     epochs, seed 0, ~10 s): raw param-budget satisfaction **0.983 vs uniform random 0.908** vs
+     untrained 0.889, mean val acc 89.49 vs 83.41 (`benchmark_lookup`). Hard-reject yield 0.977
+     (1000/1024), mean val 89.71 vs 82.73 random feasible. A 40-epoch rejection-penalty ablation
+     reached satisfaction 1.0 but dropped mean val below random (74.18 vs 83.41) and was not
+     selected. Report: `research/results/generator_budget_bins_smoke/`.
+  6. Random and Bayesian seed-0 runs repeated at `07d729c` matched the recorded `2fe79d1` values
      exactly (`benchmark_lookup`).
 
 **Evidence:** this report; `research/results/nasbench201_cifar10_full_suite/`;
@@ -69,7 +73,7 @@ Statuses use the spec vocabulary. Details and gaps: `docs/COMPLETION_PLAN.md`.
 | API | COMPLETE | contract and Studio-endpoint tests; project CRUD; constraint merge; live `/readiness` | no audit-log read API |
 | Worker / queue | COMPLETE | Redis worker ran the measured searches and E2E jobs; `tests/test_live_services.py` | closed-loop `LearnedSearch` not driven by the worker |
 | Persistence | COMPLETE | Alembic 0007 on PostgreSQL 17 (live); CI fresh-schema step compares `alembic current` to `alembic heads` | |
-| Studio | IN PROGRESS | ten spec pages, real backend, 32/32 live E2E (including project + constraint fields), desktop + mobile | E2E not in GitHub Actions (B9) |
+| Studio | IN PROGRESS | ten spec pages, real backend, 32/32 official-archive E2E locally and 33/33 fixture-only E2E in Actions, desktop + mobile | quality numbers remain smoke-scale |
 
 **Evidence:** `docs/COMPLETION_PLAN.md`; `TEST_REPORT.md`; `tests/`.
 
@@ -117,7 +121,18 @@ CPU smoke-scale and is not a quality claim at production scale.
 | Untrained generator | 84.42 | 91.55 | 0.850 | 0.973 | 0.865 | 1.000 | 0.982 |
 
 The high-accuracy condition raises mean validation accuracy above random and the untrained
-generator. The parameter-budget condition is **not** met better than random (0.690 vs. 0.924).
+generator. The original parameter-budget *point* condition is **not** met better than random
+(0.690 vs. 0.924). A later 2-d ceiling condition improved satisfaction to 0.762, still below
+random 0.915 (`research/results/generator_budget_ceiling_smoke/`).
+
+At `6ca450d` / `f7b7e48`, an 8-d binned ceiling condition with tight-budget oversampling (no
+rejection penalty) was measured at the same CPU smoke scale (2000 cells, 300 epochs, seed 0,
+~10 s). Raw satisfaction is **0.983 vs uniform random 0.908**, mean val acc 89.49 vs 83.41,
+hard-reject yield 0.977 (1000/1024) with mean val 89.71 vs 82.73 random feasible
+(`benchmark_lookup`). Checkpoint SHA-256 `954cfab08e64103db499bc6171a261d29737b68915a6291bccd65acfef920cfe`
+(outside git). A 40-epoch rejection-aware penalty reached satisfaction 1.0 but dropped mean val
+to 74.18, below random, and was not selected. This remains smoke-scale. Report:
+`research/results/generator_budget_bins_smoke/`.
 
 A separate 2-example corpus was trained on the live worker so the Studio generator page could be
 E2E-tested (`archai_v1_api_generator_smoke.pt`, SHA-256 `66931a042259b0fee2a88ede0548de891b8d4453be1eab263e62d28c2e0fe544`,
@@ -246,8 +261,8 @@ log; there is no read endpoint. Dataset, archive and checkpoint SHA-256 gates ar
 | Live-service tests | `pytest tests/test_live_services.py` against local Redis/Postgres | same | **3 passed** |
 | Lint | `ruff check .` | same | All checks passed |
 | Studio unit / typecheck / build | `npx vitest run`, `npm run typecheck`, `npm run build` | `71756c3` | 26 vitest passed; tsc clean; Next 16.4.6 build, 10 routes prerendered |
-| Browser E2E (desktop + mobile) | `apps/web/e2e/studio.e2e.mjs` against live API + worker + NATS-Bench | `71756c3` | **32/32 passed**, 0 console errors |
-| GitHub Actions | python + python-torch + web | `a69f60a` | **success**. python 156 passed / 35 skipped, Alembic at `0007_research_projects (head)`; python-torch 188 passed / 3 skipped (CPU index); web succeeded. https://github.com/Igadsme/archai/actions/runs/45755199041 (push), https://github.com/Igadsme/archai/actions/runs/45755205996 (PR) |
+| Browser E2E (desktop + mobile, official archive) | `apps/web/e2e/studio.e2e.mjs` against live API + worker + NATS-Bench | `71756c3` | **32/32 passed**, 0 console errors |
+| GitHub Actions | python + python-torch + web + studio-e2e (fixture-only) | `0dff0de` | **success**. python 159 passed / 35 skipped; python-torch 191 passed / 3 skipped; web succeeded; studio-e2e **33/33**. Push: https://github.com/Igadsme/archai/actions/runs/45761551116 — PR: https://github.com/Igadsme/archai/actions/runs/45761556382 |
 
 **Evidence:** `TEST_REPORT.md`; `/tmp/pt.txt`; `/workspace/archai-notes/e2e-run5.log` (API key redacted).
 
@@ -255,7 +270,7 @@ log; there is no read endpoint. Dataset, archive and checkpoint SHA-256 gates ar
 
 | Check | Status | Evidence |
 | --- | --- | --- |
-| Services start reliably | IN PROGRESS | Started from `infrastructure/local/README.md` twice (second time after the box replacement, including Postgres crash recovery). No automated repeated-start test. |
+| Services start reliably | IN PROGRESS | Started from `infrastructure/local/README.md` twice (including Postgres crash recovery). Executed mid-search restarts on 2026-11-26 12:16 AM ET: API restart, worker+lease recovery (65 s), and Postgres stop/start; searches succeeded and a project row persisted. `pg_ctl start -w` with captured stdout hung (postgres inherited the pipe); the checker was stopped, the stack stayed up. |
 | Migrations succeed | COMPLETE | Alembic 0007 on PostgreSQL 17.12 (live); CI compares `alembic current` to `alembic heads` at `a69f60a` |
 | Workers connect | COMPLETE | Heartbeat on `/v1/infrastructure/workers`; E2E jobs ran |
 | Auth works | COMPLETE | pytest + live E2E; after a log leak the local key was rotated and the old key received HTTP 401 |
@@ -302,27 +317,32 @@ Environment (box, 25 Nov 2026):
 | B4 | GPU / large-scale training | decision / external | Imani | Approve compute if larger than CPU smoke is wanted |
 | B5 | Workflow scope / red 0006 grep | resolved | Imani | Applied at `a69f60a`; push and PR CI green (python, python-torch, web) |
 | B7 | Research-project entity | resolved | engineering | Alembic 0007, API CRUD, Studio create/select, E2E step 1 passed |
-| B8 | Constraint inputs are implemented; smoke-scale param-budget *condition* is still worse than random (0.762 vs 0.915) | engineering (quality) | Imani | Hard filter is the honest enforcement path at this scale; a larger corpus if the condition itself is to be improved |
-| B9 | Browser E2E is not in GitHub Actions: runners lack the live stack and NATS-Bench archive | engineering / decision | Imani | A runner with the archive and services, if CI E2E is wanted |
+| B8 | Constraint inputs plus binned-ceiling condition (CPU smoke): raw satisfaction 0.983 vs random 0.908 | resolved (smoke-scale) | engineering | Still smoke-scale; a larger corpus would be needed for a non-smoke quality claim |
+| B9 | Browser E2E now runs in GitHub Actions on a 256-cell fixture-only subset (`0dff0de`, 33/33) | resolved | engineering | Fixture runs are not official-benchmark research results |
 | — | Local API key was rotated 25 Nov 2026, 10:42 PM ET after an E2E Playwright error echoed the key field | process | engineering | Already rotated; E2E now redacts stdout/stderr. The key lives in `/workspace/archai-data/live/api-key` (never committed). |
 | — | `GITHUB_TOKEN` is present again; later commits were pushed normally | process | — | — |
 
 Unmeasured, and therefore **not** claimed: production-scale generator/predictor quality; a repeated
 full 10-seed matrix (only seed 0 of random and Bayesian was repeated); EI vs. UCB on the archive;
 ImageNet or datasets other than NATS-Bench TSS CIFAR-10; live per-epoch training progress; a
-worker-driven Generate→…→Repeat closed loop that includes real training; Python dependency audit;
-scripted mid-flight worker recovery; any GPU number.
+worker-driven Generate→…→Repeat closed loop that includes real training; any GPU number.
+
+Executed in this pass and recorded in `TEST_REPORT.md`: mid-search API / worker (lease recovery) /
+Postgres restarts; `pip-audit` (14 findings in pip 25.1.1 and pytest 8.4.2; torch CPU wheels
+skipped); `npm audit` (0 vulnerabilities); auth/rate-limit unit tests; a secret scan of the git
+tree (live API key not present). The live box API process does not currently enforce a write key.
 
 ## 11. Final Verdict
 
 **PARTIALLY COMPLETE.**
 
 The search suite is implemented and measured at a matched budget with CIs and fair-baseline
-controls; the Studio’s ten spec pages talk to a real local backend and a live browser E2E covers
-journey steps 4–10 at desktop and mobile widths; smoke-scale predictor and generator metrics exist
-and are labeled as such. COMPLETE AND VERIFIED is reserved for the entire acceptance suite, which
-this is not: the generator's param-budget condition is still not better than random at smoke
-scale (filtering is required); browser E2E is not in GitHub Actions (it needs the live
-NATS-Bench stack); and every quality number for ArchAI-V1 itself is smoke-scale.
+controls; the Studio’s ten spec pages talk to a real local backend; a live official-archive
+browser E2E is 32/32 locally and a fixture-only E2E is 33/33 in GitHub Actions; at CPU smoke
+scale the binned budget condition beats uniform random on param-budget satisfaction (0.983 vs
+0.908) without dropping quality below random. COMPLETE AND VERIFIED is reserved for the entire
+acceptance suite, which this is not: every quality number for ArchAI-V1 itself is still
+smoke-scale, and B3 (Hugging Face publication) and B4 (GPU / larger-than-smoke training) remain
+open and untouched.
 
 **Evidence:** §§1–10 of this draft; `docs/COMPLETION_PLAN.md`; `TEST_REPORT.md`; `BLOCKERS.md`.
