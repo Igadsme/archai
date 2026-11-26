@@ -1,111 +1,145 @@
-# ArchAI completion plan
+# ArchAI completion plan, tracked against the acceptance list
 
-Written 2026-11-25 (America/New_York) on `feat/complete-archai`, base `master` @ 30dc46a.
+Source of truth: `docs/SPEC_ACCEPTANCE.md` (Imani's spec, Studio §10 and acceptance §13/15/16).
+The earlier audit-driven plan (passes 1–3) is kept in `docs/history/COMPLETION_PLAN_passes_1-3.md`.
 
-**Spec source.** The original spec message (relayed via Monday) was not available to this pass, so this
-audit uses the repository's own spec: `ROADMAP.md` milestones M0–M12, the README research workflow,
-`docs/EXPERIMENT_PROTOCOL.md`, `docs/API.md` and `SECURITY.md`. If the relayed spec adds items, append them
-to the table below.
+**Status vocabulary (spec):** COMPLETE = implemented *and* verified by an executed check ·
+IN PROGRESS · BLOCKED · NOT STARTED · FAILED. Interface-only work is never COMPLETE, and smoke tests
+alone never count as success. Evidence points at tests, scripts, or `TEST_REPORT.md` rows. "CI"
+means GitHub Actions. CI installs `.[dev,platform]` without torch, so torch-dependent tests run on
+the box only (see BLOCKERS B5).
 
-Status key: **done** = implemented and exercised by an executed test or command in this pass;
-**partial** = code exists but a required real-data/live-service step is unexecuted; **missing** = no code.
+**Current verdict: PARTIALLY COMPLETE.** COMPLETE AND VERIFIED requires the entire acceptance suite,
+and the E2E journey and several Studio capabilities are not done.
 
-## Executed verification (2026-11-25, box, Python 3.13.5, torch 2.15.0+cpu)
+## 1. Studio pages (§10)
 
-| Check | Command | Result |
+The ten pages were built under inferred names (now superseded by the spec list). Renaming and
+realigning them is the next Studio step. No page is COMPLETE until it is wired to real backend data
+and an automated desktop and mobile E2E check exercises it.
+
+| # | Spec page | Current route / page | Status | Gap |
+| --- | --- | --- | --- | --- |
+| 1 | Research Dashboard | `/` Overview | IN PROGRESS | rename; no E2E |
+| 2 | Architecture Generator | `/generator` | IN PROGRESS | API generate only supports chain-vocabulary checkpoints; constraints UI missing |
+| 3 | Architecture Graph Explorer | `/architectures` | IN PROGRESS | rename; no PyTorch export action |
+| 4 | Autonomous Search Laboratory | `/search` | IN PROGRESS | API search jobs support random/evolution/bayesian only; search-history view missing |
+| 5 | Pareto Optimization Explorer | — | NOT STARTED | needs a front view over measured runs |
+| 6 | Training Laboratory | `/training` | IN PROGRESS | rename; training progress view missing |
+| 7 | Model Comparison | — (Leaderboard is related) | NOT STARTED | compare architectures and benchmark results side by side |
+| 8 | Research Results | `/experiments` + `/leaderboard` | IN PROGRESS | merge; link measured matrix results |
+| 9 | Model Registry | `/models` | IN PROGRESS | checkpoint inspection (metadata, SHA-256 check) missing |
+| 10 | System Administration | `/infrastructure` (+ `/datasets`) | IN PROGRESS | rename; error reporting view |
+
+| Required capability | Status | Evidence / gap |
 | --- | --- | --- |
-| Python tests (base 30dc46a) | `pytest -q` with `.[dev,platform]` + torch/torchvision/numpy/scikit-learn/safetensors (CPU) | **113 passed, 0 skipped** |
-| Python tests (this branch, after matrix runner) | same | **118 passed, 0 skipped** |
-| API boot | `uvicorn archai_api.main:app` then `GET /health`, `GET /readiness` | `ok`, `ready` (local mode, no DB/Redis) |
-| Byte-compile | `python -m compileall -q packages apps scripts` | ok |
-| Fresh Alembic schema | `alembic upgrade head` on SQLite, `alembic current` | `0006_experiment_started_at (head)` |
-| Controller smoke | `python scripts/smoke_search.py` | `{'evaluations': 3, 'unique': 3, 'status': 'controller_smoke_passed'}` (deterministic, no benchmark data) |
-| Frontend typecheck | `npm run typecheck` (apps/web) | pass |
-| Frontend build | `npm run build` (Next 14.2.5 at base; Next 16.4.6 after upgrade) | pass both times; clears PROGRESS blocker 4 |
-| Frontend audit | `npm audit --omit=dev` | 14.2.5/14.2.35: 1 critical + 1 high; 16.4.6: 0 |
-| Lint (informational, not a CI gate) | `ruff check .` | 130 findings (56 import-order, 16 UP017, 14 UP037, 10 unused-import, …) |
-| Docker Compose config | — | not run: no Docker on the box |
-| GitHub Actions `CI` on master/feat @ 30dc46a | run #3 / #2 | success |
-| GitHub Actions `CI` on main @ e322b6b | run #1 | failure: 5 collection `ImportError`s (see below) |
+| Architecture generation | IN PROGRESS | `POST /v1/architectures/generate`; returns 503 without a compatible checkpoint |
+| Architecture visualization | IN PROGRESS | node/edge view in `/architectures`; not E2E-tested |
+| Real search sessions | IN PROGRESS | launch form → Redis worker (live check, TEST_REPORT); UI path not E2E-tested |
+| Experiment monitoring | IN PROGRESS | job polling and cancel |
+| Training progress | NOT STARTED | only job status is shown, no per-epoch progress |
+| Search-history inspection | NOT STARTED | the API stores search records; no history/trace view |
+| Checkpoint inspection | NOT STARTED | |
+| Benchmark comparisons | NOT STARTED | the measured tables exist in `research/results/`; not surfaced in the UI |
+| Architecture export | NOT STARTED | JSON/safetensors/ONNX exist in `archai_compiler.export`; no PyTorch-source export, no API or UI |
+| Error reporting | IN PROGRESS | API errors are surfaced in forms; no central error view |
+| Unavailable features marked, no decorative controls | IN PROGRESS | to be audited during realignment |
+| Desktop and mobile layouts, accessible navigation | IN PROGRESS | responsive CSS exists; no mobile test |
 
-## Spec audit
+## 2. Unit tests (§13)
 
-| # | Spec item (source) | Status | Evidence |
-| --- | --- | --- | --- |
-| M0 | Repo layout, typed schemas, dependency extras, CI | done | `pyproject.toml` extras `ml/benchmark/platform/dev`; `.github/workflows/ci.yml` green on 30dc46a |
-| M1a | Checksum-gated dataset acquisition | done | `archai_benchmark/integrity.py`, `scripts/acquire_dataset.py`, `tests/test_benchmark.py` |
-| M1b | NAS-Bench-201 parser + compiler semantics | done | `archai_benchmark/nasbench201.py`, `tests/test_benchmark.py`, `tests/test_core.py` |
-| M1c | Real NATS-Bench archive query | partial | `archai_benchmark/adapter.py` (`NATSBenchAdapter`); no archive/checksum available, `datasets/manifests/natsbench201.json` has no verified digest to run against |
-| M2 | Graph validation, hashing, restricted compiler | done | `archai_core/validation.py`, `archai_compiler/pytorch_compiler.py`; forward/backward test executed with torch |
-| M3 | Random/evolution search, Pareto, budgets | done | `archai_search/policies.py`, `controller.py`; `tests/test_search_controller.py`, `test_evolution.py` |
-| M4 | Predictor (uncertainty, checkpoints, baselines, real-data CLI) | done (code) / partial (real data) | `archai_predictor/*`, `scripts/train_predictor.py`; CLI needs real archive |
-| M5 | Constrained conditional generator + corpus CLI | done | `archai_generator/*`, `scripts/train_generator.py`, `tests/test_train_generator_cli.py` |
-| M6a | Trained generator + predictor checkpoints with provenance | missing | no checkpoint in repo or artifact store; needs real NATS-Bench labels (predictor) and a real corpus (generator) |
-| M6b | Closed-loop controller (persist/cancel/resume/exhaustion/acquisition) | partial | `archai_search/learned.py`, `acquisition.py`; trained closed-loop benchmark run pending M6a |
-| M7 | Random/evolution/Bayesian/learned policies + matched real-data comparison | partial | policies done; **gap:** `scripts/run_benchmark_search.py` report keys (`selected_validation_accuracy`, `held_out_test_accuracy`) do not match `build_report.py` run-record keys (`best_validation_accuracy`, `final_test_accuracy`); no multi-seed matrix runner |
-| M8 | Training engine, CIFAR adapters, Redis jobs, workers | partial | `archai_training/*`, `archai_api/worker.py`, `archai_shared/jobs.py`; no measured larger run, CIFAR download opt-in only |
-| M9 | DB schema, Alembic, registries, job/model APIs, containers | partial | `apps/api/archai_api/db.py`, migrations 0001–0006 (upgrade executed); no live Postgres/Redis run; auth is API-key only (users table unused by API) |
-| M10 | ArchAI Studio dashboard | partial at audit; done in 5b95d00 | `apps/web/app/page.tsx` (69 lines) reads health + 6 registries and inspects graphs; build now verified; no lockfile committed, Next 14.2.5 flagged by npm as vulnerable; read-only (no search/job launch UI) |
-| M11 | Repeated-seed report builder, leakage checks, ablations | partial | `archai_benchmark/reporting.py`, `scripts/build_report.py`; README step 3 references `research/experiments/` which does **not exist**; no real repeated-seed results or ablations |
-| M12 | Authorized Hugging Face publication | missing (blocked) | `apps/huggingface-space/app.py` status view only; publishing needs Imani's HF authorization |
-| R1 | README quick start runs the API | partial | `python -m archai.apps.api.main` is not an importable module; correct entry is `uvicorn archai_api.main:app` |
-| R2 | Experiment protocol fields on every result | done (records) | `archai_shared/records.py`, worker provenance tests |
-| S1 | Security: allowlisted compiler ops, safe checkpoints, auth, quotas, audit log | partial | allowlist + safetensors + API key + size/rate limits done; no audit log, rate limiter is process-local |
+| Area | Status | Evidence |
+| --- | --- | --- |
+| Architecture validation | COMPLETE | `tests/test_core.py` (cycles, duplicate edges, fan-in, metadata) — CI |
+| Graph hashing | COMPLETE | `test_validation_hash_is_deterministic` — CI |
+| Serialization | COMPLETE | `tests/test_export.py`, SQL round trips in `tests/test_db_optional.py` — CI |
+| Compiler logic | COMPLETE | `test_compiler_handles_serialized_order_and_backward`, `test_nasbench201_cell_uses_sum_fanin_semantics` |
+| Generator sampling | COMPLETE | `tests/test_generator.py`, `tests/test_generator_nb201.py` (box; torch) |
+| Predictor outputs | COMPLETE | `tests/test_predictor.py` (box; torch) |
+| Search policies | COMPLETE | `tests/test_index_bayesian.py`, `tests/test_evolution.py`, `tests/test_index_learned_policies.py` |
+| Pareto optimization | COMPLETE | `test_pareto_frontier`, `test_two_dimensional_hypervolume`, `test_pareto_evolution_needs_costs_and_uses_dominance` |
+| Resource accounting | IN PROGRESS | analytical params/FLOPs and query budgets are tested; per-job compute/memory accounting is not |
 
-## Progress on this branch
+## 3. Integration tests (§13)
 
-- M10: done. Lockfile, Next 16.4.6 and the `npm ci` image landed first. The ten pages with launch forms followed in 498fdcd and 5b95d00.
-- M7/M11 key mismatch: fixed by `scripts/run_experiment_matrix.py` and `research/experiments/*.json` (tested with a synthetic adapter only). Real runs still need the archive.
-- R1: fixed (README now uses `uvicorn archai_api.main:app`, checked by booting it).
-- S1 audit log: done. State-changing requests, rejected ones included, are written as JSONL audit events with a fingerprint instead of the credential. Tests: 120 passed, 0 skipped.
+| Pair | Status | Evidence / gap |
+| --- | --- | --- |
+| API ↔ DB | COMPLETE | `tests/test_db_optional.py`, Alembic up/down, live Postgres check (`tests/test_live_services.py`) |
+| Search engine ↔ benchmark | COMPLETE | measured matrices on the real archive; `test_benchmark_worker_runs_bayesian_search_on_verified_directory` |
+| Generator ↔ compiler | COMPLETE | `test_generator_samples_valid_compilable_graphs` |
+| Predictor ↔ search | COMPLETE | `IndexPredictorGuided` uses the ArchAI predictor online; measured in the full-suite matrix |
+| Experiment controller ↔ workers | IN PROGRESS | API jobs → Redis worker verified live; `SearchController` closed loop not executed by workers |
+| Checkpoint persistence | COMPLETE | `scripts/verify_checkpoints.py` (SHA-256 + reload reproduces outputs), `test_training_updates_parameters_and_checkpoint_reloads_them` |
+| Artifact exports | IN PROGRESS | JSON/safetensors/ONNX helpers tested; PyTorch export missing |
 
-## Priority order for this branch (no real data, no paid compute)
+## 4. End-to-end journey (§15) — no automated E2E exists yet
 
-1. **This doc + executed results + CI proposal** (`docs/ci/ci.yml`).
-2. **Studio reproducibility/security:** commit `package-lock.json`, bump Next to patched 14.2.x, re-verify typecheck/build.
-3. **M7/M11 pipeline gap:** `research/experiments/*.json` matched-budget matrices and `scripts/run_experiment_matrix.py`, which runs seeds × algorithms through `run_benchmark_search` and emits run records `build_report.py` accepts. Tested with a fake evaluator; real numbers only after a verified archive.
-4. **README quick start fix.**
-5. Next (later passes): Studio launch-search form; ruff cleanup; Redis-backed rate limiting.
+| Step | Status |
+| --- | --- |
+| 1 Create research project | NOT STARTED (there is no project entity) |
+| 2 Select task | IN PROGRESS (dataset field on search form) |
+| 3 Configure architecture constraints | NOT STARTED |
+| 4 Generate candidates | IN PROGRESS |
+| 5 Inspect graphs | IN PROGRESS |
+| 6 Start experiment | IN PROGRESS |
+| 7 Monitor execution | IN PROGRESS |
+| 8 View real results | IN PROGRESS |
+| 9 Compare architectures | IN PROGRESS (`GET /v1/architectures/compare` only) |
+| 10 Export valid PyTorch architectures | NOT STARTED |
 
-Blocked on Imani: NATS-Bench archive + checksum (M1c/M4/M6/M7 real runs); live Postgres/Redis host (M9);
-Hugging Face authorization (M12); applying `docs/ci/ci.yml` changes if the token lacks `workflow` scope.
+## 5. ML verification (§16)
 
-## Imani's `main` commit e322b6b
+| Check | Status | Evidence |
+| --- | --- | --- |
+| Training updates parameters | COMPLETE | `test_training_updates_parameters_and_checkpoint_reloads_them` |
+| Checkpoints reload | COMPLETE | same test, plus `research/results/archai_v1_smoke/checkpoint_verification.json` |
+| Generated architectures execute | COMPLETE | `test_generator_samples_valid_compilable_graphs` |
+| Gradients propagate | COMPLETE | `test_compiler_handles_serialized_order_and_backward` |
+| Predictor evaluated on held-out data | COMPLETE (smoke scale) | `research/results/archai_v1_smoke/` (100 held-out cells) |
+| Search budgets enforced | COMPLETE | `BenchmarkEvaluator` budget + `test_every_algorithm_runs_at_a_matched_budget_with_hypervolume` |
+| Reproducible within documented tolerances | IN PROGRESS | seeded determinism tested; no documented tolerance or repeat of a full matrix |
+| Baselines fair | IN PROGRESS | matched budget, same pool, fresh cache, a-priori hyperparameters, in-budget learning only; confirmed when the full-suite matrix completes |
 
-`main` = `master` (30dc46a) + one commit "Apply current ArchAI changes" (parent 30dc46a — not unrelated history).
-It truncates `packages/benchmark-engine/archai_benchmark/integrity.py` (39 lines → empty) and `tests/test_benchmark.py`
-(85 lines → empty). Every importer of `sha256_file`/`acquire_file` breaks (package `__init__`, worker, API model
-integrity, three scripts); GitHub CI run #1 on main failed with 5 collection errors, reproduced locally.
-Preserved unchanged on `review/main-benchmark-integrity`. It cherry-picks trivially onto master but would delete
-the checksum gate, so no PR was opened; it looks like an accidental empty-file upload. Decision needed from Imani.
+## 6. Deployment verification (§16)
 
-## Scope update 2026-11-25 (from Imani's spec via Monday; part of the text was truncated)
+| Check | Status | Evidence |
+| --- | --- | --- |
+| Services start reliably | IN PROGRESS | local stack started once (`infrastructure/local/README.md`); no repeated-start test |
+| Migrations succeed | COMPLETE | Alembic on SQLite (CI) and PostgreSQL 17 (live) |
+| Workers connect | COMPLETE | live check: Redis worker heartbeat and job execution |
+| Auth works | COMPLETE | API-key tests in `tests/test_api.py`; live run with a key |
+| APIs respond | COMPLETE | `scripts/live_service_check.py` |
+| Frontend builds | COMPLETE | `next build` in CI (web job) |
+| E2E journeys work | NOT STARTED | |
+| Restart / recovery tests | IN PROGRESS | lease-based recovery unit test; no live kill-and-recover test |
+| Security checks | IN PROGRESS | `npm audit` 0, rate limiting, audit log, checksum gates; no Python dependency audit or static analysis |
 
-Worked in this order:
+## 7. Model metrics (§16)
 
-1. Required docs set: ROADMAP, PROGRESS, ARCHITECTURE, RESEARCH, BLOCKERS, CHANGELOG, TEST_REPORT.
-   TEST_REPORT holds executed results only.
-2. ArchAI Studio with 10 pages. The names were in the truncated text, so this list is inferred and
-   open as BLOCKERS B2: Overview, Generator, Search Lab (launch), Training Jobs (launch), Experiments,
-   Architecture Explorer, Leaderboard, Model Registry, Datasets, Infrastructure.
-3. Bayesian optimization baseline in the index-benchmark runner, plus repeated-seed baselines and
-   ablations wired into `run_experiment_matrix`.
-4. Final engineering report template (`docs/FINAL_REPORT_TEMPLATE.md`).
-5. NATS-Bench TSS archive from the official source (D-X-Y/NATS-Bench README → Google Drive), stored
-   outside git in `/workspace/archai-data/`. Real runs stay CPU-small and every number is labeled as
-   measured, with its exact config.
-6. Live-service milestone: native local Postgres and Redis on the box, memory-capped, no hosted services.
+| Metric set | Status | Evidence |
+| --- | --- | --- |
+| Generator: validity, uniqueness, diversity, constraint satisfaction, candidate quality | IN PROGRESS (measured at smoke scale only) | `research/results/archai_v1_smoke/generator_report.json`; the parameter constraint is not met better than random |
+| Predictor: MAE, RMSE, Spearman, Kendall, calibration, held-out ranking | IN PROGRESS (measured at smoke scale only) | `research/results/archai_v1_smoke/predictor_report.json` |
 
-Pass-2 items that are already done: ruff cleanup (a9e5423) and the shared rate limiter (92938c3). The
-dashboard launch forms are folded into item 2.
+## 8. Search suite and closed loop (§16)
 
-Status of the scope update (all executed on the box, see TEST_REPORT.md):
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Random | COMPLETE | measured, `research/results/nasbench201_cifar10_full_suite/` |
+| Regularized evolution | COMPLETE | same |
+| Bayesian optimization | COMPLETE | same (GP-UCB) |
+| Predictor-guided | IN PROGRESS → COMPLETE when the full-suite matrix is recorded | `IndexPredictorGuided` |
+| Generator-guided | IN PROGRESS → COMPLETE when the full-suite matrix is recorded | `IndexGeneratorGuided` |
+| Multi-objective / Pareto | IN PROGRESS → COMPLETE when the full-suite matrix is recorded | `IndexParetoEvolution`, hypervolume |
+| Acquisition strategies | IN PROGRESS | UCB is used in the BO baseline; EI is implemented and unit-tested but not benchmarked |
+| Budget accounting | COMPLETE | per-run `search_cost`, `BenchmarkEvaluator` |
+| Closed loop (Generate → Validate → Rank → Train/Evaluate → Learn → Optimize → Repeat) with dedup, scheduling, recovery, cancellation and budgets | IN PROGRESS | `archai_search.learned.LearnedSearch` (persist/resume/cancel tested); generator-guided search closes the loop on benchmark lookups; not run as a worker job |
 
-| # | Item | Status | Commits |
-| --- | --- | --- | --- |
-| 1 | Docs set | done | 854502f and later doc updates |
-| 2 | Ten Studio pages + launch forms + tests | done; names inferred (B2) | 498fdcd, 5b95d00 |
-| 3 | Bayesian baseline, repeated seeds, ablations | done | 6423b08, 1dae919 |
-| 4 | Final report template | done | 692505a |
-| 5 | NATS-Bench official archive, SHA-256, CPU-small measured runs | done; no upstream SHA-256 is published | 63ace4e, 1dae919 |
-| 6 | Local Postgres/Redis live milestone | done | 56f8cab, 34c1180 |
+## Work order (current)
+
+1. Finish the full-suite measured matrix and record it (`scripts/build_report.py`, `scripts/summarize_matrix.py`).
+2. This plan (done in this commit; statuses are updated as work lands).
+3. Studio realignment to the ten spec pages, plus the Pareto explorer, model comparison, PyTorch export
+   and checkpoint inspection; mark unavailable features explicitly; desktop and mobile checks.
+4. Search suite exposed through API jobs (policies in item 8).
+5. `docs/FINAL_REPORT_TEMPLATE.md` → spec title and sections; first draft filled with measured results only.
