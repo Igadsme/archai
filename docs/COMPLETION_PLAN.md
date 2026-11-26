@@ -78,3 +78,23 @@ It truncates `packages/benchmark-engine/archai_benchmark/integrity.py` (39 lines
 integrity, three scripts); GitHub CI run #1 on main failed with 5 collection errors, reproduced locally.
 Preserved unchanged on `review/main-benchmark-integrity`. It cherry-picks trivially onto master but would delete
 the checksum gate, so no PR was opened; it looks like an accidental empty-file upload. Decision needed from Imani.
+
+## Scope update 2026-11-25 (from Imani's spec via Monday; part of the text was truncated)
+
+Worked in this order:
+
+1. Required docs set: ROADMAP, PROGRESS, ARCHITECTURE, RESEARCH, BLOCKERS, CHANGELOG, TEST_REPORT.
+   TEST_REPORT holds executed results only.
+2. ArchAI Studio with 10 pages. The names were in the truncated text, so this list is inferred and
+   open as BLOCKERS B2: Overview, Generator, Search Lab (launch), Training Jobs (launch), Experiments,
+   Architecture Explorer, Leaderboard, Model Registry, Datasets, Infrastructure.
+3. Bayesian optimization baseline in the index-benchmark runner, plus repeated-seed baselines and
+   ablations wired into `run_experiment_matrix`.
+4. Final engineering report template (`docs/FINAL_REPORT_TEMPLATE.md`).
+5. NATS-Bench TSS archive from the official source (D-X-Y/NATS-Bench README → Google Drive), stored
+   outside git in `/workspace/archai-data/`. Real runs stay CPU-small and every number is labeled as
+   measured, with its exact config.
+6. Live-service milestone: native local Postgres and Redis on the box, memory-capped, no hosted services.
+
+Pass-2 items that are already done: ruff cleanup (a9e5423) and the shared rate limiter (92938c3). The
+dashboard launch forms are folded into item 2.
