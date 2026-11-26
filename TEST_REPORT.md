@@ -26,3 +26,4 @@ Executed results only. Nothing here is predicted or estimated. Every row was run
 | 2026-11-25 | 5b95d00 | `npm run typecheck` / `npm run build` (prebuild vitest; Next 16.4.6) | pass / pass, 10 page routes prerendered; `npm audit`: 0 vulnerabilities (vitest 5.1.2) |
 | 2026-11-25 | 5b95d00 | `next start` + `curl` of all 10 routes | HTTP 200 for each |
 | 2026-11-25 | 5b95d00 | `pytest -q` (no live env) incl. `tests/test_studio_contract.py` | 137 passed, 3 skipped; `ruff check .`: all checks passed |
+| 2026-11-25 | ab95052 | GitHub Actions CI (python, web; push and pull_request runs) | success |
