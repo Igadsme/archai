@@ -5,7 +5,10 @@ import os
 import re
 import tempfile
 from pathlib import Path
+from urllib.parse import urlsplit
 from urllib.request import urlopen
+
+_ACQUISITION_SCHEMES = frozenset({"https", "http", "file"})
 
 
 def sha256_file(path: str | Path, chunk_size: int = 1024 * 1024) -> str:
@@ -39,6 +42,9 @@ def acquire_file(url: str, destination: str | Path, expected_sha256: str) -> Pat
     """Download once, stream to a temporary file, and verify before promotion."""
     if not re.fullmatch(r"[0-9a-fA-F]{64}", expected_sha256 or ""):
         raise ValueError("expected_sha256 must be a 64-character SHA-256 hex digest")
+    scheme = urlsplit(url).scheme.lower()
+    if scheme not in _ACQUISITION_SCHEMES:
+        raise ValueError(f"unsupported dataset URL scheme {scheme!r}; use one of {sorted(_ACQUISITION_SCHEMES)}")
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary_name = tempfile.mkstemp(prefix=f".{destination.name}.", suffix=".partial",
@@ -46,7 +52,7 @@ def acquire_file(url: str, destination: str | Path, expected_sha256: str) -> Pat
     os.close(fd)
     temporary = Path(temporary_name)
     try:
-        with urlopen(url, timeout=60) as source, temporary.open("wb") as target:
+        with urlopen(url, timeout=60) as source, temporary.open("wb") as target:  # noqa: S310 - scheme allowlisted above
             while chunk := source.read(1024 * 1024):
                 target.write(chunk)
         actual = sha256_file(temporary)

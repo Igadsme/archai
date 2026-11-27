@@ -83,3 +83,9 @@ def test_dataset_acquisition_cli_requires_and_reports_verified_manifest(tmp_path
                                       "--destination", str(destination)])
     assert acquire_dataset_main() == 0
     assert json.loads(capsys.readouterr().out)["verified"] is True
+
+
+def test_acquisition_rejects_unexpected_url_schemes(tmp_path):
+    import pytest
+    with pytest.raises(ValueError, match="unsupported dataset URL scheme"):
+        acquire_file("ftp://example.org/archive.tar", tmp_path / "archive.tar", "a" * 64)

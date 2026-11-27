@@ -1,11 +1,22 @@
+# Local / single-host stack. Copy `.env.example` to `.env` at the repository root, then:
+#   docker compose --env-file .env -f infrastructure/docker/docker-compose.yml up --build
+# Add `--profile worker` to run the durable benchmark/training worker.
+# For a production host set ARCHAI_ENV=production (the API then refuses unsafe settings).
+x-restart: &restart
+  restart: unless-stopped
+
 services:
   api:
+    <<: *restart
     build:
       context: ../..
       dockerfile: apps/api/Dockerfile
     environment:
+      ARCHAI_ENV: ${ARCHAI_ENV:-development}
       ARCHAI_API_KEY: ${ARCHAI_API_KEY:-}
       ARCHAI_API_KEY_SHA256: ${ARCHAI_API_KEY_SHA256:-}
+      ARCHAI_REQUIRE_API_KEY: ${ARCHAI_REQUIRE_API_KEY:-0}
+      ARCHAI_PROTECT_READS: ${ARCHAI_PROTECT_READS:-0}
       ARCHAI_CORS_ORIGINS: ${ARCHAI_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       DATABASE_URL: postgresql+psycopg://archai:${POSTGRES_PASSWORD}@postgres:5432/archai
       ARCHAI_REDIS_URL: redis://redis:6379/0
@@ -13,19 +24,23 @@ services:
       ARCHAI_ARTIFACT_STORE: /var/lib/archai/experiments.jsonl
       ARCHAI_AUDIT_LOG: /var/lib/archai/audit/api-writes.jsonl
       ARCHAI_ALLOWED_PATHS: /var/lib/archai
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
     volumes:
       - archai-artifacts:/var/lib/archai
-    ports: ["8000:8000"]
-    command: ["sh", "-c", "alembic upgrade head && uvicorn archai_api.main:app --host 0.0.0.0 --port 8000"]
+    ports: ["${ARCHAI_API_PORT:-8000}:8000"]
+    command: ["sh", "-c", "alembic upgrade head && exec uvicorn archai_api.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips \"$${FORWARDED_ALLOW_IPS}\" --workers \"$${WEB_CONCURRENCY}\""]
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=4)"]
       interval: 10s
-      timeout: 3s
+      timeout: 5s
       retries: 5
+      start_period: 30s
   worker:
+    <<: *restart
     build:
       context: ../..
       dockerfile: apps/api/Dockerfile
@@ -41,18 +56,23 @@ services:
     volumes:
       - archai-artifacts:/var/lib/archai
       - ../../datasets/raw:/var/lib/archai/datasets:ro
+    healthcheck:
+      disable: true
     depends_on:
       redis: {condition: service_healthy}
     profiles: ["worker"]
   web:
+    <<: *restart
     build:
       context: ../..
       dockerfile: apps/web/Dockerfile
-    environment:
-      NEXT_PUBLIC_ARCHAI_API_URL: http://localhost:8000
-    ports: ["3000:3000"]
-    depends_on: [api]
+      args:
+        NEXT_PUBLIC_ARCHAI_API_URL: ${ARCHAI_PUBLIC_API_URL:-http://localhost:8000}
+    ports: ["${ARCHAI_WEB_PORT:-3000}:3000"]
+    depends_on:
+      api: {condition: service_healthy}
   postgres:
+    <<: *restart
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: archai
@@ -65,7 +85,11 @@ services:
       timeout: 3s
       retries: 10
   redis:
+    <<: *restart
     image: redis:7-alpine
+    # The job queue lives in Redis; append-only persistence keeps queued jobs across restarts.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["archai-redis:/data"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -74,3 +98,4 @@ services:
 volumes:
   archai-artifacts:
   archai-postgres:
+  archai-redis:
