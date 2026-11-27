@@ -1,5 +1,5 @@
 # API and worker image (the worker runs the same image with `python -m archai_api.worker`).
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # CPU-only PyTorch wheels keep the image ~1 GB instead of pulling multi-GB CUDA wheels.
 # Override with --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 for GPU hosts.
