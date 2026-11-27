@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest"
 import paretoFixture from "../app/lib/fixtures/pareto.json"
 import fixtures from "../app/lib/fixtures/requests.json"
-import { PAGES } from "../app/components/Shell"
+import { SCREENS } from "../app/studio/navigation"
 import { SEARCH_ALGORITHMS } from "../app/lib/forms"
 import { layoutDag } from "../app/lib/graph"
 import { historyPoints, hypervolume, paretoFront } from "../app/lib/pareto"
 import { ci, jobResult, separated, splitAblations } from "../app/lib/results"
 import type { ParetoPoint, ResearchResult, SeedSummary } from "../app/lib/types"
 
-describe("Studio pages", () => {
-  it("are exactly the ten pages named in docs/SPEC_ACCEPTANCE.md", () => {
-    expect(PAGES.map((page) => page.label)).toEqual(["Research Dashboard", "Architecture Generator", "Architecture Graph Explorer", "Autonomous Search Laboratory",
-      "Pareto Optimization Explorer", "Training Laboratory", "Model Comparison", "Research Results", "Model Registry", "System Administration"])
-    expect(new Set(PAGES.map((page) => page.href)).size).toBe(10)
+describe("Studio screens", () => {
+  it("are exactly the ten V3 screens, each with its own route", () => {
+    expect(SCREENS.map((screen) => screen.title)).toEqual(["Research Overview", "Neural Architecture Explorer", "Architecture Generator", "Autonomous Search Laboratory",
+      "Training and GPU Monitoring", "Pareto Optimization Explorer", "Benchmark Comparison", "Experiment History", "Model Registry", "System Administration"])
+    expect(new Set(SCREENS.map((screen) => screen.href)).size).toBe(10)
   })
 })
 

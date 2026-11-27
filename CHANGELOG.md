@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased (ArchAI Studio V3, stacked on the production-readiness PR)
+
+- The Figma Make "ArchAI Studio V3" export is now the Studio (`apps/web`, version 3.0.0), kept on Next.js. Notes, file mapping, routes and endpoints: `docs/STUDIO_V3.md`.
+- Ten screens with one route each: Research Overview, Neural Architecture Explorer, Architecture Generator, Autonomous Search Laboratory, Training and GPU Monitoring, Pareto Optimization Explorer, Benchmark Comparison, Experiment History, Model Registry, System Administration. `/compare`, `/results`, `/models` and `/admin` redirect.
+- The Explorer workbench is built from registry data. It has:
+  - layered layout, residual and branch edges, stage collapse, search, multi-select, minimap and compare
+  - analytical per-node costs that match `archai_compiler.metrics`
+  - API validation pill and diagnostics
+  - spec editor (validate or register) and exports
+  - resizable panels and keyboard shortcuts
+- Typed API client with timeouts, cancellation, typed errors and response validation. The API key is kept in `sessionStorage` only.
+- Unavailable features are labelled explicitly: GPU telemetry, latency, deployments, job retry and key management.
+- Fonts are self-hosted with `next/font`, so the CSP still allows `font-src 'self'` only.
+- Tests: 26 new vitest cases (`tests/studio-v3.test.ts`). The browser E2E covers the live flows and every screen at 1920×1080, 1440×900, 1280×800, 1024×768 and 768×1024.
+
 ## Unreleased (production readiness, stacked on PR #1)
 
 - `ARCHAI_ENV=production` boot validation (`archai_api/settings.py`): key required, explicit https CORS origins only, durable Postgres/Redis required, no `ARCHAI_DB_AUTO_CREATE`, `/docs` off unless `ARCHAI_DOCS_ENABLED=1`.
