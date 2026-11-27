@@ -1,32 +1,122 @@
 from __future__ import annotations
 
-import os
 import hashlib
 import hmac
+import json
+import logging
+import os
 import re
+import threading
 import time
-from collections import defaultdict, deque
-from datetime import datetime, timezone
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Literal
+from uuid import uuid4
 
+from archai_compiler.metrics import analytical_metrics
+from archai_core.schema import Architecture
+from archai_core.validation import ValidationError, validate_architecture
+from archai_shared.constraints import (
+    ArchitectureConstraints,
+    check_constraints,
+    resolve_constraints,
+)
+from archai_shared.jobs import InMemoryJobStore, RedisJobStore
+from archai_shared.paths import allowed_path
+from archai_shared.ratelimit import RedisRateLimiter, make_rate_limiter
+from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance, ResearchProject
+from archai_shared.registry import ModelRegistry, sha256_file
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
-from archai_core.schema import Architecture
-from archai_core.validation import ValidationError, validate_architecture
-from archai_compiler.metrics import analytical_metrics
-from archai_api.db import (SqlAlchemyArchitectureStore, SqlAlchemyExperimentStore,
-                           SqlAlchemyDatasetStore, SqlAlchemyModelRegistry, SqlAlchemySearchStore,
-                           database_is_ready)
-from archai_shared.jobs import InMemoryJobStore, RedisJobStore
-from archai_shared.paths import allowed_path
-from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance
-from archai_shared.registry import ModelRegistry, sha256_file
 from pydantic import BaseModel, ConfigDict, Field
 
-app = FastAPI(title="ArchAI API", version="v1")
+from archai_api.db import (
+    SqlAlchemyArchitectureStore,
+    SqlAlchemyDatasetStore,
+    SqlAlchemyExperimentStore,
+    SqlAlchemyModelRegistry,
+    SqlAlchemyProjectStore,
+    SqlAlchemySearchStore,
+    database_is_ready,
+)
+
+
+def api_key_is_configured() -> bool:
+    return bool(os.getenv("ARCHAI_API_KEY") or os.getenv("ARCHAI_API_KEY_SHA256"))
+
+
+def enforce_required_api_key() -> None:
+    """Production boot check: ARCHAI_REQUIRE_API_KEY=1 refuses to start without a key."""
+    if os.getenv("ARCHAI_REQUIRE_API_KEY", "0") == "1" and not api_key_is_configured():
+        raise RuntimeError(
+            "ARCHAI_REQUIRE_API_KEY=1 but neither ARCHAI_API_KEY nor ARCHAI_API_KEY_SHA256 is set"
+        )
+
+
+_embed_stop: threading.Event | None = None
+_embed_thread: threading.Thread | None = None
+
+
+def start_embedded_worker() -> None:
+    """Run WorkerRunner in-process. Render has no free background workers or cron."""
+    global _embed_stop, _embed_thread
+    if os.getenv("ARCHAI_EMBED_WORKER", "0") != "1":
+        return
+    url = os.getenv("ARCHAI_REDIS_URL")
+    if not url:
+        raise RuntimeError("ARCHAI_EMBED_WORKER=1 requires ARCHAI_REDIS_URL")
+    from archai_shared.jobs import RedisJobStore
+    from archai_shared.worker import WorkerRunner
+
+    from archai_api.worker import (
+        benchmark_search,
+        candidate_training,
+        generator_training,
+        predictor_training,
+    )
+    store = RedisJobStore.from_url(url)
+    store.client.ping()
+    _embed_stop = threading.Event()
+    runner = WorkerRunner(
+        store,
+        {
+            "search": benchmark_search,
+            "training": candidate_training,
+            "generator_training": generator_training,
+            "predictor_training": predictor_training,
+        },
+    )
+    _embed_thread = threading.Thread(
+        target=runner.run_forever,
+        kwargs={"stop": _embed_stop},
+        daemon=True,
+        name="archai-embed-worker",
+    )
+    _embed_thread.start()
+    logging.getLogger("archai.api").info("embedded worker started")
+
+
+def stop_embedded_worker() -> None:
+    global _embed_stop, _embed_thread
+    if _embed_stop is not None:
+        _embed_stop.set()
+    _embed_stop = None
+    _embed_thread = None
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    enforce_required_api_key()
+    start_embedded_worker()
+    try:
+        yield
+    finally:
+        stop_embedded_worker()
+
+
+app = FastAPI(title="ArchAI API", version="v1", lifespan=lifespan)
 _cors_origins = [origin.strip() for origin in os.getenv(
     "ARCHAI_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if origin.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=_cors_origins, allow_credentials=False,
@@ -49,7 +139,7 @@ _artifact_store = ArtifactStore(os.getenv("ARCHAI_ARTIFACT_STORE", "/tmp/archai-
 _model_registry = (SqlAlchemyModelRegistry.from_url(
     os.environ["DATABASE_URL"], initialize=os.getenv("ARCHAI_DB_AUTO_CREATE", "0") == "1")
     if os.getenv("DATABASE_URL") else ModelRegistry(os.getenv("ARCHAI_MODEL_MANIFEST", "/tmp/archai-models.json")))
-_rate_windows: dict[str, deque[float]] = defaultdict(deque)
+_rate_limiter = make_rate_limiter()
 
 
 class _InMemoryArchitectureStore:
@@ -156,9 +246,34 @@ def _make_experiment_store():
 
 _search_store = _make_search_store()
 _experiment_store = _make_experiment_store()
+class _InMemoryProjectStore:
+    def __init__(self):
+        self._values: dict[str, ResearchProject] = {}
+
+    def put(self, project: ResearchProject) -> ResearchProject:
+        self._values[project.project_id] = project
+        return project
+
+    def get(self, project_id: str) -> ResearchProject | None:
+        return self._values.get(project_id)
+
+    def list(self, limit: int = 50) -> list[ResearchProject]:
+        values = sorted(self._values.values(), key=lambda item: item.created_at, reverse=True)
+        return values[:limit]
+
+
+def _make_project_store():
+    url = os.getenv("DATABASE_URL")
+    if not url:
+        return _InMemoryProjectStore()
+    return SqlAlchemyProjectStore.from_url(url, initialize=os.getenv("ARCHAI_DB_AUTO_CREATE", "0") == "1")
+
+
 _dataset_store = (SqlAlchemyDatasetStore.from_url(
     os.environ["DATABASE_URL"], initialize=os.getenv("ARCHAI_DB_AUTO_CREATE", "0") == "1")
     if os.getenv("DATABASE_URL") else _InMemoryDatasetStore())
+
+_project_store = _make_project_store()
 
 
 def _redis_is_ready() -> bool:
@@ -170,27 +285,98 @@ def _redis_is_ready() -> bool:
         return False
 
 
+def _early_response(request: Request, detail: str, status_code: int, extra_headers: dict[str, str] | None = None) -> JSONResponse:
+    """Return an early status from request_limits with CORS headers.
+
+    `@app.middleware("http")` sits outside CORSMiddleware, so a bare JSONResponse
+    would otherwise be reported as a CORS failure in the browser.
+    """
+    headers = dict(extra_headers or {})
+    origin = request.headers.get("origin")
+    if origin and origin in _cors_origins:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Vary"] = "Origin"
+    return JSONResponse({"detail": detail}, status_code=status_code, headers=headers)
+
+
 @app.middleware("http")
 async def request_limits(request: Request, call_next):
     max_bytes = int(os.getenv("ARCHAI_MAX_REQUEST_BYTES", str(1024 * 1024)))
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > max_bytes:
-        return JSONResponse({"detail": "request body too large"}, status_code=413)
+        return _early_response(request, "request body too large", 413)
     if not content_length and request.method in {"POST", "PUT", "PATCH"}:
         body = await request.body()
         if len(body) > max_bytes:
-            return JSONResponse({"detail": "request body too large"}, status_code=413)
-    limit = int(os.getenv("ARCHAI_RATE_LIMIT_PER_MINUTE", "120"))
-    key = request.client.host if request.client else "unknown"
-    now = time.monotonic()
-    window = _rate_windows[key]
-    while window and now - window[0] >= 60:
-        window.popleft()
-    if len(window) >= limit:
-        return JSONResponse({"detail": "rate limit exceeded"}, status_code=429)
-    window.append(now)
+            return _early_response(request, "request body too large", 413)
+    write_limit = int(os.getenv("ARCHAI_RATE_LIMIT_PER_MINUTE", "120"))
+    read_limit = int(os.getenv("ARCHAI_RATE_LIMIT_GET_PER_MINUTE", "600"))
+    is_write = request.method in {"POST", "PUT", "PATCH", "DELETE"}
+    limit = write_limit if is_write else read_limit
+    host = request.client.host if request.client else "unknown"
+    key = f"{host}:{'write' if is_write else 'read'}"
+    decision = _rate_limiter.hit(key, limit)
+    if not decision.allowed:
+        return _early_response(request, "rate limit exceeded", 429,
+                               {"x-ratelimit-backend": decision.backend})
     return await call_next(request)
 
+
+
+_audit_logger = logging.getLogger("archai.audit")
+_audit_lock = threading.Lock()
+_AUDITED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def _credential_fingerprint(request: Request) -> str | None:
+    """Short SHA-256 fingerprint of the presented credential; the secret itself is never logged."""
+    supplied = request.headers.get("x-api-key")
+    authorization = request.headers.get("authorization")
+    if supplied is None and authorization and authorization.startswith("Bearer "):
+        supplied = authorization.removeprefix("Bearer ")
+    if not supplied:
+        return None
+    return hashlib.sha256(supplied.encode()).hexdigest()[:12]
+
+
+def _write_audit_event(event: dict) -> None:
+    line = json.dumps(event, sort_keys=True)
+    _audit_logger.info(line)
+    destination = os.getenv("ARCHAI_AUDIT_LOG")
+    if not destination:
+        return
+    path = Path(destination)
+    with _audit_lock:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(line + "\n")
+
+
+@app.middleware("http")
+async def audit_writes(request: Request, call_next):
+    """Append-only audit trail for every state-changing request, including rejected ones.
+
+    Registered after `request_limits`, so it wraps it and also records 413/429 rejections.
+    """
+    if request.method not in _AUDITED_METHODS:
+        return await call_next(request)
+    started = time.monotonic()
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        _write_audit_event({
+            "timestamp": datetime.now(UTC).isoformat(),
+            "method": request.method,
+            "path": request.url.path,
+            "status": status_code,
+            "outcome": "allowed" if status_code < 400 else "rejected",
+            "client": request.client.host if request.client else None,
+            "credential_fingerprint": _credential_fingerprint(request),
+            "duration_ms": round((time.monotonic() - started) * 1000, 3),
+        })
 
 class SearchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -199,12 +385,16 @@ class SearchRequest(BaseModel):
     budget_evaluations: int = Field(gt=0, le=1_000_000)
     seed: int = 0
     indices: list[int] = Field(default_factory=list, max_length=100_000)
+    params: dict[str, float | int | bool | str] = Field(default_factory=dict, max_length=16)
+    project_id: str | None = Field(default=None, min_length=8, max_length=64)
+    constraints: ArchitectureConstraints | None = None
 
 
 class TrainingJobRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     kind: Literal["candidate", "generator", "predictor"]
     payload: dict[str, object] = Field(default_factory=dict)
+    project_id: str | None = Field(default=None, min_length=8, max_length=64)
 
 
 class ExperimentRequest(BaseModel):
@@ -219,6 +409,7 @@ class ExperimentRequest(BaseModel):
     code_revision: str = Field(default="working-tree", min_length=1, max_length=128)
     seed: int
     metrics: dict[str, float] = Field(default_factory=dict)
+    project_id: str | None = Field(default=None, min_length=8, max_length=64)
 
 
 class ExperimentUpdate(BaseModel):
@@ -235,9 +426,33 @@ class GenerateRequest(BaseModel):
     condition: list[float] = Field(default_factory=lambda: [0.0] * 8, min_length=8, max_length=8)
     input_spec: dict[str, int] = Field(default_factory=lambda: {"channels": 3, "height": 32, "width": 32})
     output_classes: int = Field(default=10, gt=1, le=10000)
+    project_id: str | None = Field(default=None, min_length=8, max_length=64)
+    constraints: ArchitectureConstraints | None = None
+
+
+class ProjectRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=128)
+    task: str = Field(min_length=1, max_length=128)
+    description: str = Field(default="", max_length=2000)
+    dataset_id: str | None = Field(default=None, min_length=1, max_length=128)
+    dataset_version: str | None = Field(default=None, min_length=1, max_length=128)
+    constraints: ArchitectureConstraints = Field(default_factory=ArchitectureConstraints)
+
+
+class ProjectUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    task: str | None = Field(default=None, min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=2000)
+    dataset_id: str | None = Field(default=None, min_length=1, max_length=128)
+    dataset_version: str | None = Field(default=None, min_length=1, max_length=128)
+    constraints: ArchitectureConstraints | None = None
+    status: Literal["active", "archived"] | None = None
 
 
 class DatasetRequest(BaseModel):
+
     model_config = ConfigDict(extra="forbid")
     dataset_id: str = Field(min_length=1, max_length=128)
     version: str = Field(min_length=1, max_length=128)
@@ -276,19 +491,34 @@ def require_write_access(api_key: Annotated[str | None, Header(alias="x-api-key"
         raise HTTPException(status_code=401, detail="invalid API key")
 
 
+def require_active_project(project_id: str | None) -> ResearchProject | None:
+    """Resolve an optional project id; missing or archived projects cannot accept new work."""
+    if not project_id:
+        return None
+    project = _project_store.get(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail=f"project {project_id} not found")
+    if project.status != "active":
+        raise HTTPException(status_code=409, detail=f"project {project_id} is {project.status}")
+    return project
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "evidence_policy": "no fabricated metrics"}
 
 
 @app.get("/readiness")
-def readiness() -> dict[str, bool | str]:
+def readiness() -> dict[str, object]:
     redis_ready = _redis_is_ready()
     database_configured = bool(os.getenv("DATABASE_URL"))
     database_ready = database_is_ready(os.environ["DATABASE_URL"]) if database_configured else True
     ready = database_ready and (redis_ready or not os.getenv("ARCHAI_REQUIRE_REDIS"))
     return {"status": "ready" if ready else "not_ready", "durable_worker_configured": redis_ready,
-            "database_configured": database_configured, "database_ready": database_ready}
+            "database_configured": database_configured, "database_ready": database_ready,
+            "rate_limit_backend": _rate_limiter.backend,
+            "rate_limit_redis_error": (_rate_limiter.last_error
+                                       if isinstance(_rate_limiter, RedisRateLimiter) else None)}
 
 
 @app.get("/v1/infrastructure/workers")
@@ -362,12 +592,28 @@ def get_architecture(architecture_id: str):
 
 @app.post("/v1/searches", dependencies=[Depends(require_write_access)])
 def create_search(request: SearchRequest):
-    job = _jobs.create("search", request.model_dump())
-    return _search_store.put(job.job_id, request.model_dump())
+    try:
+        from archai_benchmark.policy_registry import POLICIES
+    except ImportError:  # pragma: no cover - benchmark package is part of the platform install
+        POLICIES = None
+    if POLICIES is not None:
+        if request.algorithm not in POLICIES:
+            raise HTTPException(status_code=422, detail=f"unknown algorithm {request.algorithm!r}; "
+                                                        f"choose one of {', '.join(POLICIES)}")
+        unknown = sorted(set(request.params) - set(POLICIES[request.algorithm]["params"]))
+        if unknown:
+            raise HTTPException(status_code=422, detail=f"unsupported {request.algorithm} parameters: {', '.join(unknown)}")
+    project = require_active_project(request.project_id)
+    payload = request.model_dump()
+    payload["constraints"] = resolve_constraints(
+        request.constraints, project.constraints if project else None).model_dump()
+    job = _jobs.create("search", payload)
+    return _search_store.put(job.job_id, payload)
 
 
 @app.post("/v1/training", dependencies=[Depends(require_write_access)])
 def create_training_job(request: TrainingJobRequest):
+    require_active_project(request.project_id)
     required = {
         "candidate": ("architecture",),
         "generator": ("corpus_path", "checkpoint_path"),
@@ -482,6 +728,7 @@ def cancel_search(search_id: str):
 
 @app.post("/v1/experiments", dependencies=[Depends(require_write_access)])
 def create_experiment(request: ExperimentRequest):
+    require_active_project(request.project_id)
     if _architecture_store.get(request.architecture_id) is None:
         raise HTTPException(status_code=404, detail="architecture not found")
     dataset = _dataset_store.get(request.dataset_id, request.dataset_version)
@@ -504,7 +751,8 @@ def create_experiment(request: ExperimentRequest):
                                       model_checkpoint=request.model_checkpoint,
                                       hardware=request.hardware,
                                       code_revision=request.code_revision,
-                                      seed=request.seed))
+                                      seed=request.seed,
+                                      project_id=request.project_id))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     _experiment_store.put(record)
@@ -537,7 +785,7 @@ def update_experiment(experiment_id: str, request: ExperimentUpdate):
         raise HTTPException(status_code=422, detail="invalid experiment status")
     if request.status not in allowed[record.status]:
         raise HTTPException(status_code=409, detail=f"invalid experiment transition {record.status}->{request.status}")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     updated = record.model_copy(update={"status": request.status,
         "metrics": request.metrics if request.metrics is not None else record.metrics,
         "failure_detail": request.failure_detail,
@@ -585,6 +833,45 @@ def get_model(model_id: str, version: str | None = None):
     return _model_response(artifact)
 
 
+
+@app.post("/v1/projects", dependencies=[Depends(require_write_access)])
+def create_project(request: ProjectRequest):
+    now = datetime.now(UTC)
+    project = ResearchProject(project_id=uuid4().hex, name=request.name.strip(),
+                              description=request.description, task=request.task.strip(),
+                              dataset_id=request.dataset_id, dataset_version=request.dataset_version,
+                              constraints=request.constraints, status="active",
+                              created_at=now, updated_at=now)
+    return _project_store.put(project).model_dump(mode="json")
+
+
+@app.get("/v1/projects")
+def list_projects(limit: int = Query(default=50, ge=1, le=500)):
+    return {"items": [project.model_dump(mode="json") for project in _project_store.list(limit)]}
+
+
+@app.get("/v1/projects/{project_id}")
+def get_project(project_id: str):
+    project = _project_store.get(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    return project.model_dump(mode="json")
+
+
+@app.patch("/v1/projects/{project_id}", dependencies=[Depends(require_write_access)])
+def update_project(project_id: str, request: ProjectUpdate):
+    project = _project_store.get(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    updates = request.model_dump(exclude_unset=True)
+    if "name" in updates and isinstance(updates["name"], str):
+        updates["name"] = updates["name"].strip()
+    if "task" in updates and isinstance(updates["task"], str):
+        updates["task"] = updates["task"].strip()
+    updated = project.model_copy(update={**updates, "updated_at": datetime.now(UTC)})
+    return _project_store.put(updated).model_dump(mode="json")
+
+
 @app.post("/v1/datasets", dependencies=[Depends(require_write_access)])
 def register_dataset(request: DatasetRequest):
     try:
@@ -608,15 +895,17 @@ def get_dataset(dataset_id: str, version: str = Query(..., min_length=1, max_len
 
 @app.post("/v1/architectures/generate")
 def generate_architectures(request: GenerateRequest):
+    project = require_active_project(request.project_id)
+    constraints = resolve_constraints(request.constraints, project.constraints if project else None)
     checkpoint = os.getenv("ARCHAI_GENERATOR_CHECKPOINT")
     if not checkpoint:
         raise HTTPException(status_code=503, detail="No trained generator checkpoint is configured")
     try:
         allowed_path(checkpoint, field="generator checkpoint")
         import torch
+        from archai_core.schema import TensorSpec
         from archai_generator.model import ArchitectureGenerator, GeneratorConfig
         from archai_generator.training import load_checkpoint
-        from archai_core.schema import TensorSpec
 
         payload = torch.load(checkpoint, map_location="cpu", weights_only=True)
         saved_config = payload.get("state_dict", {}).get("config", {})
@@ -624,20 +913,175 @@ def generate_architectures(request: GenerateRequest):
         model = ArchitectureGenerator(config)
         metadata = load_checkpoint(model, checkpoint)
         generated = []
-        for offset in range(request.count):
+        rejected = 0
+        attempts = 0
+        limit = request.count if constraints.is_empty() else max(request.count * 32, 32)
+        for offset in range(limit):
             candidates = model.sample(seed=request.seed + offset, condition=tuple(request.condition),
                                       input_spec=TensorSpec.model_validate(request.input_spec),
                                       output_classes=request.output_classes)
             if not candidates:
                 raise RuntimeError("generator returned no candidates")
-            generated.append(candidates[-1])
+            candidate = candidates[-1]
+            attempts += 1
+            if not constraints.is_empty():
+                metrics = analytical_metrics(candidate)
+                report = check_constraints(constraints, parameters=metrics.parameters, flops=metrics.flops,
+                                           operations=[node.op for node in candidate.nodes])
+                if not report.satisfied:
+                    rejected += 1
+                    if report.unevaluable and offset == 0:
+                        raise HTTPException(status_code=422, detail={
+                            "message": "one or more constraints cannot be evaluated for generated architectures",
+                            "unevaluable": report.unevaluable, "violations": report.violations})
+                    continue
+            generated.append(candidate)
+            if len(generated) >= request.count:
+                break
+        if len(generated) < request.count:
+            raise HTTPException(status_code=422, detail={
+                "message": f"only {len(generated)} of {request.count} candidates satisfied the constraints",
+                "attempts": attempts, "rejected": rejected,
+                "constraints": constraints.model_dump()})
+    except HTTPException:
+        raise
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail="configured generator checkpoint is unavailable") from exc
     except (ImportError, ValueError, KeyError, RuntimeError, OSError) as exc:
         raise HTTPException(status_code=503, detail=f"generator checkpoint could not be loaded: {exc}") from exc
     return {"items": [{"architecture": candidate.model_dump(),
                        "architecture_id": candidate.content_hash()} for candidate in generated],
-            "count": len(generated), "checkpoint": checkpoint, "metadata": metadata}
+            "count": len(generated), "checkpoint": checkpoint, "metadata": metadata,
+            "constraints": constraints.model_dump(), "attempts": attempts, "rejected": rejected}
+
+
+@app.get("/v1/search/algorithms")
+def search_algorithms():
+    """Search policies the benchmark worker can run, with availability on this API host."""
+    from archai_benchmark.policy_registry import describe
+    return {"items": describe()}
+
+
+@app.get("/v1/architectures/{architecture_id}/export")
+def export_architecture(architecture_id: str, format: Literal["json", "pytorch"] = "json"):
+    """Download a stored architecture as canonical JSON or as a TorchScript (PyTorch) module.
+
+    The TorchScript file loads with plain `torch.jit.load`, without ArchAI installed.
+    """
+    from fastapi.responses import Response
+    architecture = _architecture_store.get(architecture_id)
+    if architecture is None:
+        raise HTTPException(status_code=404, detail="architecture not found")
+    if format == "json":
+        body = json.dumps(architecture.model_dump(), indent=2, sort_keys=True).encode()
+        media, suffix = "application/json", "json"
+    else:
+        try:
+            import io
+
+            import torch
+            from archai_compiler.pytorch_compiler import compile_architecture
+        except ImportError as exc:
+            raise HTTPException(status_code=503, detail="PyTorch export is unavailable: torch is not installed on the API host") from exc
+        try:
+            model = compile_architecture(architecture).eval()
+            spec = architecture.input_spec
+            example = torch.zeros(1, spec.channels, spec.height, spec.width)
+            with torch.no_grad():
+                model(example)  # materialize lazily-initialized layers before tracing
+                traced = torch.jit.trace(model, example)
+                output_shape = list(traced(example).shape)
+            buffer = io.BytesIO()
+            torch.jit.save(traced, buffer)
+        except (ValueError, RuntimeError) as exc:
+            raise HTTPException(status_code=422, detail=f"architecture could not be exported: {exc}") from exc
+        body, media, suffix = buffer.getvalue(), "application/octet-stream", "pt"
+    digest = hashlib.sha256(body).hexdigest()
+    headers = {"content-disposition": f'attachment; filename="{architecture_id[:16]}.{suffix}"',
+               "x-archai-sha256": digest}
+    if format == "pytorch":
+        headers["x-archai-output-shape"] = json.dumps(output_shape)
+    return Response(content=body, media_type=media, headers=headers)
+
+
+@app.get("/v1/models/{model_id}/inspect")
+def inspect_model_checkpoint(model_id: str, version: str | None = None):
+    """Checkpoint inspection: integrity, saved metadata, and tensor/parameter counts."""
+    artifact = _model_registry.get(model_id, version)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="model not found")
+    response = _model_response(artifact)
+    if not response["artifact_exists"]:
+        raise HTTPException(status_code=404, detail="checkpoint file is missing")
+    if not response["integrity_verified"]:
+        raise HTTPException(status_code=409, detail="checkpoint SHA-256 does not match the registry; refusing to load it")
+    try:
+        import torch
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="checkpoint inspection is unavailable: torch is not installed") from exc
+    try:
+        payload = torch.load(artifact.path, map_location="cpu", weights_only=True)
+    except Exception as exc:  # corrupt or non-tensor checkpoints
+        raise HTTPException(status_code=422, detail=f"checkpoint could not be read safely: {type(exc).__name__}") from exc
+    tensors: list[tuple[str, object]] = []
+
+    def walk(prefix: str, value):
+        if isinstance(value, torch.Tensor):
+            tensors.append((prefix, value))
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                walk(f"{prefix}.{key}" if prefix else str(key), item)
+
+    walk("", payload)
+    metadata = payload.get("metadata") if isinstance(payload, dict) else None
+    return {**response, "top_level_keys": sorted(payload) if isinstance(payload, dict) else [],
+            "tensor_count": len(tensors), "parameter_count": int(sum(t.numel() for _, t in tensors)),
+            "tensors": [{"name": name, "shape": list(t.shape), "dtype": str(t.dtype)} for name, t in tensors[:200]],
+            "checkpoint_metadata": metadata if isinstance(metadata, dict) else None}
+
+
+_RESULT_NAME = re.compile(r"^[a-z0-9_]{1,80}$")
+
+
+def _results_root() -> Path:
+    return Path(os.getenv("ARCHAI_RESULTS_DIR", str(Path(__file__).resolve().parents[3] / "research" / "results")))
+
+
+@app.get("/v1/research/results")
+def list_research_results():
+    """Committed, measured result sets (benchmark lookups and smoke-scale training reports)."""
+    root = _results_root()
+    if not root.is_dir():
+        return {"items": [], "root_available": False}
+    items = []
+    for path in sorted(root.iterdir()):
+        if path.is_dir() and _RESULT_NAME.match(path.name):
+            files = sorted(item.name for item in path.iterdir() if item.is_file())
+            items.append({"name": path.name, "files": files})
+    return {"items": items, "root_available": True}
+
+
+@app.get("/v1/research/results/{name}")
+def get_research_result(name: str):
+    if not _RESULT_NAME.match(name):
+        raise HTTPException(status_code=404, detail="result set not found")
+    path = _results_root() / name
+    if not path.is_dir():
+        raise HTTPException(status_code=404, detail="result set not found")
+    result: dict[str, object] = {"name": name}
+    for file_name, key in (("report.json", "report"), ("pareto.json", "pareto"),
+                           ("predictor_report.json", "predictor"), ("generator_report.json", "generator"),
+                           ("checkpoint_verification.json", "checkpoint_verification"),
+                           ("results.regret.json", "regret")):
+        if (path / file_name).is_file():
+            result[key] = json.loads((path / file_name).read_text())
+    for file_name, key in (("README.md", "readme"), ("results.md", "tables")):
+        if (path / file_name).is_file():
+            result[key] = (path / file_name).read_text()
+    experiment = _results_root().parent / "experiments" / f"{name}.json"
+    if experiment.is_file():  # the committed config that produced this result set
+        result["experiment"] = json.loads(experiment.read_text())
+    return result
 
 
 if __name__ == "__main__":

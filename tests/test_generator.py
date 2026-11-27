@@ -1,7 +1,11 @@
 import pytest
-
 from archai_generator.model import ArchitectureGenerator, GeneratorConfig
-from archai_generator.training import fit_generator, generation_metrics, load_checkpoint, save_checkpoint
+from archai_generator.training import (
+    fit_generator,
+    generation_metrics,
+    load_checkpoint,
+    save_checkpoint,
+)
 
 
 def test_generator_samples_valid_compilable_graphs():
@@ -17,9 +21,9 @@ def test_generator_samples_valid_compilable_graphs():
 
 def test_none_operation_is_zero_not_identity():
     torch = pytest.importorskip("torch")
+    from archai_compiler.pytorch_compiler import compile_architecture
     from archai_core.schema import Architecture, Edge, Node, TensorSpec
     from archai_core.validation import validate_architecture
-    from archai_compiler.pytorch_compiler import compile_architecture
     architecture = validate_architecture(Architecture(
         nodes=[Node(id="input", op="input", channels=3), Node(id="none", op="none", channels=3), Node(id="output", op="output", channels=3)],
         edges=[Edge(source="input", target="none"), Edge(source="none", target="output")],
@@ -39,7 +43,7 @@ def test_generator_training_and_checkpoint(tmp_path):
 
 
 def test_generator_checkpoint_roundtrip(tmp_path):
-    torch = pytest.importorskip("torch")
+    pytest.importorskip("torch")
     model = ArchitectureGenerator(GeneratorConfig(max_nodes=3))
     path = tmp_path / "generator.pt"
     save_checkpoint(model, path, {"kind": "unit", "seed": 2})

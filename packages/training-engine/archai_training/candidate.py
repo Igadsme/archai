@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .engine import TrainingConfig, TrainingResult, train_model
+from .engine import TrainingConfig, train_model
 
 
 def train_candidate(architecture, train_loader, validation_loader, config: TrainingConfig, *, checkpoint_path=None):

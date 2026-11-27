@@ -11,7 +11,7 @@ import subprocess
 from pathlib import Path
 
 from archai_benchmark.adapter import NATSBenchAdapter
-from archai_benchmark.integrity import sha256_file
+from archai_benchmark.integrity import sha256_path
 from archai_benchmark.nasbench201 import architecture_from_string
 from archai_core.schema import TensorSpec
 from archai_predictor.data import ArchitectureRecord, split_records
@@ -59,7 +59,7 @@ def main() -> int:
     indices = [int(value.strip()) for value in args.indices.split(",") if value.strip()]
     if len(indices) < 3:
         parser.error("at least three architecture indices are required for train/validation/test")
-    actual_checksum = sha256_file(args.benchmark_path)
+    actual_checksum = sha256_path(args.benchmark_path)
     if actual_checksum != args.benchmark_sha256.lower():
         parser.error("benchmark archive checksum mismatch")
     adapter = NATSBenchAdapter(args.benchmark_path, args.search_space, args.dataset).open()

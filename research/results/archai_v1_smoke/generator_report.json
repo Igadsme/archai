@@ -1,0 +1,77 @@
+{
+  "checkpoint": "/workspace/archai-data/checkpoints/archai_v1_generator_smoke.pt",
+  "checkpoint_reload_reproduces_samples": true,
+  "checkpoint_sha256": "0ad684a2ae3cd7d9db911da104ca78b17cd8fce30a52a378b29726d379ad784e",
+  "evidence_type": {
+    "candidate_quality": "benchmark_lookup of generated cells",
+    "training_loss": "measured_training"
+  },
+  "generation": {
+    "high_accuracy_within_0.8M_params": {
+      "candidate_quality_best_validation_accuracy": 91.46799997802735,
+      "candidate_quality_mean_validation_accuracy": 89.18056581670211,
+      "constraint_satisfaction_params": 0.6904761904761905,
+      "diversity_mean_pairwise_hamming": 4.372240802675585,
+      "novelty_vs_training_cells": 0.8809523809523809,
+      "samples": 1000,
+      "uniqueness": 0.714,
+      "validity_connected": 0.999,
+      "validity_in_search_space": 1.0
+    },
+    "low_accuracy": {
+      "candidate_quality_best_validation_accuracy": 91.0760000024414,
+      "candidate_quality_mean_validation_accuracy": 83.94600376377602,
+      "constraint_satisfaction_params": 0.576271186440678,
+      "diversity_mean_pairwise_hamming": 4.090523968784838,
+      "novelty_vs_training_cells": 0.8531073446327684,
+      "samples": 1000,
+      "uniqueness": 0.531,
+      "validity_connected": 0.975,
+      "validity_in_search_space": 1.0
+    },
+    "uniform_random_cells_baseline": {
+      "candidate_quality_best_validation_accuracy": 91.48799998535156,
+      "candidate_quality_mean_validation_accuracy": 83.24098339825547,
+      "constraint_satisfaction_params": 0.9242738589211619,
+      "diversity_mean_pairwise_hamming": 4.805730211817169,
+      "novelty_vs_training_cells": 0.8724066390041494,
+      "samples": 1000,
+      "uniqueness": 0.964,
+      "validity_connected": 0.973,
+      "validity_in_search_space": 1.0
+    },
+    "untrained_generator_baseline": {
+      "candidate_quality_best_validation_accuracy": 91.55199999023438,
+      "candidate_quality_mean_validation_accuracy": 84.42217882406362,
+      "constraint_satisfaction_params": 0.8499486125385406,
+      "diversity_mean_pairwise_hamming": 4.797814938684504,
+      "novelty_vs_training_cells": 0.8653648509763617,
+      "samples": 1000,
+      "uniqueness": 0.973,
+      "validity_connected": 0.982,
+      "validity_in_search_space": 1.0
+    }
+  },
+  "metadata": {
+    "archive_trial": 0,
+    "code_revision": "b6fb59116c98dceab778099176051d1502dcc7aa",
+    "condition": [
+      "validation_accuracy_quantile",
+      "params_m / 1.6"
+    ],
+    "dataset": "cifar10-valid (validation accuracy)",
+    "epochs": 300,
+    "kind": "generator",
+    "model": "ArchAI-V1",
+    "scale": "cpu_smoke",
+    "search_space": "nats-bench-tss",
+    "seed": 0,
+    "test_used_for_selection": false,
+    "train_cells": 2000
+  },
+  "params_budget_m": 0.8,
+  "training_loss_first_last": [
+    1.6131372451782227,
+    1.2775417566299438
+  ]
+}

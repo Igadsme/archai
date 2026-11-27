@@ -1,69 +1,41 @@
 "use client"
+import Link from "next/link"
+import { ProjectPicker } from "./components/ProjectPicker"
+import { Empty, Loaded, PageHeader } from "./components/Shell"
+import { items, usePoll } from "./components/usePoll"
+import { ci, splitAblations } from "./lib/results"
+import type { ArchitectureItem, ExperimentItem, JobItem, ModelItem, Readiness, ResearchResult, SearchItem } from "./lib/types"
 
-import { useEffect, useState } from "react"
-
-type ArchitectureItem = { architecture_id: string; search_space: string; metrics: { parameters: number; flops: number; activation_memory_bytes: number } }
-type ArchitectureResponse = { items: ArchitectureItem[] }
-type SearchItem = { search_id: string; algorithm: string; dataset_id: string; status: string; seed: number }
-type ExperimentItem = { experiment_id: string; architecture_id: string; evidence_type: string; status: string; metrics: Record<string, number> }
-type DatasetItem = { dataset_id: string; version: string; checksum: string }
-type JobItem = { job_id: string; kind: string; status: string; error: string | null }
-type ModelItem = { model_id: string; kind: string; version: string; sha256: string }
-type ArchitectureDocument = { architecture: { nodes: { id: string; op: string; channels: number }[]; edges: { source: string; target: string }[] }; hash: string }
-const apiBase = process.env.NEXT_PUBLIC_ARCHAI_API_URL ?? "http://127.0.0.1:8000"
-
-export default function Home() {
-  const [architectures, setArchitectures] = useState<ArchitectureItem[]>([])
-  const [searches, setSearches] = useState<SearchItem[]>([])
-  const [experiments, setExperiments] = useState<ExperimentItem[]>([])
-  const [datasets, setDatasets] = useState<DatasetItem[]>([])
-  const [jobs, setJobs] = useState<JobItem[]>([])
-  const [models, setModels] = useState<ModelItem[]>([])
-  const [selectedArchitecture, setSelectedArchitecture] = useState<ArchitectureDocument | null>(null)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  const [apiState, setApiState] = useState("checking")
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const health = await fetch(`${apiBase}/health`)
-        setApiState(health.ok ? "ready" : "unavailable")
-        const [architectureResponse, searchResponse, experimentResponse, datasetResponse, jobResponse, modelResponse] = await Promise.all([
-          fetch(`${apiBase}/v1/architectures`), fetch(`${apiBase}/v1/searches`),
-          fetch(`${apiBase}/v1/experiments`), fetch(`${apiBase}/v1/datasets`),
-          fetch(`${apiBase}/v1/jobs`), fetch(`${apiBase}/v1/models`),
-        ])
-        if (architectureResponse.ok) setArchitectures((await architectureResponse.json() as ArchitectureResponse).items ?? [])
-        if (searchResponse.ok) setSearches((await searchResponse.json() as { items: SearchItem[] }).items ?? [])
-        if (experimentResponse.ok) setExperiments((await experimentResponse.json() as { items: ExperimentItem[] }).items ?? [])
-        if (datasetResponse.ok) setDatasets((await datasetResponse.json() as { items: DatasetItem[] }).items ?? [])
-        if (jobResponse.ok) setJobs((await jobResponse.json() as { items: JobItem[] }).items ?? [])
-        if (modelResponse.ok) setModels((await modelResponse.json() as { items: ModelItem[] }).items ?? [])
-        setLastUpdated(new Date())
-      } catch {
-        setApiState("unavailable")
-      }
-    }
-    void load()
-    const timer = window.setInterval(() => void load(), 5000)
-    return () => window.clearInterval(timer)
-  }, [])
-  const inspectArchitecture = async (architectureId: string) => {
-    try {
-      const response = await fetch(`${apiBase}/v1/architectures/${architectureId}`)
-      if (response.ok) setSelectedArchitecture(await response.json() as ArchitectureDocument)
-    } catch { setSelectedArchitecture(null) }
-  }
-  const metric = (value: number) => new Intl.NumberFormat().format(value)
-  return <main className="shell">
-    <aside className="sidebar">
-      <p className="eyebrow">ARCHAI STUDIO</p><h1>AI that designs AI.</h1><p className="muted">Evidence-aware neural architecture research.</p>
-      <nav><a className="active" href="#overview">Overview</a><a href="#generator">Generator</a><a href="#search">Search laboratory</a><a href="#registry">Model registry</a></nav>
-      <div className="status"><span className={`dot ${apiState}`} /> API {apiState}</div>
-    </aside>
-    <section className="content" id="overview">
-      <header className="topbar"><div><p className="eyebrow">RESEARCH OVERVIEW</p><h2>Controlled discovery workspace</h2><small>{lastUpdated ? `Live refresh · ${lastUpdated.toLocaleTimeString()}` : "Loading live state…"}</small></div><span className="badge">No fabricated metrics</span></header>
-      <div className="cards"><article><span className="label">Registered architectures</span><strong>{architectures.length}</strong><small>API-backed records</small></article><article><span className="label">Search sessions</span><strong>{searches.length}</strong><small>{searches.filter((item) => item.status === "running").length} running</small></article><article><span className="label">Experiments</span><strong>{experiments.length}</strong><small>{experiments.filter((item) => item.status === "completed").length} completed</small></article><article><span className="label">Datasets</span><strong>{datasets.length}</strong><small>Checksum-registered</small></article><article><span className="label">Jobs</span><strong>{jobs.length}</strong><small>{jobs.filter((item) => item.status === "running").length} running</small></article></div>
-      <div className="grid"><article className="panel wide" id="generator"><div className="panel-head"><div><p className="eyebrow">GENERATOR</p><h3>Candidate architecture generation</h3></div><button disabled>Generate candidates</button></div><p className="muted">Generation is disabled until a trained, provenance-backed checkpoint is configured.</p><div className="empty">Configure a real generator checkpoint and task dataset to begin.</div></article><article className="panel" id="search"><p className="eyebrow">SEARCH LABORATORY</p><h3>Recent sessions</h3>{searches.length === 0 ? <div className="empty">No search sessions recorded.</div> : <ul>{searches.slice(0, 5).map((item) => <li key={item.search_id}><code>{item.algorithm}</code><span>{item.status} · {item.dataset_id}</span></li>)}</ul>}</article><article className="panel" id="registry"><p className="eyebrow">ARCHITECTURE REGISTRY</p><h3>Recent records</h3>{architectures.length === 0 ? <div className="empty">No architecture records yet.</div> : <ul>{architectures.slice(0, 5).map((item) => <li key={item.architecture_id}><button className="link-button" onClick={() => void inspectArchitecture(item.architecture_id)}><code>{item.architecture_id.slice(0, 12)}</code></button><span>{metric(item.metrics.parameters)} params</span></li>)}</ul>}</article><article className="panel"><p className="eyebrow">EVIDENCE LOG</p><h3>Recent experiments</h3>{experiments.length === 0 ? <div className="empty">No experiment evidence recorded.</div> : <ul>{experiments.slice(0, 5).map((item) => <li key={item.experiment_id}><code>{item.evidence_type}</code><span>{item.status}</span></li>)}</ul>}</article><article className="panel"><p className="eyebrow">MODEL REGISTRY</p><h3>Checkpoint artifacts</h3>{models.length === 0 ? <div className="empty">No model checkpoints registered.</div> : <ul>{models.slice(0, 5).map((item) => <li key={item.model_id}><code>{item.model_id}</code><span>{item.kind} · {item.version}</span></li>)}</ul>}</article><article className="panel"><p className="eyebrow">WORKER MONITOR</p><h3>Durable jobs</h3>{jobs.length === 0 ? <div className="empty">No jobs recorded.</div> : <ul>{jobs.slice(0, 5).map((item) => <li key={item.job_id}><code>{item.kind}</code><span className={`job-${item.status}`}>{item.status}</span></li>)}</ul>}</article><article className="panel wide" id="visualization"><p className="eyebrow">ARCHITECTURE INSPECTOR</p><h3>Graph visualization</h3>{selectedArchitecture ? <><p className="muted"><code>{selectedArchitecture.hash.slice(0, 16)}</code> · {selectedArchitecture.architecture.nodes.length} nodes · {selectedArchitecture.architecture.edges.length} edges</p><div className="node-strip">{selectedArchitecture.architecture.nodes.map((node) => <span className="node-chip" key={node.id}><strong>{node.id}</strong><small>{node.op} · {node.channels}ch</small></span>)}</div><div className="edge-list">{selectedArchitecture.architecture.edges.map((edge) => <span key={`${edge.source}-${edge.target}`}><code>{edge.source}</code> → <code>{edge.target}</code></span>)}</div></> : <div className="empty">Select an architecture ID above to inspect its validated graph.</div>}</article></div>
-    </section>
-  </main>
+export default function ResearchDashboard() {
+  const architectures = usePoll<{ items: ArchitectureItem[] }>("/v1/architectures")
+  const searches = usePoll<{ items: SearchItem[] }>("/v1/searches")
+  const experiments = usePoll<{ items: ExperimentItem[] }>("/v1/experiments")
+  const jobs = usePoll<{ items: JobItem[] }>("/v1/jobs")
+  const models = usePoll<{ items: ModelItem[] }>("/v1/models")
+  const readiness = usePoll<Readiness>("/readiness")
+  const suite = usePoll<ResearchResult>("/v1/research/results/nasbench201_cifar10_full_suite", 0)
+  const count = (poll: { data: { items?: unknown[] } | null; error: string | null }) => poll.error ? "—" : String(items(poll.data).length)
+  const failed = items(jobs.data).filter((job) => job.status === "failed")
+  const cards: [string, string, string, string][] = [
+    ["Architectures", count(architectures), "validated, hash-addressed", "/explorer"],
+    ["Search sessions", count(searches), `${items(searches.data).filter((s) => s.status === "running").length} running`, "/search"],
+    ["Experiments", count(experiments), `${items(experiments.data).filter((e) => e.status === "completed").length} completed`, "/results"],
+    ["Jobs", count(jobs), `${failed.length} failed`, "/training"],
+    ["Checkpoints", count(models), "integrity-checked", "/models"],
+  ]
+  return <>
+    <PageHeader eyebrow="RESEARCH DASHBOARD" title="Controlled discovery workspace"
+      note={readiness.data ? `Readiness: ${readiness.data.status} · rate limits: ${readiness.data.rate_limit_backend ?? "unknown"}` : `API: ${readiness.error ?? "checking"}`} />
+    <div className="cards">{cards.map(([label, value, note, href]) => <Link className="card-link" href={href} key={label}><article><span className="label">{label}</span><strong>{value}</strong><small>{note}</small></article></Link>)}</div>
+    <div className="grid">
+      <ProjectPicker />
+      <article className="panel"><p className="eyebrow">MEASURED BENCHMARK (benchmark_lookup)</p><h3>Best validation accuracy at 100 queries</h3>
+        <Loaded poll={suite}>{(data) => data.report ? <table><thead><tr><th>Policy</th><th>Mean [95% CI], 10 seeds</th></tr></thead><tbody>
+          {splitAblations(data).policies.map((name) => <tr key={name}><td>{name}</td><td className="num">{ci(data.report!.algorithms[name].best_validation_accuracy)}</td></tr>)}
+        </tbody></table> : <Empty>No report in this result set.</Empty>}</Loaded>
+        <p><Link href="/results">All measured results →</Link></p></article>
+      <article className="panel"><p className="eyebrow">ERRORS</p><h3>Failed jobs</h3>
+        <Loaded poll={jobs} isEmpty={() => failed.length === 0} empty="No failed jobs.">{() => <ul>{failed.slice(0, 8).map((job) => <li key={job.job_id}><code>{job.kind} · {job.job_id.slice(0, 8)}</code><span className="error-text">{job.error}</span></li>)}</ul>}</Loaded></article>
+    </div>
+  </>
 }

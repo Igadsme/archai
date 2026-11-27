@@ -1,6 +1,6 @@
 import pytest
-
 from archai_benchmark.adapter import BenchmarkRecord
+
 from scripts.run_benchmark_search import main, select_best_validation
 
 

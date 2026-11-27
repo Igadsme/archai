@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import json
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from archai_core.schema import Architecture
 from archai_core.validation import validate_architecture
+
 from .acquisition import rank_candidates
 from .policies import pareto_frontier
 
@@ -64,7 +65,7 @@ class LearnedSearch:
             evidence_type=str(item["evidence_type"]),
             metrics={str(key): float(value) for key, value in item.get("metrics", {}).items()},
         ) for item in payload.get("observations", [])]
-        self.seen = set(str(identifier) for identifier in payload.get("seen", []))
+        self.seen = {str(identifier) for identifier in payload.get("seen", [])}
         self.status = str(payload.get("status", "created"))
         if self.status == "cancel_requested":
             self._cancel_requested = True

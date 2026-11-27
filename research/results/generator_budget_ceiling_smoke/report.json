@@ -1,0 +1,84 @@
+{
+  "checkpoint": "/workspace/archai-data/archai_v1_generator_budget_ceiling_smoke.pt",
+  "checkpoint_reload_reproduces_samples": true,
+  "checkpoint_sha256": "524b81c82317f0ae28c34c18a1a6e278129317f02eb05645d06f1f64ecf6b9ae",
+  "evidence_type": {
+    "candidate_quality": "benchmark_lookup of generated cells",
+    "training_loss": "measured_training"
+  },
+  "generation": {
+    "hard_reject_to_0.8M_params": {
+      "accepted": 1000,
+      "candidate_quality_mean_validation_accuracy": 89.81613198865966,
+      "draws": 1280,
+      "evidence_type": "benchmark_lookup",
+      "random_feasible_mean_validation_accuracy": 82.73358799513794,
+      "requested": 1000,
+      "yield": 0.78125
+    },
+    "high_accuracy_within_0.8M_params": {
+      "candidate_quality_best_validation_accuracy": 91.59599997802735,
+      "candidate_quality_mean_validation_accuracy": 89.72797342971214,
+      "constraint_satisfaction_params": 0.7622841965471447,
+      "diversity_mean_pairwise_hamming": 4.305797101449276,
+      "novelty_vs_training_cells": 0.8366533864541833,
+      "samples": 1000,
+      "uniqueness": 0.753,
+      "validity_connected": 1.0,
+      "validity_in_search_space": 1.0
+    },
+    "low_accuracy": {
+      "candidate_quality_best_validation_accuracy": 88.58399999267579,
+      "candidate_quality_mean_validation_accuracy": 52.12353153127639,
+      "constraint_satisfaction_params": 1.0,
+      "diversity_mean_pairwise_hamming": 4.101939799331103,
+      "novelty_vs_training_cells": 0.8594594594594595,
+      "samples": 1000,
+      "uniqueness": 0.555,
+      "validity_connected": 0.723,
+      "validity_in_search_space": 1.0
+    },
+    "uniform_random_cells_baseline": {
+      "candidate_quality_best_validation_accuracy": 91.37199997314453,
+      "candidate_quality_mean_validation_accuracy": 82.71589700910762,
+      "constraint_satisfaction_params": 0.9145211122554068,
+      "diversity_mean_pairwise_hamming": 4.797904124860646,
+      "novelty_vs_training_cells": 0.8805355303810505,
+      "samples": 1000,
+      "uniqueness": 0.971,
+      "validity_connected": 0.969,
+      "validity_in_search_space": 1.0
+    },
+    "untrained_generator_baseline": {
+      "candidate_quality_best_validation_accuracy": 91.55199999023438,
+      "candidate_quality_mean_validation_accuracy": 84.42217882406362,
+      "constraint_satisfaction_params": 0.8499486125385406,
+      "diversity_mean_pairwise_hamming": 4.797814938684504,
+      "novelty_vs_training_cells": 0.8653648509763617,
+      "samples": 1000,
+      "uniqueness": 0.973,
+      "validity_connected": 0.982,
+      "validity_in_search_space": 1.0
+    }
+  },
+  "metadata": {
+    "archive_trial": 0,
+    "code_revision": "a61f4e7d4a692240a62e5f5e44fa560b6fc12576",
+    "condition": "validation_accuracy_quantile, sampled budget ceiling in [params_m, 1.6] / 1.6",
+    "condition_mode": "ceiling",
+    "dataset": "cifar10-valid (validation accuracy)",
+    "epochs": 300,
+    "kind": "generator",
+    "model": "ArchAI-V1",
+    "scale": "cpu_smoke",
+    "search_space": "nats-bench-tss",
+    "seed": 0,
+    "test_used_for_selection": false,
+    "train_cells": 2000
+  },
+  "params_budget_m": 0.8,
+  "training_loss_first_last": [
+    1.613369107246399,
+    1.4049491882324219
+  ]
+}

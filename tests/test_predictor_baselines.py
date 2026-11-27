@@ -1,5 +1,4 @@
 import pytest
-
 from archai_core.schema import Architecture, Edge, Node, TensorSpec
 from archai_core.validation import validate_architecture
 from archai_predictor.baselines import MeanBaseline, RidgeFeatureBaseline, evaluate_baseline
@@ -23,4 +22,4 @@ def test_ridge_feature_baseline_runs():
     pytest.importorskip("numpy")
     model = RidgeFeatureBaseline()
     metrics = evaluate_baseline(model, [record(4, 0.2), record(8, 0.4), record(16, 0.8)], [record(32, 1.6)])
-    assert set(("mae", "rmse", "spearman", "kendall")).issubset(metrics)
+    assert {"mae", "rmse", "spearman", "kendall"}.issubset(metrics)

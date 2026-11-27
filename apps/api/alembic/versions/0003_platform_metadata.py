@@ -1,7 +1,6 @@
 """Create identity, dataset, and checkpoint metadata tables."""
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "0003_platform_metadata"
 down_revision = "0002_experiment_provenance"

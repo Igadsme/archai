@@ -1,6 +1,6 @@
 # ArchAI progress
 
-Updated 2026-11-21.
+Updated 2026-11-25.
 
 ## Verified in this checkout
 
@@ -103,7 +103,9 @@ Updated 2026-11-21.
 - Predictor comparisons now include mean and graph-feature ridge baselines.
 - NAS-Bench semantics now treat `none` as a zero tensor during compilation rather than an identity operation.
 - NAS-Bench-201 parsing now validates the canonical six-edge cell shape and marks converted graphs for dedicated sum fan-in compilation; the compiler verifies the numerical cell reduction.
-- Test suite: 112 passing tests, 1 optional export test skipped when Safetensors is unavailable.
+- Added `scripts/run_experiment_matrix.py` and `research/experiments/` matched-budget matrices that convert benchmark-search reports into `build_report.py` run records with per-run query caches (exercised with a synthetic test adapter only).
+- ArchAI Studio now pins dependencies with a committed lockfile on Next.js 16.4.6 / React 19 (`npm audit`: 0 vulnerabilities); `npm ci`, `tsc --noEmit` and `next build` pass on the box.
+- Test suite (2026-11-25, box, CPU torch 2.15 with all extras except `benchmark`): 118 passed, 0 skipped.
 
 ## Evidence boundaries
 
@@ -114,8 +116,18 @@ No NATS-Bench archive, trained research checkpoint, benchmark table, GPU run, re
 1. A real NATS-Bench/NATS-Bench-201 archive and its verified checksum are needed to run benchmark queries and train the predictor on real labels.
 2. PostgreSQL/Redis services and durable worker code are implemented but were not run as live services in this environment; production authentication and the complete frontend remain incomplete.
 3. Hugging Face publishing requires user-provided authorization and release decisions.
-4. Frontend dependency installation repeatedly hung or failed in this environment; the clean offline attempt failed with npm `ENOTCACHED` for TypeScript, and `next build` therefore could not run because the dependency tree is unavailable.
+4. ~~Frontend dependency installation/build~~ resolved 2026-11-25: `npm ci`, typecheck and `next build` pass on the box.
 
 ## Repository state
 
 The supplied directory was not a Git repository; a local Git history was initialized for this continuation. The working tree remains directly inspectable under `/Volumes/PX4DRIVE/archai`.
+- ArchAI Studio now has ten pages behind a shared navigation shell, including search and training launch forms (validated client-side, then by the API), an API-key field kept in sessionStorage, and a leaderboard ranked by validation accuracy only. 12 vitest tests run on every build, and `tests/test_studio_contract.py` checks that the API accepts the form builders' requests.
+- `docs/FINAL_REPORT_TEMPLATE.md` defines the final engineering report format: evidence labels, configs and commits, CIs, and separate predicted numbers.
+
+## 2026-11-25 22:50 ET (America/New_York) — pass 4 wrap-up on the box
+
+- Measured full-suite matrix and smoke trainings recorded and (for `6fffab5` and earlier, except the torch-failure SHAs) pushed. CI green on `5670f3f`, `08d4476`, `3e7e9a7`, `6fffab5`.
+- Box was replaced mid-Studio-realignment at 22:30 ET. Data and checkpoints survived; `.venv` / `node_modules` and some uncommitted pages were rewritten. `GITHUB_TOKEN` did not come back, so `c03bd67`, `02a6b00`, `07d729c` and this commit stay local until the token is re-entered. No force-push.
+- Studio realigned to the ten spec pages; live browser E2E 31/31; a payload.result bug found by that E2E is fixed. Local API key was rotated after a Playwright error echoed the key field.
+- Report template renamed to the spec title/sections. First draft: `research/reports/2026-11-25-final-report-draft.md`. Verdict: PARTIALLY COMPLETE.
+- Reproducibility: random and Bayesian seed 0 exact-matched the recorded `2fe79d1` values at `07d729c`.

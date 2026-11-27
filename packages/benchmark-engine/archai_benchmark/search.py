@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
 import random
 import re
 from collections import deque
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
-from archai_core.schema import Architecture
 from .adapter import BenchmarkRecord, NATSBenchAdapter
 from .cache import BenchmarkCache
 
@@ -123,3 +123,110 @@ class IndexRegularizedEvolution:
         self._population.append((index, float(validation_accuracy)))
         while len(self._population) > self.population_size:
             self._population.popleft()
+
+
+class IndexBayesianOptimization:
+    """Gaussian-process UCB baseline over a finite NAS-Bench-201 index pool.
+
+    Dependency-free: each cell is encoded by its six edge operations, the kernel is
+    `exp(-hamming / lengthscale)` (positive definite on one-hot encodings), and
+    validation accuracies are standardised before an exact GP posterior is computed
+    with a pure-Python Cholesky factorisation. To stay CPU-small on 15,625 cells,
+    every `ask` scores a seeded random subset of `candidate_pool_size` unobserved
+    cells. Only validation accuracy is ever passed to `tell`.
+    """
+
+    _operation = re.compile(r"\|([^~|]+)~(\d+)")
+
+    def __init__(self, indices: Sequence[int], architecture_strings: Mapping[int, str], *,
+                 seed: int = 0, warmup: int = 5, beta: float = 2.0, lengthscale: float = 2.0,
+                 noise: float = 1e-3, candidate_pool_size: int = 512):
+        if not indices:
+            raise ValueError("at least one benchmark index is required")
+        if warmup <= 0 or candidate_pool_size <= 0 or lengthscale <= 0 or noise <= 0 or beta < 0:
+            raise ValueError("warmup, candidate_pool_size, lengthscale and noise must be positive; beta >= 0")
+        from .nasbench201 import parse_architecture_string
+
+        self._rng = random.Random(seed)
+        self._indices = list(dict.fromkeys(int(index) for index in indices))
+        self._codes: dict[int, tuple[str, ...]] = {}
+        for index in self._indices:
+            encoding = str(architecture_strings[index])
+            parse_architecture_string(encoding)
+            self._codes[index] = tuple(match.group(1) for match in self._operation.finditer(encoding))
+        self.warmup, self.beta, self.lengthscale, self.noise = warmup, beta, lengthscale, noise
+        self.candidate_pool_size = candidate_pool_size
+        self._pending: set[int] = set()
+        self._observed: dict[int, float] = {}
+
+    def _kernel(self, left: int, right: int) -> float:
+        distance = sum(a != b for a, b in zip(self._codes[left], self._codes[right]))
+        return math.exp(-distance / self.lengthscale)
+
+    @staticmethod
+    def _cholesky(matrix: list[list[float]]) -> list[list[float]]:
+        size = len(matrix)
+        lower = [[0.0] * size for _ in range(size)]
+        for i in range(size):
+            for j in range(i + 1):
+                total = matrix[i][j] - sum(lower[i][k] * lower[j][k] for k in range(j))
+                lower[i][j] = math.sqrt(max(total, 1e-12)) if i == j else total / lower[j][j]
+        return lower
+
+    @staticmethod
+    def _solve_lower(lower: list[list[float]], vector: list[float]) -> list[float]:
+        result: list[float] = []
+        for i, value in enumerate(vector):
+            result.append((value - sum(lower[i][k] * result[k] for k in range(i))) / lower[i][i])
+        return result
+
+    @staticmethod
+    def _solve_upper_from_lower(lower: list[list[float]], vector: list[float]) -> list[float]:
+        size = len(vector)
+        result = [0.0] * size
+        for i in reversed(range(size)):
+            total = vector[i] - sum(lower[k][i] * result[k] for k in range(i + 1, size))
+            result[i] = total / lower[i][i]
+        return result
+
+    def posterior(self, candidates: Sequence[int]) -> list[tuple[float, float]]:
+        """(mean, std) of standardised validation accuracy for each candidate."""
+        observed = list(self._observed)
+        values = [self._observed[index] for index in observed]
+        mean_value = sum(values) / len(values)
+        spread = math.sqrt(sum((value - mean_value) ** 2 for value in values) / len(values)) or 1.0
+        targets = [(value - mean_value) / spread for value in values]
+        gram = [[self._kernel(a, b) + (self.noise if i == j else 0.0)
+                 for j, b in enumerate(observed)] for i, a in enumerate(observed)]
+        lower = self._cholesky(gram)
+        alpha = self._solve_upper_from_lower(lower, self._solve_lower(lower, targets))
+        result = []
+        for candidate in candidates:
+            cross = [self._kernel(candidate, index) for index in observed]
+            mean = sum(weight * coefficient for weight, coefficient in zip(cross, alpha))
+            projection = self._solve_lower(lower, cross)
+            variance = max(1.0 - sum(value * value for value in projection), 1e-12)
+            result.append((mean, math.sqrt(variance)))
+        return result
+
+    def ask(self) -> int | None:
+        remaining = [index for index in self._indices
+                     if index not in self._observed and index not in self._pending]
+        if not remaining:
+            return None
+        if len(self._observed) < self.warmup:
+            choice = self._rng.choice(remaining)
+        else:
+            pool = (remaining if len(remaining) <= self.candidate_pool_size
+                    else self._rng.sample(remaining, self.candidate_pool_size))
+            scores = self.posterior(pool)
+            choice = max(zip(pool, scores), key=lambda item: item[1][0] + self.beta * item[1][1])[0]
+        self._pending.add(choice)
+        return choice
+
+    def tell(self, index: int, validation_accuracy: float) -> None:
+        index = int(index)
+        if index not in self._pending:
+            raise ValueError("index must be returned by ask before tell")
+        self._pending.discard(index)
+        self._observed[index] = float(validation_accuracy)

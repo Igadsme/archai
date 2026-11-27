@@ -2,12 +2,12 @@ import hashlib
 import json
 
 import pytest
-
+from archai_benchmark.integrity import acquire_file, sha256_file
 from archai_benchmark.nasbench201 import architecture_from_string, parse_architecture_string
 from archai_benchmark.search import IndexRegularizedEvolution
-from archai_benchmark.integrity import acquire_file, sha256_file
-from scripts.acquire_dataset import main as acquire_dataset_main
 from archai_core.schema import TensorSpec
+
+from scripts.acquire_dataset import main as acquire_dataset_main
 
 
 def test_nasbench201_encoding_is_valid():

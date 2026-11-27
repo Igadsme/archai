@@ -1,8 +1,9 @@
 import json
 
 from archai_core.schema import Architecture, Edge, Node, TensorSpec
-from archai_generator.training import fit_generator
-from scripts.train_generator import load_examples, main as train_generator_main
+
+from scripts.train_generator import load_examples
+from scripts.train_generator import main as train_generator_main
 
 
 def architecture():

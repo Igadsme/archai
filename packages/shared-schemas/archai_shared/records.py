@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from archai_shared.constraints import ArchitectureConstraints
 
 
 class Provenance(BaseModel):
@@ -17,6 +18,7 @@ class Provenance(BaseModel):
     model_checkpoint: str | None = None
     hardware: str = "unknown"
     seed: int
+    project_id: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class ExperimentRecord(BaseModel):
@@ -27,7 +29,7 @@ class ExperimentRecord(BaseModel):
     status: Literal["created", "running", "completed", "failed", "cancelled"]
     metrics: dict[str, float] = Field(default_factory=dict)
     provenance: Provenance
-    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     completed_at: datetime | None = None
     failure_detail: str | None = None
 
@@ -46,3 +48,17 @@ class ArtifactStore:
         if not self.path.exists():
             return []
         return [ExperimentRecord.model_validate_json(line) for line in self.path.read_text().splitlines() if line.strip()]
+
+
+class ResearchProject(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    project_id: str = Field(min_length=8, max_length=64)
+    name: str = Field(min_length=1, max_length=128)
+    description: str = Field(default="", max_length=2000)
+    task: str = Field(min_length=1, max_length=128)
+    dataset_id: str | None = Field(default=None, min_length=1, max_length=128)
+    dataset_version: str | None = Field(default=None, min_length=1, max_length=128)
+    constraints: ArchitectureConstraints = Field(default_factory=ArchitectureConstraints)
+    status: Literal["active", "archived"] = "active"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

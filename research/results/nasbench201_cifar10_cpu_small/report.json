@@ -1,0 +1,232 @@
+{
+  "ablations": [
+    "bayesian_no_uncertainty",
+    "evolution_no_tournament"
+  ],
+  "algorithms": {
+    "bayesian": {
+      "best_validation_accuracy": {
+        "ci_high": 91.58479999023437,
+        "ci_low": 91.21039998925781,
+        "max": 91.68399998291015,
+        "mean": 91.3975999897461,
+        "min": 91.12399998779297,
+        "n_seeds": 5.0,
+        "std": 0.2438622564263991
+      },
+      "final_test_accuracy": {
+        "ci_high": 94.44200000000001,
+        "ci_low": 94.08,
+        "max": 94.47,
+        "mean": 94.288,
+        "min": 93.89,
+        "n_seeds": 5.0,
+        "std": 0.2373183515870615
+      },
+      "runs": 5,
+      "search_cost": {
+        "ci_high": 50.0,
+        "ci_low": 50.0,
+        "max": 50.0,
+        "mean": 50.0,
+        "min": 50.0,
+        "n_seeds": 5.0,
+        "std": 0.0
+      }
+    },
+    "bayesian_no_uncertainty": {
+      "best_validation_accuracy": {
+        "ci_high": 91.387199984375,
+        "ci_low": 90.93439997949218,
+        "max": 91.49999998291015,
+        "mean": 91.1607999819336,
+        "min": 90.81599997314453,
+        "n_seeds": 5.0,
+        "std": 0.289321969470959
+      },
+      "final_test_accuracy": {
+        "ci_high": 94.1,
+        "ci_low": 93.554,
+        "max": 94.34,
+        "mean": 93.804,
+        "min": 93.43,
+        "n_seeds": 5.0,
+        "std": 0.34486229135699964
+      },
+      "runs": 5,
+      "search_cost": {
+        "ci_high": 50.0,
+        "ci_low": 50.0,
+        "max": 50.0,
+        "mean": 50.0,
+        "min": 50.0,
+        "n_seeds": 5.0,
+        "std": 0.0
+      }
+    },
+    "evolution": {
+      "best_validation_accuracy": {
+        "ci_high": 91.58559999023437,
+        "ci_low": 90.93759999609375,
+        "max": 91.71999999023437,
+        "mean": 91.26159999316405,
+        "min": 90.77199998535156,
+        "n_seeds": 5.0,
+        "std": 0.41676467876818835
+      },
+      "final_test_accuracy": {
+        "ci_high": 94.44,
+        "ci_low": 93.63799999999999,
+        "max": 94.68,
+        "mean": 94.072,
+        "min": 93.32,
+        "n_seeds": 5.0,
+        "std": 0.513000974657949
+      },
+      "runs": 5,
+      "search_cost": {
+        "ci_high": 50.0,
+        "ci_low": 50.0,
+        "max": 50.0,
+        "mean": 50.0,
+        "min": 50.0,
+        "n_seeds": 5.0,
+        "std": 0.0
+      }
+    },
+    "evolution_no_tournament": {
+      "best_validation_accuracy": {
+        "ci_high": 91.18399998339844,
+        "ci_low": 90.8575999921875,
+        "max": 91.27199998291016,
+        "mean": 91.02559998876953,
+        "min": 90.7279999975586,
+        "n_seeds": 5.0,
+        "std": 0.21182256320379766
+      },
+      "final_test_accuracy": {
+        "ci_high": 93.98,
+        "ci_low": 93.58,
+        "max": 94.04,
+        "mean": 93.808,
+        "min": 93.42,
+        "n_seeds": 5.0,
+        "std": 0.25043961347997634
+      },
+      "runs": 5,
+      "search_cost": {
+        "ci_high": 50.0,
+        "ci_low": 50.0,
+        "max": 50.0,
+        "mean": 50.0,
+        "min": 50.0,
+        "n_seeds": 5.0,
+        "std": 0.0
+      }
+    },
+    "random": {
+      "best_validation_accuracy": {
+        "ci_high": 91.04479998242188,
+        "ci_low": 90.52479999365234,
+        "max": 91.09599999023438,
+        "mean": 90.83039998583985,
+        "min": 90.24399999755859,
+        "n_seeds": 5.0,
+        "std": 0.3470861507774763
+      },
+      "final_test_accuracy": {
+        "ci_high": 93.812,
+        "ci_low": 93.542,
+        "max": 93.82,
+        "mean": 93.682,
+        "min": 93.45,
+        "n_seeds": 5.0,
+        "std": 0.17441330224497884
+      },
+      "runs": 5,
+      "search_cost": {
+        "ci_high": 50.0,
+        "ci_low": 50.0,
+        "max": 50.0,
+        "mean": 50.0,
+        "min": 50.0,
+        "n_seeds": 5.0,
+        "std": 0.0
+      }
+    }
+  },
+  "archive_sha256": "183b6ad84c437a36fbbe03f711cdb3a4bd6f3b8675e1af0536d3975f98fa4ba3",
+  "benchmark": {
+    "dataset": "cifar10",
+    "search_space": "tss"
+  },
+  "evidence_type": "benchmark_lookup",
+  "experiment": "nasbench201_cifar10_cpu_small",
+  "index_pool_size": 15625,
+  "matched_budget": 50.0,
+  "minimum_seeds": 5,
+  "required_algorithms": [
+    "random",
+    "evolution",
+    "bayesian",
+    "bayesian_no_uncertainty",
+    "evolution_no_tournament"
+  ],
+  "run_count": 25,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "test_selection_policy": "validation_only",
+  "variants": [
+    {
+      "ablation": false,
+      "algorithm": "random",
+      "name": "random",
+      "params": {}
+    },
+    {
+      "ablation": false,
+      "algorithm": "evolution",
+      "name": "evolution",
+      "params": {
+        "population_size": 20,
+        "sample_size": 5
+      }
+    },
+    {
+      "ablation": false,
+      "algorithm": "bayesian",
+      "name": "bayesian",
+      "params": {
+        "beta": 2.0,
+        "candidate_pool_size": 256,
+        "lengthscale": 2.0,
+        "warmup": 10
+      }
+    },
+    {
+      "ablation": true,
+      "algorithm": "bayesian",
+      "name": "bayesian_no_uncertainty",
+      "params": {
+        "beta": 0.0,
+        "candidate_pool_size": 256,
+        "lengthscale": 2.0,
+        "warmup": 10
+      }
+    },
+    {
+      "ablation": true,
+      "algorithm": "evolution",
+      "name": "evolution_no_tournament",
+      "params": {
+        "population_size": 20,
+        "sample_size": 1
+      }
+    }
+  ]
+}

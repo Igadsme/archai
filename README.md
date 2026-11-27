@@ -12,8 +12,10 @@ This repository contains an executable research foundation: a typed architecture
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e '.[dev]'
 pytest
-python -m archai.apps.api.main
+uvicorn archai_api.main:app --port 8000   # or: python -m archai_api.main
 ```
+
+Studio (dashboard): `cd apps/web && npm ci && npm run dev` with the API on port 8000. Run `npm test` for the Studio unit tests; `npm run build` runs them first.
 
 Install `.[ml,benchmark]` for real model/benchmark runs and `.[platform]` for SQLAlchemy/Alembic/Redis/Celery integrations. Core graph validation and serialization do not require PyTorch.
 
@@ -21,7 +23,7 @@ Install `.[ml,benchmark]` for real model/benchmark runs and `.[platform]` for SQ
 
 1. Run `python scripts/smoke_search.py` for a deterministic, benchmark-free controller smoke test.
 2. Install the benchmark extras and acquire only a checksummed dataset manifest; the acquisition command is `python scripts/acquire_dataset.py --manifest <verified-manifest.json> --destination /data/natsbench.pth`.
-3. Run the experiment configs under `research/experiments/` with multiple seeds.
+3. Run a matched-budget matrix from `research/experiments/` (see its README): `python scripts/run_experiment_matrix.py --config research/experiments/<name>.json --benchmark-path ... --benchmark-sha256 ... --output artifacts/experiments/<name>`; use `--dry-run` to inspect the plan without data.
 4. Store raw metrics and provenance manifests; only then generate a report.
 
 See [ROADMAP.md](ROADMAP.md), [RESEARCH.md](RESEARCH.md), and [SECURITY.md](SECURITY.md).

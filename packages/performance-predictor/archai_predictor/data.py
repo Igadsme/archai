@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import random
+from dataclasses import dataclass
 
-from archai_core.schema import Architecture, OP_TYPES
+from archai_core.schema import OP_TYPES, Architecture
 
 
 @dataclass(frozen=True)

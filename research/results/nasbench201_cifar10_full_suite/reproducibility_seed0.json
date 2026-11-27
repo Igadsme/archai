@@ -1,0 +1,40 @@
+{
+  "evidence_type": "benchmark_lookup",
+  "purpose": "repeat recorded seed-0 runs on the same archive to test reproducibility",
+  "archive_sha256": "183b6ad84c437a36fbbe03f711cdb3a4bd6f3b8675e1af0536d3975f98fa4ba3",
+  "original_code_revision": "2fe79d1992f544f7cdb6e43a868487f2a21e390e",
+  "repeat_code_revision": "07d729c13f46b6710db321de4f3283f52b6f50a7",
+  "index_pool_size": 15625,
+  "budget": 100,
+  "repeats": [
+    {
+      "algorithm": "random",
+      "seed": 0,
+      "selected_index": 2581,
+      "best_validation_accuracy": 91.48799998535156,
+      "final_test_accuracy": 94.1,
+      "hypervolume_validation_params": 138.04734929558896,
+      "wall_clock_seconds": 1.996,
+      "recorded_selected_index": 2581,
+      "recorded_best_validation_accuracy": 91.48799998535156,
+      "recorded_final_test_accuracy": 94.1,
+      "recorded_hypervolume_validation_params": 138.04734929558896,
+      "exact_match": true
+    },
+    {
+      "algorithm": "bayesian",
+      "seed": 0,
+      "selected_index": 10439,
+      "best_validation_accuracy": 91.17999997802734,
+      "final_test_accuracy": 93.82,
+      "hypervolume_validation_params": 137.68092017644855,
+      "wall_clock_seconds": 7.036,
+      "recorded_selected_index": 10439,
+      "recorded_best_validation_accuracy": 91.17999997802734,
+      "recorded_final_test_accuracy": 93.82,
+      "recorded_hypervolume_validation_params": 137.68092017644855,
+      "exact_match": true
+    }
+  ],
+  "all_exact": true
+}

@@ -26,6 +26,10 @@ class NATSBenchAdapter:
         self._api = None
 
     def open(self):
+        from archai_benchmark.fixture import FixtureAPI, is_fixture_path
+        if is_fixture_path(self.path):
+            self._api = FixtureAPI.from_path(self.path)
+            return self
         try:
             from nats_bench import create
         except ImportError as exc:
@@ -37,13 +41,47 @@ class NATSBenchAdapter:
         if self._api is None:
             raise BenchmarkUnavailable("adapter is not open")
         trial_seed = self._resolve_trial_seed(architecture_index, seed)
-        info = self._api.get_more_info(architecture_index, self.dataset, hp=200,
-                                       is_random=trial_seed if trial_seed is not None else seed)
+        is_random = trial_seed if trial_seed is not None else seed
+        validation_dataset, test_dataset = self.metric_sources(self.dataset)
+        validation_info = self._api.get_more_info(architecture_index, validation_dataset, hp=200,
+                                                  is_random=is_random)
+        test_info = (validation_info if test_dataset == validation_dataset else
+                     self._api.get_more_info(architecture_index, test_dataset, hp=200,
+                                             is_random=is_random))
+        if "valid-accuracy" not in validation_info:
+            raise BenchmarkUnavailable(
+                f"benchmark split {validation_dataset!r} exposes no validation accuracy")
         architecture_string = self.architecture_string(architecture_index)
         return BenchmarkRecord(architecture_index, self.dataset, seed,
-                               float(info["valid-accuracy"]), float(info["test-accuracy"]),
-                               float(info.get("train-all-time", 0.0)), architecture_string=architecture_string,
+                               float(validation_info["valid-accuracy"]),
+                               float(test_info["test-accuracy"]),
+                               float(validation_info.get("train-all-time", 0.0)),
+                               architecture_string=architecture_string,
                                benchmark_trial_seed=trial_seed)
+
+    def cost(self, architecture_index: int) -> dict[str, float]:
+        """Static cost of a cell (parameters and FLOPs in millions, benchmark latency in seconds).
+
+        These are properties of the architecture, not training outcomes.
+        """
+        if self._api is None:
+            raise BenchmarkUnavailable("adapter is not open")
+        validation_dataset, _ = self.metric_sources(self.dataset)
+        info = self._api.get_cost_info(architecture_index, validation_dataset, hp=200)
+        return {"params_m": float(info["params"]), "flops_m": float(info["flops"]),
+                "latency_s": float(info["latency"])}
+
+    @staticmethod
+    def metric_sources(dataset: str) -> tuple[str, str]:
+        """(validation split, test split) following the NAS-Bench-201/NATS-Bench protocol.
+
+        NATS-Bench `cifar10` records are trained on the full training set and expose no
+        validation accuracy, so CIFAR-10 searches select on `cifar10-valid` validation
+        accuracy and report the `cifar10` held-out test accuracy separately.
+        """
+        if dataset == "cifar10":
+            return "cifar10-valid", "cifar10"
+        return dataset, dataset
 
     def _resolve_trial_seed(self, architecture_index: int, seed: int) -> int | None:
         """Map a reproducibility seed to one of the archive's actual trial seeds."""

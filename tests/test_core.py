@@ -1,8 +1,7 @@
 import pytest
-
+from archai_compiler.metrics import analytical_metrics
 from archai_core.schema import Architecture, Edge, Node, TensorSpec
 from archai_core.validation import ValidationError, validate_architecture
-from archai_compiler.metrics import analytical_metrics
 from archai_search.policies import pareto_frontier
 
 

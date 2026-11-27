@@ -1,10 +1,10 @@
 import hashlib
 import os
 from uuid import uuid4
-import pytest
-from fastapi.testclient import TestClient
 
+import pytest
 from archai_api.main import app
+from fastapi.testclient import TestClient
 
 
 def payload():
@@ -256,7 +256,7 @@ def test_generator_endpoint_is_explicitly_unavailable_without_checkpoint(monkeyp
 
 
 def test_generator_endpoint_loads_checkpoint_and_returns_valid_architectures(monkeypatch, tmp_path):
-    torch = pytest.importorskip("torch")
+    pytest.importorskip("torch")
     from archai_generator.model import ArchitectureGenerator, GeneratorConfig
     from archai_generator.training import save_checkpoint
 
@@ -270,3 +270,90 @@ def test_generator_endpoint_loads_checkpoint_and_returns_valid_architectures(mon
     assert body["count"] == 2
     assert len(body["items"]) == 2
     assert all(item["architecture_id"] for item in body["items"])
+
+
+def test_write_requests_are_audited_without_leaking_credentials(monkeypatch, tmp_path):
+    import json
+    audit = tmp_path / "audit" / "events.jsonl"
+    monkeypatch.setenv("ARCHAI_AUDIT_LOG", str(audit))
+    monkeypatch.setenv("ARCHAI_API_KEY", "audit-secret-key")
+    client = TestClient(app)
+    assert client.post("/v1/architectures", json=payload()).status_code == 401
+    assert client.post("/v1/architectures", json=payload(),
+                       headers={"x-api-key": "audit-secret-key"}).status_code == 200
+    client.get("/health")
+    text = audit.read_text()
+    assert "audit-secret-key" not in text
+    events = [json.loads(line) for line in text.splitlines()]
+    assert [(event["method"], event["path"], event["status"], event["outcome"]) for event in events] == [
+        ("POST", "/v1/architectures", 401, "rejected"),
+        ("POST", "/v1/architectures", 200, "allowed"),
+    ]
+    assert events[0]["credential_fingerprint"] is None
+    assert events[1]["credential_fingerprint"] == hashlib.sha256(b"audit-secret-key").hexdigest()[:12]
+
+
+def test_rate_limited_writes_are_audited(monkeypatch, tmp_path):
+    import json
+
+    from archai_api import main as api_main
+    audit = tmp_path / "events.jsonl"
+    monkeypatch.setenv("ARCHAI_AUDIT_LOG", str(audit))
+    monkeypatch.setenv("ARCHAI_RATE_LIMIT_PER_MINUTE", "1")
+    monkeypatch.setattr(api_main, "_rate_limiter", api_main.make_rate_limiter(""))
+    client = TestClient(app)
+    client.post("/v1/architectures/validate", json=payload())
+    assert client.post("/v1/architectures/validate", json=payload()).status_code == 429
+    statuses = [json.loads(line)["status"] for line in audit.read_text().splitlines()]
+    assert statuses[-1] == 429
+
+
+def test_rate_limit_response_includes_cors_headers(monkeypatch):
+    from archai_api import main as api_main
+    monkeypatch.setenv("ARCHAI_RATE_LIMIT_GET_PER_MINUTE", "1")
+    monkeypatch.setattr(api_main, "_rate_limiter", api_main.make_rate_limiter(""))
+    client = TestClient(app)
+    headers = {"Origin": "http://127.0.0.1:3000"}
+    assert client.get("/health", headers=headers).status_code == 200
+    blocked = client.get("/health", headers=headers)
+    assert blocked.status_code == 429
+    assert blocked.headers.get("access-control-allow-origin") == "http://127.0.0.1:3000"
+
+
+def test_require_api_key_refuses_boot_without_a_key(monkeypatch):
+    monkeypatch.setenv("ARCHAI_REQUIRE_API_KEY", "1")
+    monkeypatch.delenv("ARCHAI_API_KEY", raising=False)
+    monkeypatch.delenv("ARCHAI_API_KEY_SHA256", raising=False)
+    with pytest.raises(RuntimeError, match="ARCHAI_REQUIRE_API_KEY"):
+        with TestClient(app):
+            pass
+
+
+def test_require_api_key_boots_when_hash_is_configured(monkeypatch):
+    import hashlib
+
+    monkeypatch.setenv("ARCHAI_REQUIRE_API_KEY", "1")
+    monkeypatch.delenv("ARCHAI_API_KEY", raising=False)
+    monkeypatch.setenv("ARCHAI_API_KEY_SHA256", hashlib.sha256(b"boot-secret").hexdigest())
+    with TestClient(app) as client:
+        request = {"algorithm": "random", "dataset_id": "unit", "budget_evaluations": 1}
+        denied = client.post("/v1/searches", json=request)
+        assert denied.status_code == 401
+        allowed = client.post("/v1/searches", json=request, headers={"x-api-key": "boot-secret"})
+        assert allowed.status_code == 200
+
+
+def test_embedded_worker_requires_redis_url(monkeypatch):
+    from archai_api import main as api_main
+    monkeypatch.setenv("ARCHAI_EMBED_WORKER", "1")
+    monkeypatch.delenv("ARCHAI_REDIS_URL", raising=False)
+    with pytest.raises(RuntimeError, match="ARCHAI_REDIS_URL"):
+        api_main.start_embedded_worker()
+
+
+def test_embedded_worker_is_a_no_op_when_disabled(monkeypatch):
+    from archai_api import main as api_main
+    monkeypatch.delenv("ARCHAI_EMBED_WORKER", raising=False)
+    monkeypatch.delenv("ARCHAI_REDIS_URL", raising=False)
+    api_main.start_embedded_worker()
+    assert api_main._embed_thread is None

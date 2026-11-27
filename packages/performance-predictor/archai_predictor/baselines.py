@@ -17,7 +17,7 @@ class MeanBaseline:
     def __init__(self):
         self.value: float | None = None
 
-    def fit(self, records: list[ArchitectureRecord]) -> "MeanBaseline":
+    def fit(self, records: list[ArchitectureRecord]) -> MeanBaseline:
         if not records:
             raise ValueError("baseline requires training records")
         self.value = sum(record.target for record in records) / len(records)
@@ -37,7 +37,7 @@ class RidgeFeatureBaseline:
         self.alpha = alpha
         self.weights = None
 
-    def fit(self, records: list[ArchitectureRecord]) -> "RidgeFeatureBaseline":
+    def fit(self, records: list[ArchitectureRecord]) -> RidgeFeatureBaseline:
         if not records:
             raise ValueError("baseline requires training records")
         try:

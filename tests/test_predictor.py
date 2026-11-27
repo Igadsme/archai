@@ -1,11 +1,19 @@
 import pytest
-
 from archai_core.schema import Architecture, Edge, Node, TensorSpec
 from archai_core.validation import validate_architecture
 from archai_predictor.data import ArchitectureRecord, collate_records, split_records
-from archai_predictor.evaluation import embedding_ood_scores, gaussian_calibration_error, regression_metrics
+from archai_predictor.evaluation import (
+    embedding_ood_scores,
+    gaussian_calibration_error,
+    regression_metrics,
+)
 from archai_predictor.model import PerformancePredictor, PredictorConfig
-from archai_predictor.training import evaluate_predictor, fit_predictor, load_checkpoint, save_checkpoint
+from archai_predictor.training import (
+    evaluate_predictor,
+    fit_predictor,
+    load_checkpoint,
+    save_checkpoint,
+)
 
 
 def make_architecture(channels: int) -> Architecture:
@@ -54,7 +62,7 @@ def test_predictor_training_checkpoint_roundtrip(tmp_path):
     history = fit_predictor(model, records, epochs=3, seed=3, batch_size=2)
     assert len(history) == 3
     metrics = evaluate_predictor(model, records)
-    assert set(("mae", "rmse", "spearman", "kendall", "interval_coverage")).issubset(metrics)
+    assert {"mae", "rmse", "spearman", "kendall", "interval_coverage"}.issubset(metrics)
     path = tmp_path / "predictor.pt"
     save_checkpoint(model, path, {"kind": "unit", "seed": 3})
     restored = PerformancePredictor(PredictorConfig(hidden_dim=16, task_dim=8))

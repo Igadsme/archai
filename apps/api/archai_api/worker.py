@@ -6,8 +6,7 @@ import os
 import platform
 from pathlib import Path
 
-from archai_shared.jobs import RedisJobStore
-from archai_shared.jobs import Job
+from archai_shared.jobs import Job, RedisJobStore
 from archai_shared.paths import allowed_path
 from archai_shared.worker import WorkerRunner
 
@@ -42,10 +41,10 @@ def candidate_training(job: Job) -> dict:
         raise RuntimeError("training jobs require an architecture object")
     try:
         import torch
-        from torch.utils.data import DataLoader, TensorDataset
         from archai_core.schema import Architecture
         from archai_training.candidate import train_candidate
         from archai_training.engine import TrainingConfig
+        from torch.utils.data import DataLoader, TensorDataset
     except ImportError as exc:
         raise RuntimeError("install the ml extra for training workers") from exc
 
@@ -109,6 +108,7 @@ def generator_training(job: Job) -> dict:
         import torch
         from archai_generator.model import ArchitectureGenerator, GeneratorConfig
         from archai_generator.training import fit_generator, generation_metrics, save_checkpoint
+
         from scripts.train_generator import load_examples
     except ImportError as exc:
         raise RuntimeError("install the ml extra for generator workers") from exc
@@ -145,20 +145,21 @@ def predictor_training(job: Job) -> dict:
     archive = Path(benchmark_path)
     allowed_path(str(archive), field="benchmark_path")
     allowed_path(str(checkpoint_path), field="checkpoint_path")
-    if not archive.is_file():
+    if not archive.exists():  # a file, or an extracted NATS-Bench "-simple" directory
         raise RuntimeError(f"benchmark archive is unavailable: {archive}")
     try:
         import torch
         from archai_benchmark.adapter import NATSBenchAdapter
-        from archai_benchmark.integrity import sha256_file
-        from archai_core.schema import TensorSpec
+        from archai_benchmark.integrity import sha256_path
+        from archai_core.schema import TensorSpec  # noqa: F401 - availability check
         from archai_predictor.data import split_records
         from archai_predictor.model import PerformancePredictor, PredictorConfig
         from archai_predictor.training import evaluate_predictor, fit_predictor, save_checkpoint
+
         from scripts.train_predictor import collect_records
     except ImportError as exc:
         raise RuntimeError("install the benchmark and ml extras for predictor workers") from exc
-    actual_checksum = sha256_file(archive)
+    actual_checksum = sha256_path(archive)
     if actual_checksum != str(expected_checksum).lower():
         raise RuntimeError("benchmark archive checksum mismatch")
     dataset = str(config.get("dataset", "cifar10"))
@@ -189,73 +190,130 @@ def predictor_training(job: Job) -> dict:
             "hardware": _hardware_profile("cpu", torch.__version__)}
 
 
+
+def _benchmark_indices(config: dict, path: str | Path) -> list[int]:
+    """Job payload indices, or ARCHAI_NATS_BENCH_INDICES.
+
+    The value `fixture` (or `all`) expands to every index in a fixture path so
+    the hosted demo does not need a 256-long env var.
+    """
+    raw = config.get("indices")
+    if not raw:
+        raw = os.getenv("ARCHAI_NATS_BENCH_INDICES", "")
+    if isinstance(raw, str):
+        token = raw.strip().lower()
+        if token in {"fixture", "all"}:
+            from archai_benchmark.fixture import FixtureAPI, is_fixture_path
+            if not is_fixture_path(path):
+                raise RuntimeError("ARCHAI_NATS_BENCH_INDICES=fixture requires a fixture path")
+            return FixtureAPI.from_path(path).indices()
+        raw = [value for value in raw.split(",") if value.strip()]
+    return [int(value) for value in raw]
+
+
 def benchmark_search(job: Job) -> dict:
     """Run the configured validation-selected benchmark search.
 
     The archive checksum is mandatory so a worker cannot silently query an
     unverified or stale benchmark file.
     """
-    algorithm = job.payload.get("algorithm", "random")
-    if algorithm not in {"random", "evolution"}:
-        raise RuntimeError("benchmark worker supports algorithm=random or evolution")
     try:
-        from archai_benchmark import (BenchmarkCache, BenchmarkEvaluator, IndexRandomSearch,
-                                      IndexRegularizedEvolution, NATSBenchAdapter, QueryBudget)
-        from archai_benchmark.integrity import sha256_file
+        from archai_benchmark import (
+            BenchmarkCache,
+            BenchmarkEvaluator,
+            NATSBenchAdapter,
+            QueryBudget,
+        )
+        from archai_benchmark.integrity import sha256_path
+        from archai_benchmark.policy_registry import ALGORITHMS, POLICIES, available, build_policy
+        from archai_benchmark.research_metrics import hypervolume_2d
     except ImportError as exc:
         raise RuntimeError("install the benchmark extra for benchmark search workers") from exc
+    algorithm = job.payload.get("algorithm", "random")
+    if algorithm not in POLICIES:
+        raise RuntimeError(f"benchmark worker supports algorithm={', '.join(ALGORITHMS)}")
+    usable, reason = available(algorithm)
+    if not usable:
+        raise RuntimeError(f"{algorithm} is unavailable on this worker: {reason}")
+    params = dict(job.payload.get("params") or {})
+    legacy_defaults = {"bayesian": {"warmup": 5, "candidate_pool_size": 256},
+                       "evolution": {"population_size": 8, "sample_size": 3}}.get(algorithm, {})
+    for key, default in legacy_defaults.items():  # top-level keys predate the params object
+        params.setdefault(key, job.payload.get(key, default))
     path = os.getenv("ARCHAI_NATS_BENCH_PATH")
     expected_checksum = os.getenv("ARCHAI_NATS_BENCH_SHA256")
     if not path or not expected_checksum:
         raise RuntimeError("ARCHAI_NATS_BENCH_PATH and ARCHAI_NATS_BENCH_SHA256 are required")
     archive = Path(path)
-    if not archive.is_file():
+    if not archive.exists():  # a file, or an extracted NATS-Bench "-simple" directory
         raise RuntimeError(f"benchmark archive is unavailable: {archive}")
-    actual_checksum = sha256_file(archive)
+    actual_checksum = sha256_path(archive)
     if actual_checksum != expected_checksum.lower():
         raise RuntimeError("benchmark archive checksum mismatch")
     config = job.payload
-    raw_indices = config.get("indices") or [int(value) for value in os.getenv("ARCHAI_NATS_BENCH_INDICES", "").split(",") if value.strip()]
-    indices = [int(value) for value in raw_indices]
+    indices = _benchmark_indices(config, path)
     if not indices:
         raise RuntimeError("no benchmark indices configured")
-    budget = min(int(config["budget_evaluations"]), len(indices))
     dataset = str(config.get("dataset_id", "cifar10"))
     search_space = os.getenv("ARCHAI_NATS_BENCH_SEARCH_SPACE", "tss")
     cache_path = os.getenv("ARCHAI_BENCHMARK_CACHE", "/tmp/archai-benchmark-cache.sqlite")
     adapter = NATSBenchAdapter(str(archive), search_space, dataset).open()
+    pool_before = len(indices)
+    constraints_payload = config.get("constraints")
+    if constraints_payload:
+        from archai_benchmark.constraint_filter import feasible_benchmark_indices
+        from archai_shared.constraints import ArchitectureConstraints
+        constraints = ArchitectureConstraints.model_validate(constraints_payload)
+        if not constraints.is_empty():
+            feasible, unevaluable = feasible_benchmark_indices(adapter, indices, constraints)
+            if unevaluable:
+                raise RuntimeError("constraints cannot be evaluated on this benchmark: " + ", ".join(unevaluable))
+            if not feasible:
+                raise RuntimeError("no architectures in the pool satisfy the constraints")
+            indices = feasible
+    budget = min(int(config["budget_evaluations"]), len(indices))
     evaluator = BenchmarkEvaluator(adapter, QueryBudget(budget), BenchmarkCache(cache_path))
-    if algorithm == "random":
-        policy = IndexRandomSearch(indices, seed=int(config.get("seed", 0)))
-    else:
-        architecture_strings = {index: adapter.architecture_string(index) for index in indices}
-        policy = IndexRegularizedEvolution(
-            indices, architecture_strings,
-            population_size=int(config.get("population_size", 8)),
-            sample_size=int(config.get("sample_size", 3)),
-            seed=int(config.get("seed", 0)),
-        )
-    records = []
+    policy = build_policy(adapter, indices, algorithm, int(config.get("seed", 0)), params)
+    uses_cost = getattr(policy, "uses_cost", False)
+    records, costs = [], []
     while len(records) < budget:
         index = policy.ask()
         if index is None:
             break
         record = evaluator.evaluate_index(index, seed=int(config.get("seed", 0)))
         records.append(record)
-        if algorithm == "evolution":
+        cost = adapter.cost(index) if callable(getattr(adapter, "cost", None)) else None
+        costs.append(cost)
+        if uses_cost:
+            policy.tell(index, record.validation_accuracy, cost)
+        elif hasattr(policy, "tell"):
             policy.tell(index, record.validation_accuracy)
     if not records:
         raise RuntimeError("benchmark search evaluated no architectures")
+    history = [{"step": step, "index": record.architecture_index,
+                "architecture_string": record.architecture_string,
+                "validation_accuracy": record.validation_accuracy,
+                **({"params_m": cost["params_m"], "flops_m": cost["flops_m"]} if cost else {})}
+               for step, (record, cost) in enumerate(zip(records, costs), start=1)]
+    extras = {}
+    if all(costs):
+        extras["hypervolume_validation_params"] = hypervolume_2d(
+            [(record.validation_accuracy, cost["params_m"]) for record, cost in zip(records, costs)], (0.0, 1.6))
     best = max(records, key=lambda record: record.validation_accuracy)
     return {"algorithm": algorithm, "dataset": dataset, "search_space": search_space,
             "seed": int(config.get("seed", 0)), "budget": int(config["budget_evaluations"]),
-            "queries": evaluator.queries, "selected_on": "validation_accuracy",
+            "queries": evaluator.queries, "evaluations": len(records),
+            "cache_hits": len(records) - evaluator.queries, "selected_on": "validation_accuracy",
             "selected_index": best.architecture_index,
+            "selected_architecture_string": best.architecture_string,
             "selected_validation_accuracy": best.validation_accuracy,
             "held_out_test_accuracy": best.test_accuracy,
             "evidence_type": "benchmark_lookup",
             "evaluated_indices": [record.architecture_index for record in records],
-            "archive_sha256": actual_checksum}
+            "history": history, "policy_params": params, **extras,
+            "archive_sha256": actual_checksum,
+            "pool_size_before_constraints": pool_before,
+            "pool_size_after_constraints": len(indices)}
 
 
 def main() -> int:

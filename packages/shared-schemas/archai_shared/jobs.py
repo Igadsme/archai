@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import socket
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from threading import Lock
 from typing import Literal
 from uuid import uuid4
@@ -23,15 +23,15 @@ class Job:
     status: JobStatus = "queued"
     payload: dict = field(default_factory=dict)
     error: str | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def as_dict(self) -> dict:
         return {"job_id": self.job_id, "kind": self.kind, "status": self.status, "payload": self.payload,
                 "error": self.error, "created_at": self.created_at.isoformat(), "updated_at": self.updated_at.isoformat()}
 
     @classmethod
-    def from_dict(cls, value: dict) -> "Job":
+    def from_dict(cls, value: dict) -> Job:
         return cls(job_id=value["job_id"], kind=value["kind"], status=value["status"], payload=value["payload"],
                    error=value.get("error"), created_at=datetime.fromisoformat(value["created_at"]),
                    updated_at=datetime.fromisoformat(value["updated_at"]))
@@ -58,14 +58,14 @@ class InMemoryJobStore:
             job = self._jobs[job_id]
             if status not in _TRANSITIONS[job.status]:
                 raise ValueError(f"invalid job transition {job.status}->{status}")
-            job.status, job.error, job.updated_at = status, error, datetime.now(timezone.utc)
+            job.status, job.error, job.updated_at = status, error, datetime.now(UTC)
             return job
 
     def update_payload(self, job_id: str, payload: dict) -> Job:
         with self._lock:
             job = self._jobs[job_id]
             job.payload = dict(payload)
-            job.updated_at = datetime.now(timezone.utc)
+            job.updated_at = datetime.now(UTC)
             return job
 
     def list(self) -> list[Job]:
@@ -78,7 +78,7 @@ class InMemoryJobStore:
             for job in self._jobs.values():
                 if job.status == "queued":
                     job.status = "running"
-                    job.updated_at = datetime.now(timezone.utc)
+                    job.updated_at = datetime.now(UTC)
                     return job
         return None
 
@@ -89,7 +89,7 @@ class RedisJobStore:
         self.client, self.prefix = client, prefix
 
     @classmethod
-    def from_url(cls, url: str, prefix: str = "archai") -> "RedisJobStore":
+    def from_url(cls, url: str, prefix: str = "archai") -> RedisJobStore:
         try:
             import redis
         except ImportError as exc:  # pragma: no cover
@@ -123,7 +123,7 @@ class RedisJobStore:
         def update(job: Job) -> Job:
             if status not in _TRANSITIONS[job.status]:
                 raise ValueError(f"invalid job transition {job.status}->{status}")
-            job.status, job.error, job.updated_at = status, error, datetime.now(timezone.utc)
+            job.status, job.error, job.updated_at = status, error, datetime.now(UTC)
             return job
 
         return self._atomic_job_update(job_id, update)
@@ -131,7 +131,7 @@ class RedisJobStore:
     def update_payload(self, job_id: str, payload: dict) -> Job:
         def update(job: Job) -> Job:
             job.payload = dict(payload)
-            job.updated_at = datetime.now(timezone.utc)
+            job.updated_at = datetime.now(UTC)
             return job
 
         return self._atomic_job_update(job_id, update)
@@ -190,14 +190,14 @@ class RedisJobStore:
             "pid": __import__("os").getpid(),
             "status": "running" if active_job_id else "idle",
             "active_job_id": active_job_id,
-            "last_seen": datetime.now(timezone.utc).isoformat(),
+            "last_seen": datetime.now(UTC).isoformat(),
         }
         self.client.set(self._worker_key(worker_id), json.dumps(value))
         return value
 
     def list_workers(self, *, stale_after_seconds: float = 30.0) -> list[dict]:
         """Return workers whose latest heartbeat is recent enough to be live."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         workers = []
         for key in self.client.scan_iter(match=f"{self.prefix}:worker:*"):
             value = self.client.get(key)
@@ -214,7 +214,7 @@ class RedisJobStore:
 
     def recover_stale_jobs(self, *, stale_after_seconds: float = 60.0) -> list[str]:
         """Requeue running jobs whose worker lease has expired."""
-        cutoff = datetime.now(timezone.utc) - timedelta(seconds=stale_after_seconds)
+        cutoff = datetime.now(UTC) - timedelta(seconds=stale_after_seconds)
         active_jobs = {worker.get("active_job_id") for worker in self.list_workers()}
         recovered = []
         for key in self.client.scan_iter(match=f"{self.prefix}:job:*"):
@@ -233,7 +233,7 @@ class RedisJobStore:
                     raise ValueError("job is no longer running")
                 current.status = "queued"
                 current.error = "requeued after worker lease expired"
-                current.updated_at = datetime.now(timezone.utc)
+                current.updated_at = datetime.now(UTC)
                 return current
 
             try:
