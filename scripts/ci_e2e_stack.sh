@@ -92,7 +92,7 @@ python -m archai_api.worker >"$LOG_DIR/worker.log" 2>&1 &
 echo $! >"$LOG_DIR/worker.pid"
 
 # Studio must already be built (npm run build) with NEXT_PUBLIC_ARCHAI_API_URL.
-(cd "$ROOT/apps/web" && npm start -- --hostname 127.0.0.1 --port 3000) >"$LOG_DIR/studio.log" 2>&1 &
+(cd "$ROOT/apps/web" && exec ./node_modules/.bin/next start --hostname 127.0.0.1 --port 3000) >"$LOG_DIR/studio.log" 2>&1 &
 echo $! >"$LOG_DIR/studio.pid"
 
 wait_http() {
