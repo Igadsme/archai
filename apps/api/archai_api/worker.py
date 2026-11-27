@@ -86,8 +86,9 @@ def candidate_training(job: Job) -> dict:
         live_history.append(row)
         report_progress({"phase": "training", "epochs_completed": len(live_history),
                          "epochs": training_config.epochs, "history": list(live_history),
-                         "evidence_type": "synthetic_training"}, force=True)
-        raise_if_cancelled(force=True)
+                         "evidence_type": "synthetic_training"},
+                        force=len(live_history) in {1, training_config.epochs})
+        raise_if_cancelled()
 
     result = train_candidate(architecture, train_loader, validation_loader, training_config,
                              checkpoint_path=checkpoint, on_epoch_end=on_epoch_end)

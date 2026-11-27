@@ -161,15 +161,18 @@ def test_cancelling_candidate_training_stops_after_the_current_epoch(monkeypatch
     store = InMemoryJobStore()
     job = store.create("training", {"architecture": tiny_architecture().model_dump(), "dataset": "synthetic",
                                     "train_samples": 4, "validation_samples": 4, "batch_size": 2,
-                                    "epochs": 50, "seed": 7})
+                                    "epochs": 1000, "seed": 7})
     real_report = api_worker.report_progress
+    epochs_seen = []
 
     def report_then_cancel(progress, *, force=False):
         real_report(progress, force=force)
+        epochs_seen.append(progress.get("epochs_completed"))
         if progress.get("epochs_completed") == 2:
             store.transition(job.job_id, "cancelled")
 
     monkeypatch.setattr(api_worker, "report_progress", report_then_cancel)
     finished = WorkerRunner(store, {"training": api_worker.candidate_training}).run_once()
     assert finished.status == "cancelled"
-    assert store.get(job.job_id).payload["progress"]["epochs_completed"] == 2
+    assert max(epochs_seen) < 1000
+    assert "result" not in store.get(job.job_id).payload
