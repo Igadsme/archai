@@ -3,7 +3,7 @@ export type ArchitectureItem = { architecture_id: string; search_space: string; 
 export type SearchItem = { search_id: string; algorithm: string; dataset_id: string; status?: string; seed: number; budget_evaluations?: number }
 export type ExperimentItem = { experiment_id: string; architecture_id: string; evidence_type: string; status: string; metrics: Record<string, number>; provenance?: { dataset_id?: string; seed?: number; code_revision?: string } }
 export type DatasetItem = { dataset_id: string; version: string; checksum: string; uri?: string; license?: string | null }
-export type JobItem = { job_id: string; kind: string; status: string; error: string | null; payload?: Record<string, unknown>; created_at?: string }
+export type JobItem = { job_id: string; kind: string; status: string; error: string | null; payload?: Record<string, unknown>; created_at?: string; updated_at?: string }
 export type ModelItem = { model_id: string; kind: string; version: string; sha256: string; artifact_exists?: boolean; integrity_verified?: boolean }
 export type ArchitectureNode = { id: string; op: string; channels: number }
 export type ArchitectureDocument = { architecture: { nodes: ArchitectureNode[]; edges: { source: string; target: string }[] }; hash: string; metrics?: Metrics }
@@ -12,12 +12,18 @@ export type AuditEvent = { timestamp: string; method: string; path: string; stat
 export type AuditLog = { available: boolean; items: AuditEvent[]; detail?: string }
 export type Worker = { worker_id: string; hostname: string; status: string; last_seen: string; active_job_id: string | null }
 export type ArchitectureEdge = { source: string; target: string }
-export type FullArchitecture = { nodes: (ArchitectureNode & { kernel_size?: number; stride?: number; activation?: string; normalization?: string })[]; edges: ArchitectureEdge[]; input_spec: { channels: number; height: number; width: number }; output_classes: number; search_space?: string }
+export type FullArchitecture = {
+  nodes: (ArchitectureNode & { kernel_size?: number; activation?: string; normalization?: string })[]; edges: ArchitectureEdge[]
+  input_spec: { channels: number; height: number; width: number }; output_classes: number; search_space?: string
+  architecture_id?: string | null; schema_version?: string; generator_version?: string; seed?: number | null; lineage?: string[]; metadata?: Record<string, string>
+}
+/** Response of POST /v1/architectures/validate, POST /v1/architectures and GET /v1/architectures/{id}. */
+export type ArchitectureDetail = { architecture: FullArchitecture; hash: string; analytical_metrics: AnalyticalMetrics }
 export type AnalyticalMetrics = { parameters: number; flops: number; activation_memory_bytes: number }
 export type CompareItem = { architecture_id: string; architecture: FullArchitecture; analytical_metrics: AnalyticalMetrics }
 export type SearchAlgorithm = { name: string; label: string; description: string; parameters: string[]; available: boolean; unavailable_reason: string | null }
 export type HistoryStep = { step: number; index: number; architecture_string?: string; validation_accuracy: number; params_m?: number; flops_m?: number }
-export type JobDetail = JobItem & { result?: Record<string, unknown> | null; started_at?: string | null; finished_at?: string | null }
+export type JobDetail = JobItem & { result?: Record<string, unknown> | null; updated_at?: string }
 export type SeedSummary = { mean: number; ci_low: number; ci_high: number; std: number; n_seeds: number }
 export type ResearchReport = { algorithms: Record<string, { runs: number; best_validation_accuracy: SeedSummary; final_test_accuracy?: SeedSummary; hypervolume_validation_params?: SeedSummary; search_cost?: SeedSummary }>; matched_budget?: number; experiment?: string; evidence_type?: string; ablations?: string[] }
 export type ParetoPoint = { index: number; architecture_string?: string; validation_accuracy: number; params_m: number; flops_m?: number }

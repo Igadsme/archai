@@ -23,21 +23,21 @@ CI because it needs the live stack and NATS-Bench archive, which GitHub-hosted r
 
 | # | Spec page | Route | Status | Verified by / gap |
 | --- | --- | --- | --- | --- |
-| 1 | Research Dashboard | `/` | COMPLETE | browser E2E (loads registry/job/model counts, measured-suite table, failed jobs; create/select research project) |
-| 2 | Architecture Generator | `/generator` | IN PROGRESS | E2E: generate → save to registry works; constraint *inputs* are in the form (no longer Unavailable). The API checkpoint is still a 2-example smoke checkpoint. At smoke scale, ceiling conditioning is not better than random on raw budget satisfaction (TEST_REPORT). |
-| 3 | Architecture Graph Explorer | `/explorer` | COMPLETE | E2E: register → SVG DAG → JSON + TorchScript export; export loaded and run without archai (TEST_REPORT) |
-| 4 | Autonomous Search Laboratory | `/search` | COMPLETE | E2E: multi_objective search launched, run on the worker, 20-step history shown; all 7 policies selectable |
-| 5 | Pareto Optimization Explorer | `/pareto` | COMPLETE | E2E: measured-suite fronts per policy/seed + live-session front and hypervolume (TS hypervolume = Python, vitest + pytest fixture) |
-| 6 | Training Laboratory | `/training` | COMPLETE | E2E: synthetic candidate job → measured loss table; live per-epoch progress and cooperative cancel (`tests/test_job_progress.py`, recorded browser walkthrough on the production-readiness PR) |
-| 7 | Model Comparison | `/compare` | COMPLETE | E2E: 2 architectures compared (analytical metrics); policy table with CIs, regret, hypervolume, CI-overlap flag |
-| 8 | Research Results | `/results` | COMPLETE | E2E: committed result sets with config, tables, README, smoke reports; experiment leaderboard |
-| 9 | Model Registry | `/models` | COMPLETE | E2E: checkpoint inspection (tensors, parameters, metadata); tampered files refused (pytest) |
-| 10 | System Administration | `/admin` | COMPLETE | E2E: readiness, queue, live worker, failed jobs, datasets; audit-log viewer (`GET /v1/audit`); key management marked Unavailable |
+| 1 | Research Dashboard → V3 Research Overview | `/` | COMPLETE | browser E2E (live counts, active runs, compute fabric, registered architectures, measured-suite table; create/select research project, mirrored in the sidebar) |
+| 2 | Architecture Generator | `/generator` | IN PROGRESS | E2E: generate → API validation → save to registry; constraint inputs in the form; 503 without a checkpoint is shown as Unavailable. The API checkpoint is still a smoke/fixture checkpoint. At smoke scale, ceiling conditioning is not better than random on raw budget satisfaction (TEST_REPORT). |
+| 3 | Architecture Graph Explorer → V3 Neural Architecture Explorer | `/explorer` | COMPLETE | E2E: register → graph from registry data → API validation pill → keyboard zoom/resize → JSON + TorchScript + local graph export; per-node analytical costs = API totals (vitest) |
+| 4 | Autonomous Search Laboratory | `/search` | COMPLETE | E2E: multi_objective search launched, run on the worker, history, convergence chart and population board; all 7 policies selectable |
+| 5 | Pareto Optimization Explorer | `/pareto` | COMPLETE | E2E: measured-suite fronts per policy/seed, candidate detail, live-session front and hypervolume (TS hypervolume = Python, vitest + pytest fixture) |
+| 6 | Training Laboratory → V3 Training and GPU Monitoring | `/training` | COMPLETE | E2E: synthetic candidate job → measured curve and table; live per-epoch progress and cooperative cancel; GPU telemetry explicitly Unavailable (not collected) |
+| 7 | Model Comparison → V3 Benchmark Comparison | `/benchmarks` (was `/compare`) | COMPLETE | E2E: 2 architectures compared (analytical metrics); policy table with CIs, regret, hypervolume, CI-overlap flag |
+| 8 | Research Results → V3 Benchmark Comparison + Experiment History | `/benchmarks`, `/experiments` (was `/results`) | COMPLETE | E2E: committed result sets with config, tables, README, smoke reports; experiment leaderboard; job history with filters, timeline, errors and stored results |
+| 9 | Model Registry | `/registry` (was `/models`) | COMPLETE | E2E: architecture detail + export; checkpoint inspection (tensors, parameters, metadata); tampered files refused (pytest); deployments marked as having no endpoint |
+| 10 | System Administration | `/system` (was `/admin`) | COMPLETE | E2E: readiness, queue, live worker, failed jobs, datasets, audit log (`GET /v1/audit`); key management and host metrics marked Unavailable |
 
 | Required capability | Status | Evidence / gap |
 | --- | --- | --- |
 | Architecture generation | IN PROGRESS | works end to end, but only with a smoke checkpoint and without constraints |
-| Architecture visualization | COMPLETE | `DagView` + `layoutDag` (vitest), E2E |
+| Architecture visualization | COMPLETE | V3 Explorer workbench (`architectureGraph.ts` + `layoutDag`, vitest), E2E at 5 viewports |
 | Real search sessions | COMPLETE | E2E on the Redis worker against the verified archive |
 | Experiment monitoring | COMPLETE | polled sessions/jobs with cancel; E2E |
 | Training progress | COMPLETE | live `payload.progress` per epoch (candidate) / per evaluation (search); generator/predictor report on completion |

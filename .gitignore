@@ -12,3 +12,6 @@ artifacts/**/*.pt
 artifacts/**/*.safetensors
 datasets/raw/
 *.egg-info/
+
+# Local Redis snapshots
+dump.rdb
