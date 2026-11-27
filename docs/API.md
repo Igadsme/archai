@@ -41,3 +41,12 @@ Auth is on when `ARCHAI_API_KEY` / `ARCHAI_API_KEY_SHA256` (the bootstrap admin 
 | `POST /v1/api-keys/{id}/revoke` | admin | Revoke immediately. |
 
 Only `admin`-role users can hold `admin`-scoped keys. Without a bootstrap key, the first managed key must be admin-scoped and the last active admin key cannot be revoked (`409`).
+
+## Telemetry, latency and job retry
+
+| Method and path | Scope | Purpose |
+| --- | --- | --- |
+| `GET /v1/infrastructure/telemetry` | read | Host metrics for the API process plus every live worker's last heartbeat. GPUs come from NVML (`pynvml`) when it is installed, else `torch.cuda`; with no GPU, `gpu.available` is `false` and `gpu.reason` says why (`No GPU: …`). Nothing is estimated. |
+| `POST /v1/architectures/{id}/latency` | write | Time forward passes of the registered architecture on the API host (`batch_size` 1–64, `warmup` 0–50, `iterations` 2–500, `device` `cpu` or `cuda`). Returns mean, p50, p90, p99, min, max, stdev and throughput with the device, hardware and torch version; `evidence_type` is `measured_latency`. Weights are seeded, not trained. Capped at `ARCHAI_LATENCY_MAX_SECONDS` (default 20); `503` without torch or when `cuda` is requested but unavailable. |
+| `GET /v1/architectures/{id}/latency` | read | Stored measurements, newest first. |
+| `POST /v1/jobs/{id}/retry` | write | Queue a new job with the same kind and inputs as a `failed` or `cancelled` one. The new job carries `retry_of`; the original gets `retried_as`. Other states return `409`. |
