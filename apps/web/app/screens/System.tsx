@@ -6,6 +6,7 @@ import { healthResponse, itemsResponse } from "../lib/validators"
 import { useGo } from "../studio/hooks"
 import { Icon } from "../studio/Icon"
 import { Loaded, PageHeader, Panel, shortId, Status, Unavailable } from "../studio/ui"
+import { AccessPanel } from "./AccessPanel"
 
 type Queue = { backend: string; available: boolean; queued?: number; running?: number; terminal?: number; error?: string }
 type Health = { status: string; evidence_policy?: string }
@@ -35,7 +36,7 @@ export function SystemAdmin() {
   const notReady = readiness.data && readiness.data.status !== "ready"
 
   return <div className="page">
-    <PageHeader eyebrow="SYSTEM ADMINISTRATION" title="System administration" description="Read-only operational view of the API host. Keys, limits and services are changed in configuration, not from the Studio.">
+    <PageHeader eyebrow="SYSTEM ADMINISTRATION" title="System administration" description="Operational view of the API host, plus user accounts and scoped API keys. Limits and services are changed in configuration.">
       <Status tone={readiness.data?.status === "ready" ? "teal" : readiness.error ? "red" : "amber"}>{readiness.data ? readiness.data.status.toUpperCase() : readiness.error ? "UNREACHABLE" : "CHECKING"}</Status>
     </PageHeader>
     {notReady ? <div className="system-alert" role="alert"><Icon name="alert" /><span>Readiness reports <b>{readiness.data!.status}</b>. Writes that need the database or worker may fail until it is ready.</span></div> : null}
@@ -56,20 +57,20 @@ export function SystemAdmin() {
         <Loaded poll={datasets} label="datasets" isEmpty={(data) => data.items.length === 0} empty="No datasets registered.">{(data) => <div className="mount-list">{data.items.map((item) => <div key={`${item.dataset_id}-${item.version}`}><Icon name="database" size={13} /><span><b className="mono">{item.dataset_id}</b><small>{item.uri ?? ""}</small></span><code>{item.version}</code><code title={item.checksum}>{item.checksum.slice(0, 10)}</code></div>)}</div>}</Loaded>
       </Panel>
       <Panel title="Audit log" meta="STATE-CHANGING REQUESTS · NEWEST FIRST" className="span-all">
-        {audit.status === 401 || audit.status === 403 ? <Unavailable feature="audit-log viewer" reason="The audit log needs the write API key. Enter it in the sidebar (API KEY) to read state-changing requests." /> : <Loaded poll={audit} label="audit log" isEmpty={(data) => data.available && data.items.length === 0} empty="No write requests recorded yet.">{(data) => !data.available
+        {audit.status === 401 || audit.status === 403 ? <Unavailable feature="audit-log viewer" reason="The audit log needs an admin-scoped API key. Enter it in the sidebar (API KEY) to read state-changing requests." /> : <Loaded poll={audit} label="audit log" isEmpty={(data) => data.available && data.items.length === 0} empty="No write requests recorded yet.">{(data) => !data.available
           ? <Unavailable feature="audit-log viewer" reason={data.detail ?? "ARCHAI_AUDIT_LOG is not configured on the API host."} />
           : <div className="table-wrap"><table aria-label="Audit log"><thead><tr><th>TIME (UTC)</th><th>REQUEST</th><th>STATUS</th><th>CLIENT</th><th>KEY FINGERPRINT</th><th>REQUEST ID</th></tr></thead><tbody>
             {data.items.map((event, index) => <tr key={`${event.timestamp}-${index}`}><td className="mono">{event.timestamp}</td><td><code>{event.method} {event.path}</code></td>
               <td className={event.outcome === "rejected" ? "error-text" : undefined}>{event.status} {event.outcome}</td><td>{event.client ?? "—"}</td><td><code>{event.credential_fingerprint ?? "none"}</code></td><td><code>{event.request_id ?? "—"}</code></td></tr>)}
           </tbody></table></div>}</Loaded>}
       </Panel>
+      <AccessPanel />
       <Panel title="Access & policy" meta="CONFIGURATION">
         <div className="setting-list">
           <div><span><b>API key</b><small>Entered in the sidebar; kept in sessionStorage for this browser session only and sent as x-api-key.</small></span><code>SESSION</code></div>
           <div><span><b>Database ready</b><small>From /readiness.</small></span><code>{yes(readiness.data?.database_ready)}</code></div>
           <div><span><b>Durable worker</b><small>From /readiness.</small></span><code>{yes(readiness.data?.durable_worker_configured)}</code></div>
         </div>
-        <Unavailable feature="user and API-key management" reason="Single shared key from configuration (ARCHAI_API_KEY / ARCHAI_API_KEY_SHA256); there are no user accounts to manage." />
       </Panel>
       <Panel title="Host metrics" meta="NOT COLLECTED">
         <Unavailable feature="CPU, memory and GPU metrics" reason="The API does not collect host metrics. Use host tooling (node exporter, nvidia-smi) for live resource data." />

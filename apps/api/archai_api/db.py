@@ -73,6 +73,11 @@ def sqlalchemy_components():
         __tablename__ = "users"
         user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
         email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
+        display_name: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+        role: Mapped[str] = mapped_column(String(16), nullable=False, default="member")
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                      server_default="CURRENT_TIMESTAMP", nullable=False)
+        disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     class ApiCredentialRow(Base):
         __tablename__ = "api_credentials"
@@ -81,6 +86,14 @@ def sqlalchemy_components():
                                                                       ondelete="CASCADE"), nullable=False)
         key_hash: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
         revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+        name: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+        key_prefix: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+        scopes: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                      server_default="CURRENT_TIMESTAMP", nullable=False)
+        last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+        expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+        rotated_from: Mapped[str | None] = mapped_column(String(64))
 
     class DatasetRow(Base):
         __tablename__ = "datasets"
@@ -118,6 +131,8 @@ def sqlalchemy_components():
     Base._archai_model_checkpoint_row = ModelCheckpointRow
     Base._archai_dataset_row = DatasetRow
     Base._archai_project_row = ResearchProjectRow
+    Base._archai_user_row = UserRow
+    Base._archai_credential_row = ApiCredentialRow
 
     def make_engine(url: str):
         return create_engine(url, pool_pre_ping=True)
@@ -571,3 +586,130 @@ class SqlAlchemyProjectStore:
             return [self._to_record(row) for row in rows]
         finally:
             session.close()
+
+
+class SqlAlchemyIdentityStore:
+    """Persist users and hashed API credentials (`users`, `api_credentials`)."""
+
+    def __init__(self, session_factory, user_row, credential_row):
+        self._session_factory = session_factory
+        self._user = user_row
+        self._credential = credential_row
+
+    @classmethod
+    def from_url(cls, url: str, *, initialize: bool = False) -> SqlAlchemyIdentityStore:
+        Base, _a, _s, _e, make_engine, make_session_factory = sqlalchemy_components()
+        engine = make_engine(url)
+        if initialize:
+            Base.metadata.create_all(engine)
+        return cls(make_session_factory(url, engine), Base._archai_user_row, Base._archai_credential_row)
+
+    @staticmethod
+    def _user_record(row):
+        from archai_api.identity import User, _aware
+        return User(user_id=row.user_id, email=row.email, display_name=row.display_name or "",
+                    role=row.role or "member", created_at=_aware(row.created_at),
+                    disabled_at=_aware(row.disabled_at))
+
+    @staticmethod
+    def _credential_record(row):
+        from archai_api.identity import Credential, _aware
+        return Credential(credential_id=row.credential_id, user_id=row.user_id, key_hash=row.key_hash,
+                          name=row.name or "", key_prefix=row.key_prefix or "",
+                          scopes=tuple(row.scopes or ()), created_at=_aware(row.created_at),
+                          last_used_at=_aware(row.last_used_at), expires_at=_aware(row.expires_at),
+                          revoked_at=_aware(row.revoked_at), rotated_from=row.rotated_from)
+
+    def _write(self, fn):
+        session = self._session_factory()
+        try:
+            result = fn(session)
+            session.commit()
+            return result
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def _read(self, fn):
+        session = self._session_factory()
+        try:
+            return fn(session)
+        finally:
+            session.close()
+
+    def add_user(self, user):
+        from sqlalchemy import select
+
+        def write(session):
+            if session.scalar(select(self._user).where(self._user.email == user.email)) is not None:
+                raise ValueError(f"a user with email {user.email} already exists")
+            session.add(self._user(user_id=user.user_id, email=user.email, display_name=user.display_name,
+                                   role=user.role, created_at=user.created_at, disabled_at=user.disabled_at))
+            return user
+        return self._write(write)
+
+    def update_user(self, user):
+        def write(session):
+            row = session.get(self._user, user.user_id)
+            if row is None:
+                raise LookupError(user.user_id)
+            row.display_name, row.role, row.disabled_at = user.display_name, user.role, user.disabled_at
+            return user
+        return self._write(write)
+
+    def get_user(self, user_id: str):
+        return self._read(lambda session: (lambda row: None if row is None else self._user_record(row))(
+            session.get(self._user, user_id)))
+
+    def list_users(self):
+        from sqlalchemy import select
+        return self._read(lambda session: [self._user_record(row) for row in session.scalars(
+            select(self._user).order_by(self._user.created_at)).all()])
+
+    def _credential_values(self, credential) -> dict:
+        return {"credential_id": credential.credential_id, "user_id": credential.user_id,
+                "key_hash": credential.key_hash, "name": credential.name, "key_prefix": credential.key_prefix,
+                "scopes": list(credential.scopes), "created_at": credential.created_at,
+                "last_used_at": credential.last_used_at, "expires_at": credential.expires_at,
+                "revoked_at": credential.revoked_at, "rotated_from": credential.rotated_from}
+
+    def add_credential(self, credential):
+        def write(session):
+            session.add(self._credential(**self._credential_values(credential)))
+            return credential
+        return self._write(write)
+
+    def update_credential(self, credential):
+        def write(session):
+            row = session.get(self._credential, credential.credential_id)
+            if row is None:
+                raise LookupError(credential.credential_id)
+            for key, value in self._credential_values(credential).items():
+                setattr(row, key, value)
+            return credential
+        return self._write(write)
+
+    def get_credential(self, credential_id: str):
+        return self._read(lambda session: (lambda row: None if row is None else self._credential_record(row))(
+            session.get(self._credential, credential_id)))
+
+    def find_by_hash(self, key_hash: str):
+        from sqlalchemy import select
+        return self._read(lambda session: (lambda row: None if row is None else self._credential_record(row))(
+            session.scalar(select(self._credential).where(self._credential.key_hash == key_hash))))
+
+    def list_credentials(self, user_id: str | None = None):
+        from sqlalchemy import select
+        query = select(self._credential).order_by(self._credential.created_at)
+        if user_id is not None:
+            query = query.where(self._credential.user_id == user_id)
+        return self._read(lambda session: [self._credential_record(row) for row in session.scalars(query).all()])
+
+    def touch(self, credential_id: str, at) -> None:
+        def write(session):
+            row = session.get(self._credential, credential_id)
+            if row is not None:
+                row.last_used_at = at
+        self._write(write)

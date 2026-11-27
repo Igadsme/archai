@@ -350,3 +350,11 @@ details > summary { cursor: pointer; color: #8495a3; font: 7.5px var(--mono); le
   .detail-metrics { grid-template-columns: 1fr 1fr; }
   .key-popover { width: calc(100vw - 24px); }
 }
+
+/* Users & API keys */
+.access-forms { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 12px 0; }
+.access-forms form { display: grid; gap: 8px; align-content: start; }
+.scope-choices { display: flex; gap: 12px; align-items: center; border: 0; padding: 0; margin: 0; }
+.scope-choices legend { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; opacity: .7; margin-bottom: 4px; }
+.scope-choices label { display: inline-flex; gap: 4px; align-items: center; }
+.secret-value { display: inline-block; margin-top: 6px; user-select: all; word-break: break-all; }

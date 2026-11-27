@@ -182,6 +182,24 @@ const audit = await until(async () => (await desk.locator('table[aria-label="Aud
 check("system: readiness ready, a live worker listed and the audit log shows write requests", ready && (await desk.locator(".worker-list > div").count()) > 0 && audit,
   `ready=${ready} audit=${audit}`)
 
+// System: create a user, issue a read-only key in the Studio, and check the API accepts it (secret never printed).
+const userEmail = `e2e-${Date.now()}@example.org`
+await desk.getByRole("form", { name: "Create user" }).getByLabel("Email").fill(userEmail)
+await desk.getByRole("button", { name: "Create user" }).click()
+await until(async () => (await desk.getByRole("table", { name: "Users" }).getByText(userEmail).count()) > 0, 10000, 300)
+const keyForm = desk.getByRole("form", { name: "Issue API key" })
+await keyForm.getByLabel("Owner").selectOption({ label: `${userEmail} (member)` })
+await keyForm.getByLabel("Key name").fill("e2e-read-only")
+await keyForm.getByLabel("write").uncheck()
+await desk.getByRole("button", { name: "Issue key" }).click()
+const secretShown = await until(async () => (await desk.getByLabel("New API key secret").count()) > 0, 10000, 300)
+const issuedSecret = secretShown ? (await desk.getByLabel("New API key secret").textContent())?.trim() : ""
+const issuedWho = issuedSecret ? await (await fetch(`${API}/v1/auth/whoami`, { headers: { "x-api-key": issuedSecret } })).json() : null
+const issuedWrite = issuedSecret ? (await fetch(`${API}/v1/projects`, { method: "POST", headers: { "content-type": "application/json", "x-api-key": issuedSecret }, body: JSON.stringify({ name: "denied", task: "t" }) })).status : 0
+check("system: create a user and a read-only key; the key authenticates and cannot write", issuedWho?.principal?.email === userEmail && issuedWrite === 403,
+  `scopes=${issuedWho?.principal?.scopes?.join("+")} write=${issuedWrite}`)
+await desk.getByRole("button", { name: "Dismiss" }).click()
+
 const archForExplorer = await (await fetch(`${API}/v1/architectures?limit=50`)).json()
 const richest = archForExplorer.items?.sort((a, b) => b.metrics.parameters - a.metrics.parameters)[0]?.architecture_id
 await desk.context().close()

@@ -9,7 +9,7 @@ import os
 from urllib.parse import urlparse
 
 DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
-PUBLIC_PATHS = frozenset({"/health", "/readiness"})
+PUBLIC_PATHS = frozenset({"/health", "/readiness", "/v1/auth/whoami"})
 DOCS_PATHS = frozenset({"/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"})
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"}  # noqa: S104 - a denylist, not a bind
 

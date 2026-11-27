@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 import logging
 import os
@@ -27,7 +26,7 @@ from archai_shared.paths import allowed_path
 from archai_shared.ratelimit import RedisRateLimiter, make_rate_limiter
 from archai_shared.records import ArtifactStore, ExperimentRecord, Provenance, ResearchProject
 from archai_shared.registry import ModelRegistry, sha256_file
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -37,11 +36,13 @@ from archai_api.db import (
     SqlAlchemyArchitectureStore,
     SqlAlchemyDatasetStore,
     SqlAlchemyExperimentStore,
+    SqlAlchemyIdentityStore,
     SqlAlchemyModelRegistry,
     SqlAlchemyProjectStore,
     SqlAlchemySearchStore,
     database_is_ready,
 )
+from archai_api.identity import IdentityService, InMemoryIdentityStore, Principal, Scope
 
 
 def configure_logging() -> None:
@@ -284,6 +285,16 @@ _dataset_store = (SqlAlchemyDatasetStore.from_url(
 _project_store = _make_project_store()
 
 
+def _make_identity_store():
+    url = os.getenv("DATABASE_URL")
+    if not url:
+        return InMemoryIdentityStore()
+    return SqlAlchemyIdentityStore.from_url(url, initialize=os.getenv("ARCHAI_DB_AUTO_CREATE", "0") == "1")
+
+
+_identity = IdentityService(_make_identity_store())
+
+
 def _redis_is_ready() -> bool:
     if not isinstance(_jobs, RedisJobStore):
         return False
@@ -337,8 +348,10 @@ async def request_limits(request: Request, call_next):
     if (request.method in {"GET", "HEAD"} and settings.protect_reads()
             and request.url.path not in settings.PUBLIC_PATHS
             and request.url.path not in settings.DOCS_PATHS
-            and not _credential_is_valid(_supplied_credential(request.headers))):
-        return _early_response(request, "invalid API key", 401, {"www-authenticate": "Bearer"})
+            and not request.url.path.startswith("/v1/auth/")):
+        principal = _identity.authenticate(_supplied_credential(request.headers))
+        if principal is None or not principal.allows("read"):
+            return _early_response(request, "invalid API key", 401, {"www-authenticate": "Bearer"})
     return await call_next(request)
 
 
@@ -394,6 +407,7 @@ async def audit_writes(request: Request, call_next):
             "credential_fingerprint": _credential_fingerprint(request),
             "duration_ms": round((time.monotonic() - started) * 1000, 3),
             "request_id": getattr(request.state, "request_id", None),
+            "principal": getattr(request.state, "principal_id", None),
         })
 
 
@@ -518,41 +532,36 @@ class ModelRequest(BaseModel):
     metadata: dict[str, object] = Field(default_factory=dict)
 
 
-def require_write_access(api_key: Annotated[str | None, Header(alias="x-api-key")] = None,
-                         authorization: Annotated[str | None, Header()] = None) -> None:
-    """Local development is open; deployed writes require a configured key.
-
-    `ARCHAI_API_KEY_SHA256` avoids storing a plaintext key in the service
-    environment. Bearer tokens and the legacy x-api-key header are accepted.
-    """
-    supplied = api_key
-    if supplied is None and authorization and authorization.startswith("Bearer "):
-        supplied = authorization.removeprefix("Bearer ")
-    if not _credential_is_valid(supplied):
+def _resolve_principal(request: Request) -> Principal:
+    """Principal for the request, or 401 when a credential is missing or invalid."""
+    principal = _identity.authenticate(_supplied_credential(request.headers))
+    if principal is None or not principal.scopes:
         raise HTTPException(status_code=401, detail="invalid API key", headers={"www-authenticate": "Bearer"})
+    request.state.principal_id = principal.audit_id
+    return principal
+
+
+def require_scope(scope: Scope):
+    def dependency(request: Request) -> Principal:
+        principal = _resolve_principal(request)
+        if not principal.allows(scope):
+            raise HTTPException(status_code=403, detail=f"this API key lacks the {scope!r} scope")
+        return principal
+    dependency.__name__ = f"require_{scope}_scope"
+    return dependency
+
+
+require_write_access = require_scope("write")
+require_admin = require_scope("admin")
 
 
 def _supplied_credential(headers) -> str | None:
+    """Bearer tokens and the x-api-key header are accepted."""
     supplied = headers.get("x-api-key")
     authorization = headers.get("authorization")
     if supplied is None and authorization and authorization.startswith("Bearer "):
         supplied = authorization.removeprefix("Bearer ")
     return supplied
-
-
-def _credential_is_valid(supplied: str | None) -> bool:
-    """True when no key is configured (open local mode) or the supplied key matches."""
-    configured = os.getenv("ARCHAI_API_KEY")
-    configured_hash = os.getenv("ARCHAI_API_KEY_SHA256")
-    if not configured and not configured_hash:
-        return True
-    if not supplied:
-        return False
-    valid = bool(configured) and hmac.compare_digest(supplied.encode(), configured.encode())
-    if configured_hash:
-        digest = hashlib.sha256(supplied.encode()).hexdigest()
-        valid = hmac.compare_digest(digest, configured_hash.lower()) or valid
-    return valid
 
 
 def require_active_project(project_id: str | None) -> ResearchProject | None:
@@ -1119,10 +1128,10 @@ def _tail_lines(path: Path, limit: int, block_size: int = 64 * 1024) -> list[str
     return lines[-limit:]
 
 
-@app.get("/v1/audit", dependencies=[Depends(require_write_access)])
+@app.get("/v1/audit", dependencies=[Depends(require_admin)])
 def read_audit_log(limit: int = Query(default=100, ge=1, le=1000),
                    outcome: Literal["allowed", "rejected"] | None = None):
-    """Most recent state-changing requests, newest first. Requires the write key when one is set."""
+    """Most recent state-changing requests, newest first. Requires an admin-scoped key when auth is on."""
     destination = os.getenv("ARCHAI_AUDIT_LOG")
     if not destination:
         return {"available": False, "items": [],
@@ -1185,6 +1194,106 @@ def get_research_result(name: str):
     if experiment.is_file():  # the committed config that produced this result set
         result["experiment"] = json.loads(experiment.read_text())
     return result
+
+
+class UserRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: str = Field(min_length=3, max_length=320)
+    display_name: str = Field(default="", max_length=128)
+    role: Literal["admin", "member"] = "member"
+
+
+class UserUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    display_name: str | None = Field(default=None, max_length=128)
+    role: Literal["admin", "member"] | None = None
+    disabled: bool | None = None
+
+
+class ApiKeyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    user_id: str = Field(min_length=8, max_length=64)
+    name: str = Field(min_length=1, max_length=128)
+    scopes: list[Literal["read", "write", "admin"]] = Field(default_factory=lambda: ["read", "write"],
+                                                            min_length=1, max_length=3)
+    expires_in_days: int | None = Field(default=None, ge=1, le=3650)
+
+
+class ApiKeyRotation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expires_in_days: int | None = Field(default=None, ge=1, le=3650)
+
+
+def _identity_call(fn, *args, **kwargs):
+    try:
+        return fn(*args, **kwargs)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/v1/auth/whoami")
+def whoami(request: Request):
+    """Who the presented credential belongs to; never requires a key, never echoes the secret."""
+    principal = _identity.authenticate(_supplied_credential(request.headers))
+    if principal is None:
+        raise HTTPException(status_code=401, detail="invalid API key", headers={"www-authenticate": "Bearer"})
+    return {"auth_enabled": _identity.auth_enabled(),
+            "bootstrap_key_configured": settings.api_key_is_configured(),
+            "managed_keys_active": _identity.managed_keys_active(),
+            "protect_reads": settings.protect_reads(),
+            "authenticated": principal.kind != "anonymous",
+            "principal": principal.as_dict()}
+
+
+@app.get("/v1/users", dependencies=[Depends(require_admin)])
+def list_users():
+    keys = _identity.store.list_credentials()
+    return {"items": [{**user.as_dict(),
+                       "active_keys": sum(key.user_id == user.user_id and key.state() == "active" for key in keys)}
+                      for user in _identity.store.list_users()]}
+
+
+@app.post("/v1/users", dependencies=[Depends(require_admin)])
+def create_user(request: UserRequest):
+    return _identity_call(_identity.create_user, email=request.email, display_name=request.display_name,
+                          role=request.role).as_dict()
+
+
+@app.patch("/v1/users/{user_id}", dependencies=[Depends(require_admin)])
+def update_user(user_id: str, request: UserUpdate):
+    return _identity_call(_identity.update_user, user_id, **request.model_dump(exclude_unset=True)).as_dict()
+
+
+@app.get("/v1/api-keys", dependencies=[Depends(require_admin)])
+def list_api_keys(user_id: str | None = Query(default=None, max_length=64)):
+    return {"items": [key.as_dict() for key in _identity.store.list_credentials(user_id)]}
+
+
+@app.post("/v1/api-keys", dependencies=[Depends(require_admin)])
+def create_api_key(request: ApiKeyRequest):
+    """Issue a key. The secret is in this response only; the API stores its SHA-256 digest."""
+    credential, secret = _identity_call(_identity.create_key, user_id=request.user_id, name=request.name,
+                                        scopes=request.scopes, expires_in_days=request.expires_in_days)
+    return {**credential.as_dict(), "secret": secret,
+            "secret_notice": "Store this key now; it cannot be shown again."}
+
+
+@app.post("/v1/api-keys/{credential_id}/rotate", dependencies=[Depends(require_admin)])
+def rotate_api_key(credential_id: str, request: ApiKeyRotation | None = None):
+    """Replace a key with a new secret (same owner, name and scopes) and revoke the old one."""
+    new, secret, old = _identity_call(_identity.rotate_key, credential_id,
+                                      expires_in_days=request.expires_in_days if request else None)
+    return {**new.as_dict(), "secret": secret, "revoked": old.as_dict(),
+            "secret_notice": "Store this key now; it cannot be shown again."}
+
+
+@app.post("/v1/api-keys/{credential_id}/revoke", dependencies=[Depends(require_admin)])
+def revoke_api_key(credential_id: str):
+    return _identity_call(_identity.revoke_key, credential_id).as_dict()
 
 
 if __name__ == "__main__":

@@ -34,3 +34,8 @@ export type ExperimentConfig = { name: string; description?: string; budget: num
 
 export type ArchitectureConstraints = { max_parameters?: number | null; max_flops?: number | null; max_latency_s?: number | null; allowed_ops?: string[] | null }
 export type ResearchProject = { project_id: string; name: string; description: string; task: string; dataset_id?: string | null; dataset_version?: string | null; constraints: ArchitectureConstraints; status: "active" | "archived"; created_at: string; updated_at: string }
+export type Principal = { kind: "anonymous" | "bootstrap" | "key"; scopes: string[]; user_id: string | null; email: string | null; credential_id: string | null; key_prefix: string | null }
+export type WhoAmI = { auth_enabled: boolean; bootstrap_key_configured: boolean; managed_keys_active: boolean; protect_reads: boolean; authenticated: boolean; principal: Principal }
+export type UserItem = { user_id: string; email: string; display_name: string; role: "admin" | "member"; created_at: string; disabled_at: string | null; active: boolean; active_keys?: number }
+export type ApiKeyItem = { credential_id: string; user_id: string; name: string; key_prefix: string; scopes: string[]; created_at: string; last_used_at: string | null; expires_at: string | null; revoked_at: string | null; rotated_from: string | null; state: "active" | "expired" | "revoked" }
+export type IssuedApiKey = ApiKeyItem & { secret: string; secret_notice: string }

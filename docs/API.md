@@ -25,3 +25,19 @@ Every `POST`/`PUT`/`PATCH`/`DELETE` request, including ones rejected with 401/41
 ## Live job progress and cancellation
 
 Workers write advisory progress to `payload.progress` of the job (visible through `GET /v1/jobs/{id}` and `GET /v1/searches/{id}`): candidate training reports `{"phase": "training", "epochs_completed", "epochs", "history": [...]}` per epoch, and benchmark search reports `{"phase": "searching", "evaluations", "budget", "best_validation_accuracy"}`. Writes are throttled to about one per second (first and last always written), and the final result is stored next to the last progress record. Cancelling a running job is cooperative: candidate training stops after the current epoch and search stops before its next query, so a cancelled job no longer keeps consuming CPU. Generator and predictor training report only on completion.
+
+## Users and API keys
+
+Auth is on when `ARCHAI_API_KEY` / `ARCHAI_API_KEY_SHA256` (the bootstrap admin key) is set or any managed key is active; otherwise the API is in open local mode. Scopes: `read` < `write` < `admin` (`admin` implies the others). Writes need `write`; key, user and audit endpoints need `admin`. A missing or invalid key gets `401`; a valid key without the scope gets `403`.
+
+| Method and path | Scope | Purpose |
+| --- | --- | --- |
+| `GET /v1/auth/whoami` | none | Whether auth is on and who the presented key belongs to. `401` for an invalid key. |
+| `GET /v1/users`, `POST /v1/users` | admin | List or create accounts (`email`, `display_name`, `role` = `admin` or `member`). |
+| `PATCH /v1/users/{id}` | admin | Change `display_name` or `role`, or set `disabled`. Disabled users' keys stop working. |
+| `GET /v1/api-keys[?user_id=]` | admin | Key metadata: prefix, scopes, last use, expiry, state. Never the secret or hash. |
+| `POST /v1/api-keys` | admin | Issue a key (`user_id`, `name`, `scopes`, optional `expires_in_days`). The secret is in this response only. |
+| `POST /v1/api-keys/{id}/rotate` | admin | New secret with the same owner, name and scopes; the old key is revoked at once. |
+| `POST /v1/api-keys/{id}/revoke` | admin | Revoke immediately. |
+
+Only `admin`-role users can hold `admin`-scoped keys. Without a bootstrap key, the first managed key must be admin-scoped and the last active admin key cannot be revoked (`409`).
