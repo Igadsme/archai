@@ -1,10 +1,10 @@
 # ArchAI Studio. NEXT_PUBLIC_* values are inlined at build time, so the API URL is a build argument.
-FROM node:22-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /opt/archai
 COPY apps/web/package.json apps/web/package-lock.json ./
 RUN npm ci
 
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /opt/archai
 ARG NEXT_PUBLIC_ARCHAI_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_ARCHAI_API_URL=${NEXT_PUBLIC_ARCHAI_API_URL} \
@@ -14,7 +14,7 @@ COPY --from=deps /opt/archai/node_modules ./node_modules
 COPY apps/web ./
 RUN npm run build
 
-FROM node:22-alpine
+FROM node:26-alpine
 WORKDIR /opt/archai
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
