@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useMemo, useState } from "react"
 import { items, usePoll } from "../components/usePoll"
-import { announceUnavailable, downloadJson } from "../lib/api"
+import { announce, describeFailure, downloadJson, postJson } from "../lib/api"
 import { jobProgress, progressLabel } from "../lib/progress"
 import { jobResult } from "../lib/results"
 import type { ExperimentItem, JobDetail, JobItem } from "../lib/types"
@@ -26,6 +26,16 @@ export function Experiments() {
   const [filter, setFilter] = useState<JobFilter>("all")
   const [query, setQuery] = useState("")
   const [jobId, setJobId] = useState<string | null>(null)
+  const [retrying, setRetrying] = useState(false)
+  const retry = async (id: string) => {
+    setRetrying(true)
+    const outcome = await postJson<JobItem>(`/v1/jobs/${encodeURIComponent(id)}/retry`, {})
+    setRetrying(false)
+    if (!outcome.ok) { announce(`Retry failed — ${describeFailure(outcome)}`); return }
+    announce(`Queued retry ${outcome.data.job_id.slice(0, 8)} of ${id.slice(0, 8)}.`)
+    jobs.refresh()
+    setJobId(outcome.data.job_id)
+  }
   const detail = usePoll<JobDetail>(jobId ? `/v1/jobs/${encodeURIComponent(jobId)}` : null, 4_000)
   useEffect(() => { if (requested) setJobId(requested) }, [requested])
   const all = items(jobs.data)
@@ -63,7 +73,9 @@ export function Experiments() {
               <button className="button compact" onClick={() => downloadJson(`archai-job-${job.job_id.slice(0, 8)}.json`, { exported_at: new Date().toISOString(), evidence: "API job record as returned by GET /v1/jobs/{id}", job })}><Icon name="download" size={12} /> Export</button>
               {searchId ? <button className="button compact" onClick={() => go("search", { session: searchId })}>Open search</button> : null}
               {job.kind === "training" || job.kind.endsWith("_training") ? <button className="button compact" onClick={() => go("training", { job: job.job_id })}>Open training</button> : null}
-              {job.status === "failed" ? <button className="button compact" onClick={() => announceUnavailable("Retry is not exposed by the API. Queue a new job from the Search or Training screen.")}>Retry</button> : null}
+              {(job.status === "failed" || job.status === "cancelled") && job.kind !== "experiment" ? <button className="button compact" disabled={retrying} onClick={() => void retry(job.job_id)}>{retrying ? "Retrying…" : "Retry"}</button> : null}
+              {typeof job.payload?.retried_as === "string" ? <button className="button compact" onClick={() => setJobId(job.payload?.retried_as as string)}>Open retry</button> : null}
+              {typeof job.payload?.retry_of === "string" ? <button className="button compact" onClick={() => setJobId(job.payload?.retry_of as string)}>Open original</button> : null}
             </div></div>
           <div className="detail-metrics">{metrics.map(([label, value]) => <span key={label}><small>{label}</small><b>{value}</b></span>)}</div>
           {job.error ? <div className="error-state" role="alert"><div><span>!</span><h3>Job failed</h3></div><pre>{job.error}</pre></div> : null}

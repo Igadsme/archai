@@ -121,6 +121,9 @@ check("explorer: '+' zooms, inspector resizes with the keyboard, node selection 
   `zoom ${zoomBefore}→${zoomAfter} inspector ${inspectorBox?.width}→${inspectorAfter?.width}`)
 check("explorer: JSON, TorchScript and local graph exports download", statSync(ptPath).size > 0 && Array.isArray(graphJson?.architecture?.nodes ?? graphJson?.graph?.nodes ?? graphJson?.nodes),
   `pt=${ptDownload.suggestedFilename()} (${statSync(ptPath).size} bytes) graph=${graphExport.suggestedFilename()}`)
+await desk.getByRole("button", { name: "Measure latency" }).click()
+const latencyShown = await until(async () => /\d+\.\d\d ms/.test((await desk.locator(".workbench-kpis").textContent()) ?? ""), 60000, 500)
+check("explorer: Measure latency stores a measured p50 on the API host and shows it", latencyShown, (await desk.locator(".workbench-kpis").textContent())?.match(/LATENCY[^]*?ms/)?.[0] ?? "")
 console.log(`TORCHSCRIPT_EXPORT=${ptPath}`)
 
 // Generator: generate, validate and save one candidate.
@@ -164,8 +167,8 @@ await desk.getByRole("button", { name: "Queue job" }).click()
 const trainingNotice = await until(async () => (await desk.getByText(/^Queued training job [0-9a-f]{8}/).count()) > 0, 15000, 500)
 const jobShort = trainingNotice ? (await desk.getByText(/^Queued training job/).innerText()).match(/([0-9a-f]{8})/)?.[1] : null
 const trained = !!jobShort && await until(async () => (await desk.locator(".job-row", { hasText: jobShort }).getByText("SUCCEEDED").count()) > 0, 180000)
-check("training: synthetic candidate job succeeds and shows its measured curve; GPU telemetry marked unavailable",
-  trained && (await until(async () => (await desk.locator('table[aria-label="Measured training curve"]').count()) > 0, 15000, 500)) && (await desk.getByText("UNAVAILABLE — GPU telemetry").count()) > 0, `job=${jobShort}`)
+check("training: synthetic candidate job succeeds and shows its measured curve; GPU telemetry shows live devices or states why there is no GPU",
+  trained && (await until(async () => (await desk.locator('table[aria-label="Measured training curve"]').count()) > 0, 15000, 500)) && ((await desk.locator('table[aria-label="GPU telemetry"]').count()) > 0 || (await desk.getByText(/No GPU:/).count()) > 0), `job=${jobShort}`)
 
 // Experiments: filter + deep link.
 await visit(desk, "/experiments")
@@ -174,6 +177,14 @@ const failedFilter = await desk.getByRole("button", { name: /^Failed only/ }).ge
 await desk.getByRole("button", { name: /^All/ }).click()
 const anyJob = await desk.locator(".experiment-list > button").count()
 check("experiments: jobs listed, 'Failed only' filter toggles, run detail shows a timeline", anyJob > 0 && failedFilter === "true" && (await desk.getByText("TIMELINE").count()) > 0, `jobs=${anyJob}`)
+const cancelled = await (await fetch(`${API}/v1/training`, { method: "POST", headers: { "content-type": "application/json", "x-api-key": KEY }, body: JSON.stringify({ kind: "candidate", payload: { architecture: { nodes: [{ id: "input", op: "input", channels: 3 }, { id: "conv", op: "conv3x3", channels: 4 }, { id: "output", op: "output", channels: 4 }], edges: [{ source: "input", target: "conv" }, { source: "conv", target: "output" }], input_spec: { channels: 3, height: 8, width: 8 }, output_classes: 10 }, dataset: "synthetic", epochs: 200, train_samples: 2048 } }) })).json()
+await fetch(`${API}/v1/jobs/${cancelled.job_id}/cancel`, { method: "POST", headers: { "x-api-key": KEY } })
+await visit(desk, `/experiments?job=${cancelled.job_id}`)
+const original = (await (await fetch(`${API}/v1/jobs/${cancelled.job_id}`)).json()).status
+if (original === "cancelled") await desk.getByRole("button", { name: "Retry", exact: true }).click()
+const retried = await until(async () => (await desk.getByRole("button", { name: "Open original" }).count()) > 0, 15000, 500)
+const retriedAs = (await (await fetch(`${API}/v1/jobs/${cancelled.job_id}`)).json()).payload?.retried_as
+check("experiments: Retry re-queues a cancelled job with the same inputs and links both runs", original === "cancelled" && retried && !!retriedAs, `original=${original} retried_as=${retriedAs?.slice(0, 8)}`)
 
 // System: readiness, workers and the audit log (needs the key).
 await visit(desk, "/system")

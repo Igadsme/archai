@@ -10,7 +10,8 @@ import { itemsResponse } from "../lib/validators"
 import { LineChart } from "../studio/charts"
 import { useQueryParam } from "../studio/hooks"
 import { Icon } from "../studio/Icon"
-import { EmptyState, ErrorList, Loaded, Notice, PageHeader, Panel, shortId, Status, statusTone, Unavailable } from "../studio/ui"
+import { GpuTelemetryView, useTelemetry } from "../studio/Telemetry"
+import { EmptyState, ErrorList, Loaded, Notice, PageHeader, Panel, shortId, Status, statusTone } from "../studio/ui"
 
 export const TRAINING_KINDS = new Set(["training", "generator_training", "predictor_training"])
 const COLORS = ["#5fc8c1", "#7ba4e8", "#d3a85f", "#df7b78", "#8fc39d"]
@@ -43,6 +44,7 @@ export function Training() {
   const jobs = usePoll<{ items: JobItem[] }>("/v1/jobs", 5_000, itemsResponse)
   const detail = usePoll<JobDetail>(jobId ? `/v1/jobs/${encodeURIComponent(jobId)}` : null, 3_000)
   const workers = usePoll<{ configured: boolean; workers: Worker[] }>("/v1/infrastructure/workers", 10_000)
+  const telemetry = useTelemetry(10_000)
   const training = items(jobs.data).filter((job) => TRAINING_KINDS.has(job.kind))
   useEffect(() => { if (requested) setJobId(requested) }, [requested])
   useEffect(() => { if (!jobId && !requested && training[0]) setJobId(training[0].job_id) }, [jobId, requested, training])
@@ -82,7 +84,7 @@ export function Training() {
   const events = job ? ([["CREATED", job.created_at, `${job.kind} queued`], ["PROGRESS", progress?.reported_at, progress?.phase === "training" ? `epoch ${progress.epochs_completed} of ${progress.epochs}` : undefined], [TERMINAL.has(job.status) ? job.status.toUpperCase() : "UPDATED", job.updated_at, job.error ? `failed: ${job.error}` : `status ${job.status}`]] as [string, string | null | undefined, string | undefined][]).filter((event) => event[1]) : []
 
   return <div className="page">
-    <PageHeader eyebrow={`TRAINING${job ? ` / ${shortId(job.job_id, 8).toUpperCase()}` : ""}`} title="Training & GPU monitoring" description="Smoke-scale training on the durable worker. Candidate jobs use synthetic data (evidence: synthetic_training); generator and predictor jobs need checksum-verified benchmark data.">
+    <PageHeader eyebrow={`TRAINING${job ? ` / ${shortId(job.job_id, 8).toUpperCase()}` : ""}`} title="Training & GPU monitoring" description="Smoke-scale training on the durable worker. GPU readings are live from NVML or torch.cuda when a GPU is visible. Candidate jobs use synthetic data (evidence: synthetic_training); generator and predictor jobs need checksum-verified benchmark data.">
       {job ? <Status tone={statusTone(job.status)}>{job.status.toUpperCase()}{progress?.phase === "training" ? ` · EPOCH ${progress.epochs_completed}` : ""}</Status> : null}
       <button className="button" disabled={!job} onClick={() => setShowConfig((value) => !value)}>Inspect configuration</button>
       <button className="button" disabled={!job} onClick={() => job && downloadJson(`archai-job-${job.job_id.slice(0, 8)}.json`, { exported_at: new Date().toISOString(), evidence: "API job record as returned by GET /v1/jobs/{id}", job })}><Icon name="download" /> Export job JSON</button>
@@ -121,8 +123,8 @@ export function Training() {
           : <EmptyState icon="training" title={job ? (curve.length === 1 ? "One epoch recorded" : "No curve reported yet") : "No job selected"}>{job ? <p>{job.kind === "training" ? "Candidate jobs report per-epoch loss while running." : "Generator and predictor jobs report their loss curve when they finish."}</p> : null}</EmptyState>}
         {curve.length ? <div className="table-wrap curve-table"><table aria-label="Measured training curve"><thead><tr><th>EPOCH</th>{keys.map((key) => <th key={key}>{key} (measured)</th>)}</tr></thead><tbody>{curve.map((row) => <tr key={row.epoch}><td className="mono">{row.epoch}</td>{keys.map((key) => <td className="mono" key={key}>{typeof row[key] === "number" ? row[key].toFixed(4) : "—"}</td>)}</tr>)}</tbody></table></div> : null}
       </Panel>
-      <Panel title="GPU telemetry" meta="NOT COLLECTED">
-        <Unavailable feature="GPU telemetry" reason="The API does not collect GPU utilisation, memory, power or temperature. Studio jobs run CPU-small on the durable worker." />
+      <Panel title="GPU telemetry" meta="/v1/infrastructure/telemetry">
+        <GpuTelemetryView poll={telemetry} />
         <Loaded poll={workers} label="workers">{(data) => <div className="worker-list">{!data.configured ? <div><i className="queued" /><code>redis</code><span>not configured</span><b>—</b></div> : data.workers.length ? data.workers.map((worker) => <div key={worker.worker_id}><i className={worker.active_job_id ? "" : "queued"} /><code>{worker.hostname.slice(0, 10)}</code><span>{worker.active_job_id ? `job ${shortId(worker.active_job_id, 8)}` : "idle"}</span><b>{worker.status}</b></div>) : <div><i className="queued" /><code>—</code><span>no heartbeat</span><b>—</b></div>}</div>}</Loaded>
       </Panel>
       <Panel title="Training events" meta="JOB TIMELINE" className="span-2">

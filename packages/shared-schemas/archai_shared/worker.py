@@ -129,11 +129,26 @@ class WorkerRunner:
         if heartbeat_interval <= 0:
             raise ValueError("heartbeat_interval must be positive")
         self.heartbeat_interval = heartbeat_interval
+        self._telemetry: tuple[float, dict] | None = None
+
+    def _current_telemetry(self, max_age_seconds: float = 30.0) -> dict | None:
+        import time
+        cached = self._telemetry
+        if cached and time.monotonic() - cached[0] < max_age_seconds:
+            return cached[1]
+        try:
+            from archai_shared.telemetry import snapshot
+            value = snapshot()
+        except Exception:
+            return cached[1] if cached else None
+        self._telemetry = (time.monotonic(), value)
+        return value
 
     def _heartbeat(self, active_job_id: str | None = None) -> None:
         if isinstance(self.store, RedisJobStore):
             try:
-                self.store.heartbeat(self.worker_id, active_job_id=active_job_id)
+                self.store.heartbeat(self.worker_id, active_job_id=active_job_id,
+                                     telemetry=self._current_telemetry())
             except Exception:
                 # Liveness reporting must not turn a successful job into a failure.
                 pass

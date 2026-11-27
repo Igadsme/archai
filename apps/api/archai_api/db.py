@@ -128,6 +128,17 @@ def sqlalchemy_components():
         updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
                                                       server_default="CURRENT_TIMESTAMP", nullable=False)
 
+    class LatencyMeasurementRow(Base):
+        __tablename__ = "latency_measurements"
+        measurement_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        architecture_id: Mapped[str] = mapped_column(String(64), ForeignKey(
+            "architectures.architecture_id", name="fk_latency_architecture", ondelete="CASCADE"),
+            nullable=False, index=True)
+        device: Mapped[str] = mapped_column(String(16), nullable=False)
+        measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+        result: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+    Base._archai_latency_row = LatencyMeasurementRow
     Base._archai_model_checkpoint_row = ModelCheckpointRow
     Base._archai_dataset_row = DatasetRow
     Base._archai_project_row = ResearchProjectRow
@@ -713,3 +724,44 @@ class SqlAlchemyIdentityStore:
             if row is not None:
                 row.last_used_at = at
         self._write(write)
+
+
+class SqlAlchemyLatencyStore:
+    """Persist measured inference latencies per architecture."""
+
+    def __init__(self, session_factory, row):
+        self._session_factory = session_factory
+        self._row = row
+
+    @classmethod
+    def from_url(cls, url: str, *, initialize: bool = False) -> SqlAlchemyLatencyStore:
+        Base, _a, _s, _e, make_engine, make_session_factory = sqlalchemy_components()
+        engine = make_engine(url)
+        if initialize:
+            Base.metadata.create_all(engine)
+        return cls(make_session_factory(url, engine), Base._archai_latency_row)
+
+    def put(self, measurement: dict) -> dict:
+        session = self._session_factory()
+        try:
+            session.add(self._row(measurement_id=measurement["measurement_id"],
+                                  architecture_id=measurement["architecture_id"], device=measurement["device"],
+                                  measured_at=datetime.fromisoformat(measurement["measured_at"]),
+                                  result=dict(measurement)))
+            session.commit()
+            return measurement
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def list(self, architecture_id: str, limit: int = 20) -> list[dict]:
+        from sqlalchemy import select
+        session = self._session_factory()
+        try:
+            rows = session.scalars(select(self._row).where(self._row.architecture_id == architecture_id)
+                                   .order_by(self._row.measured_at.desc()).limit(limit)).all()
+            return [dict(row.result) for row in rows]
+        finally:
+            session.close()

@@ -295,6 +295,18 @@ def _make_identity_store():
 _identity = IdentityService(_make_identity_store())
 
 
+def _make_latency_store():
+    from archai_api.latency import InMemoryLatencyStore
+    url = os.getenv("DATABASE_URL")
+    if not url:
+        return InMemoryLatencyStore()
+    from archai_api.db import SqlAlchemyLatencyStore
+    return SqlAlchemyLatencyStore.from_url(url, initialize=os.getenv("ARCHAI_DB_AUTO_CREATE", "0") == "1")
+
+
+_latency_store = _make_latency_store()
+
+
 def _redis_is_ready() -> bool:
     if not isinstance(_jobs, RedisJobStore):
         return False
@@ -1194,6 +1206,80 @@ def get_research_result(name: str):
     if experiment.is_file():  # the committed config that produced this result set
         result["experiment"] = json.loads(experiment.read_text())
     return result
+
+
+@app.get("/v1/infrastructure/telemetry")
+def infrastructure_telemetry() -> dict[str, object]:
+    """Live host and GPU readings for the API host, plus the latest snapshot each worker reported."""
+    from archai_shared.telemetry import snapshot
+    workers = _jobs.list_workers() if _redis_is_ready() and isinstance(_jobs, RedisJobStore) else []
+    return {"api": snapshot(),
+            "workers": [{"worker_id": worker.get("worker_id"), "hostname": worker.get("hostname"),
+                         "last_seen": worker.get("last_seen"), "telemetry": worker.get("telemetry")}
+                        for worker in workers]}
+
+
+class LatencyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    batch_size: int = Field(default=1, ge=1, le=64)
+    warmup: int = Field(default=5, ge=0, le=50)
+    iterations: int = Field(default=30, ge=2, le=500)
+    device: Literal["cpu", "cuda"] = "cpu"
+
+
+@app.post("/v1/architectures/{architecture_id}/latency", dependencies=[Depends(require_write_access)])
+def measure_architecture_latency(architecture_id: str, request: LatencyRequest | None = None):
+    """Measure wall-clock forward latency on this API host and store it with its hardware context."""
+    request = request or LatencyRequest()
+    architecture = _architecture_store.get(architecture_id)
+    if architecture is None:
+        raise HTTPException(status_code=404, detail="architecture not found")
+    try:
+        import torch  # noqa: F401 - availability check
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="latency measurement is unavailable: torch is not installed") from exc
+    from archai_api.latency import measure_latency
+    try:
+        result = measure_latency(architecture, batch_size=request.batch_size, warmup=request.warmup,
+                                 iterations=request.iterations, device=request.device,
+                                 max_seconds=float(os.getenv("ARCHAI_LATENCY_MAX_SECONDS", "20")))
+    except RuntimeError as exc:
+        status = 503 if "cuda" in str(exc).lower() else 422
+        raise HTTPException(status_code=status, detail=f"latency could not be measured: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _latency_store.put(result)
+
+
+@app.get("/v1/architectures/{architecture_id}/latency")
+def list_architecture_latency(architecture_id: str, limit: int = Query(default=20, ge=1, le=200)):
+    if _architecture_store.get(architecture_id) is None:
+        raise HTTPException(status_code=404, detail="architecture not found")
+    return {"items": _latency_store.list(architecture_id, limit)}
+
+
+_RETRY_DROP_KEYS = {"result", "progress", "retried_as"}
+
+
+@app.post("/v1/jobs/{job_id}/retry", dependencies=[Depends(require_write_access)])
+def retry_job(job_id: str):
+    """Queue a new job with the same kind and inputs as a failed or cancelled one."""
+    job = _jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    if job.status not in {"failed", "cancelled"}:
+        raise HTTPException(status_code=409, detail=f"only failed or cancelled jobs can be retried (status: {job.status})")
+    if job.kind == "experiment":
+        raise HTTPException(status_code=409, detail="experiment records are not executable jobs")
+    if job.kind == "search" and not _redis_is_ready():
+        raise HTTPException(status_code=503, detail="no durable experiment worker is configured")
+    payload = {key: value for key, value in job.payload.items() if key not in _RETRY_DROP_KEYS}
+    payload["retry_of"] = job.job_id
+    retried = _jobs.create(job.kind, payload)
+    if job.kind == "search":
+        _search_store.put(retried.job_id, payload)
+    _jobs.update_payload(job.job_id, {**job.payload, "retried_as": retried.job_id})
+    return {**retried.as_dict(), "retry_of": job.job_id}
 
 
 class UserRequest(BaseModel):

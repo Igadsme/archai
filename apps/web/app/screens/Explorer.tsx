@@ -4,7 +4,7 @@ import { items, usePoll } from "../components/usePoll"
 import { downloadFile, downloadJson, request } from "../lib/api"
 import { buildGraphModel, diffArchitectures, formatShape, NODE_HEIGHT, NODE_WIDTH, type GraphEdgeModel, type GraphModel, type GraphNodeModel } from "../lib/architectureGraph"
 import { defaultCandidateArchitecture } from "../lib/forms"
-import type { ArchitectureDetail, ArchitectureItem, Worker } from "../lib/types"
+import type { ArchitectureDetail, ArchitectureItem, LatencyMeasurement, Worker } from "../lib/types"
 import { architectureDetailResponse, itemsResponse } from "../lib/validators"
 import { useQueryParam } from "../studio/hooks"
 import { Icon } from "../studio/Icon"
@@ -123,6 +123,10 @@ export function Explorer() {
     try { return { model: buildGraphModel(detail.architecture), error: null } } catch (error) { return { model: null, error: error instanceof Error ? error.message : "graph could not be laid out" } }
   }, [detail])
   const model = graph.model
+  const registeredId = activeId && !doc?.draft && !activeId.startsWith(DRAFT_PREFIX) ? activeId : null
+  const latency = usePoll<{ items: LatencyMeasurement[] }>(registeredId ? `/v1/architectures/${encodeURIComponent(registeredId)}/latency?limit=5` : null, 0)
+  const latestLatency = latency.data?.items[0] ?? null
+  const [measuring, setMeasuring] = useState(false)
   useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); setCollapsedGroups([]) }, [activeId])
 
   const registryItems = items(registry.data)
@@ -250,7 +254,7 @@ export function Explorer() {
   const apiTotals = detail?.analytical_metrics
   const totalsMatch = !!model && !!apiTotals && model.totals.parameters === apiTotals.parameters && model.totals.flops === apiTotals.flops && model.totals.activationMemoryBytes === apiTotals.activation_memory_bytes
   const hashMatches = !!validation?.detail && !!activeId && (doc?.draft ? true : validation.detail.hash === activeId)
-  const diagnostics = buildDiagnostics(doc, model, totalsMatch, hashMatches, graph.error)
+  const diagnostics = buildDiagnostics(doc, model, totalsMatch, hashMatches, graph.error, latestLatency)
   const otherTabs = tabs.filter((tab) => tab !== activeId && docs[tab]?.detail)
   const baseId = compareBase && otherTabs.includes(compareBase) ? compareBase : otherTabs[0] ?? null
   const baseDoc = baseId ? docs[baseId] : undefined
@@ -259,7 +263,7 @@ export function Explorer() {
     if (!detail || !model || !activeId) return
     downloadJson(`${shortId(activeId.replace(DRAFT_PREFIX, ""), 16)}-graph.json`, {
       exported_at: new Date().toISOString(), architecture_id: doc?.draft ? null : activeId, canonical_hash: detail.hash, registered: !doc?.draft,
-      evidence: { analytical_metrics: "computed from the graph (archai_compiler.metrics); not trained or measured", latency: "not measured", trained_weights: "none attached" },
+      evidence: { analytical_metrics: "computed from the graph (archai_compiler.metrics); not trained or measured", latency: latestLatency ? `measured_latency: p50 ${latestLatency.p50_ms.toFixed(3)} ms, batch ${latestLatency.batch_size}, ${latestLatency.device} (${latestLatency.hardware}), ${latestLatency.measured_at}` : "not measured", trained_weights: "none attached" },
       analytical_metrics: detail.analytical_metrics, validation: validation ? { status: validation.status, at_utc: validation.at, error: validation.error ?? null, hash: validation.detail?.hash ?? null } : null,
       architecture: detail.architecture,
       graph: { layers: model.layers, groups: model.groups, nodes: model.nodes.map(({ module, ...node }) => ({ ...node, pytorch: module })), edges: model.edges },
@@ -272,6 +276,16 @@ export function Explorer() {
     const error = await downloadFile(`/v1/architectures/${encodeURIComponent(activeId)}/export?format=${format}`, `${shortId(activeId, 16)}.${format === "json" ? "json" : "pt"}`)
     if (error) addLog("FAIL", `Export failed: ${error}`, "GET /export")
     else addLog("PASS", format === "pytorch" ? "Downloaded TorchScript module (load with torch.jit.load)" : "Downloaded canonical JSON", "GET /export")
+  }
+  const measureLatency = async () => {
+    if (!registeredId) return
+    setMeasuring(true)
+    addLog("INFO", "Measuring forward latency on the API host (batch 1, 30 iterations)", "POST /latency")
+    const outcome = await request<LatencyMeasurement>(`/v1/architectures/${encodeURIComponent(registeredId)}/latency`, { method: "POST", body: { batch_size: 1, warmup: 5, iterations: 30 }, timeoutMs: 60_000 })
+    setMeasuring(false)
+    if (!outcome.ok) { addLog("FAIL", `Latency measurement failed: ${outcome.error.message}`, "POST /latency"); return }
+    addLog("PASS", `Measured p50 ${outcome.data.p50_ms.toFixed(3)} ms · p90 ${outcome.data.p90_ms.toFixed(3)} ms on ${outcome.data.hardware}`, "measured_latency")
+    latency.refresh()
   }
   const submitSpec = async (register: boolean) => {
     let body: unknown
@@ -307,10 +321,11 @@ export function Explorer() {
         <span><small>FLOPs · ANALYTICAL</small><b>{formatCompact(apiTotals?.flops)}</b></span>
         <span><small>ACTIVATIONS · ANALYTICAL</small><b>{formatBytes(apiTotals?.activation_memory_bytes)}</b></span>
         <span><small>NODES / EDGES</small><b>{detail ? `${detail.architecture.nodes.length} / ${detail.architecture.edges.length}` : "—"}</b></span>
-        <span><small>LATENCY</small><b className="not-measured">NOT MEASURED</b></span>
+        <span title={latestLatency ? `${latestLatency.device} · ${latestLatency.hardware} · torch ${latestLatency.torch_version} · ${latestLatency.iterations} iterations · ${latestLatency.measured_at}` : undefined}><small>LATENCY · {latestLatency ? `MEASURED P50 · BATCH ${latestLatency.batch_size}` : "API HOST"}</small>{latestLatency ? <b>{latestLatency.p50_ms.toFixed(2)} ms</b> : <b className="not-measured">NOT MEASURED</b>}</span>
       </div>
       <div className="workbench-actions">
         <div className="mode-switch" role="group" aria-label="Workspace mode">{(["explore", "inspect", "compare", "research"] as WorkspaceMode[]).map((item) => <button key={item} aria-pressed={mode === item} className={mode === item ? "active" : ""} onClick={() => setMode(item)} title={`${item} mode`}>{item.toUpperCase()}</button>)}</div>
+        <button className="button" onClick={() => void measureLatency()} disabled={!registeredId || measuring} title={registeredId ? "Time 30 forward passes on the API host" : "Register the architecture to measure latency"}><Icon name="play" /> {measuring ? "Measuring…" : "Measure latency"}</button>
         <button className="button" onClick={exportGraph} disabled={!model}><Icon name="download" /> Export graph</button>
       </div>
     </div>
@@ -475,7 +490,7 @@ export function Explorer() {
 
 type Diagnostic = { level: "PASS" | "FAIL" | "WARN"; message: string; code: string }
 
-export function buildDiagnostics(doc: Doc | undefined, model: GraphModel | null, totalsMatch: boolean, hashMatches: boolean, layoutError: string | null): Diagnostic[] {
+export function buildDiagnostics(doc: Doc | undefined, model: GraphModel | null, totalsMatch: boolean, hashMatches: boolean, layoutError: string | null, latency: LatencyMeasurement | null = null): Diagnostic[] {
   if (!doc) return [{ level: "WARN", message: "No architecture open", code: "W_NO_GRAPH" }]
   const out: Diagnostic[] = []
   const validation = doc.validation
@@ -489,7 +504,9 @@ export function buildDiagnostics(doc: Doc | undefined, model: GraphModel | null,
     out.push({ level: "PASS", message: `Acyclic topology · ${model.layers} layers`, code: "layout" })
     out.push(totalsMatch ? { level: "PASS", message: "Per-node analytical costs sum to the API totals", code: "metrics" } : { level: "WARN", message: "Per-node analytical costs differ from API totals", code: "W_METRICS" })
   }
-  out.push({ level: "WARN", message: "Latency is not measured: no hardware profiler is connected", code: "W_NO_LATENCY" })
+  out.push(latency
+    ? { level: "PASS", message: `Latency measured: p50 ${latency.p50_ms.toFixed(3)} ms (batch ${latency.batch_size}, ${latency.device}, ${latency.hardware})`, code: "measured_latency" }
+    : { level: "WARN", message: "Latency is not measured yet: use Measure latency (registered architectures only)", code: "W_NO_LATENCY" })
   out.push({ level: "WARN", message: "No trained weights attached: gradient and activation statistics are unavailable", code: "W_NO_WEIGHTS" })
   return out
 }

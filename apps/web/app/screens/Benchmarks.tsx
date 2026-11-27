@@ -86,7 +86,7 @@ export function Benchmarks() {
                 <td className="mono">{formatCount(item.analytical_metrics.parameters)}{item.analytical_metrics.parameters === fewest ? " (fewest)" : ""}</td><td className="mono">{formatCount(item.analytical_metrics.flops)}</td><td className="mono">{formatCount(item.analytical_metrics.activation_memory_bytes)}</td>
                 <td><button className="button compact" onClick={() => go("explorer", { id: item.architecture_id })}>Open</button></td></tr> })}
           </tbody></table></div>
-          <p className="panel-note">★ marks the lowest value per metric. Latency and accuracy are not measured for registered graphs.</p>
+          <p className="panel-note">★ marks the lowest value per metric. Accuracy is not measured for registered graphs; measure latency per architecture in the Explorer.</p>
         </>}
       </Panel>
       <Panel title="Research result sets" meta="research/results (READ-ONLY)">

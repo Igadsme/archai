@@ -6,6 +6,7 @@ import { healthResponse, itemsResponse } from "../lib/validators"
 import { useGo } from "../studio/hooks"
 import { Icon } from "../studio/Icon"
 import { Loaded, PageHeader, Panel, shortId, Status, Unavailable } from "../studio/ui"
+import { HostMetricsView, useTelemetry } from "../studio/Telemetry"
 import { AccessPanel } from "./AccessPanel"
 
 type Queue = { backend: string; available: boolean; queued?: number; running?: number; terminal?: number; error?: string }
@@ -32,6 +33,7 @@ export function SystemAdmin() {
   const jobs = usePoll<{ items: JobItem[] }>("/v1/jobs", 10_000, itemsResponse)
   const datasets = usePoll<{ items: DatasetItem[] }>("/v1/datasets", 30_000, itemsResponse)
   const audit = usePoll<AuditLog>("/v1/audit?limit=50", 15_000)
+  const telemetry = useTelemetry(10_000)
   const failed = items(jobs.data).filter((job) => job.status === "failed")
   const notReady = readiness.data && readiness.data.status !== "ready"
 
@@ -72,8 +74,8 @@ export function SystemAdmin() {
           <div><span><b>Durable worker</b><small>From /readiness.</small></span><code>{yes(readiness.data?.durable_worker_configured)}</code></div>
         </div>
       </Panel>
-      <Panel title="Host metrics" meta="NOT COLLECTED">
-        <Unavailable feature="CPU, memory and GPU metrics" reason="The API does not collect host metrics. Use host tooling (node exporter, nvidia-smi) for live resource data." />
+      <Panel title="Host metrics" meta="LIVE · /v1/infrastructure/telemetry">
+        <HostMetricsView poll={telemetry} />
         <Unavailable feature="research policy editor" reason="Evidence rules are enforced in code (validation-only selection, evidence labels) and cannot be changed at runtime." />
       </Panel>
     </div>

@@ -198,7 +198,8 @@ class RedisJobStore:
                 jobs.append(Job.from_dict(json.loads(value)))
         return jobs
 
-    def heartbeat(self, worker_id: str, *, active_job_id: str | None = None) -> dict:
+    def heartbeat(self, worker_id: str, *, active_job_id: str | None = None,
+                  telemetry: dict | None = None) -> dict:
         """Record a worker liveness signal and the job currently being handled."""
         value = {
             "worker_id": worker_id,
@@ -208,6 +209,8 @@ class RedisJobStore:
             "active_job_id": active_job_id,
             "last_seen": datetime.now(UTC).isoformat(),
         }
+        if telemetry is not None:
+            value["telemetry"] = telemetry
         self.client.set(self._worker_key(worker_id), json.dumps(value))
         return value
 
