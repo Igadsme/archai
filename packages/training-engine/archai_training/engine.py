@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -43,11 +44,13 @@ def _batch_loss(model, batch, criterion, device):
 
 def train_model(model, train_loader, validation_loader, config: TrainingConfig,
                 *, checkpoint_path: str | Path | None = None, resume_path: str | Path | None = None,
-                criterion=None) -> TrainingResult:
+                criterion=None, on_epoch_end: Callable[[dict[str, float]], None] | None = None) -> TrainingResult:
     """Train a classifier with reproducible seeds, accumulation, AMP, and recovery.
 
     Load/save payloads contain only a state dict and JSON-safe metadata. The
-    engine never deserializes arbitrary model objects.
+    engine never deserializes arbitrary model objects. `on_epoch_end` receives
+    each epoch's history row after its checkpoint is written; an exception it
+    raises stops training (used for cooperative job cancellation).
     """
     import torch
     from torch import nn
@@ -117,8 +120,10 @@ def train_model(model, train_loader, validation_loader, config: TrainingConfig,
                             "config": asdict(config)}, path)
         else:
             stale += 1
-            if config.early_stopping_patience and stale >= config.early_stopping_patience:
-                status = "early_stopped"
-                break
+        if on_epoch_end is not None:
+            on_epoch_end(dict(row))
+        if stale and config.early_stopping_patience and stale >= config.early_stopping_patience:
+            status = "early_stopped"
+            break
     return TrainingResult(status, best_loss, len(history), time.monotonic() - started,
                           tuple(history), str(checkpoint_path) if checkpoint_path else None)

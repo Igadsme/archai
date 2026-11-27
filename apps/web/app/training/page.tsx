@@ -1,9 +1,10 @@
 "use client"
 import { useState } from "react"
-import { Empty, Errors, Loaded, PageHeader, Unavailable } from "../components/Shell"
+import { Empty, Errors, Loaded, PageHeader, ProgressBar } from "../components/Shell"
 import { items, usePoll } from "../components/usePoll"
 import { postJson } from "../lib/api"
 import { buildTrainingRequest, defaultTrainingForm, type TrainingForm, type TrainingKind } from "../lib/forms"
+import { jobProgress } from "../lib/progress"
 import { jobResult } from "../lib/results"
 import type { JobDetail, JobItem } from "../lib/types"
 
@@ -31,7 +32,9 @@ export default function TrainingLaboratory() {
     jobs.refresh(); detail.refresh()
   }
   const result = jobResult(detail.data)
-  const rawCurve = Array.isArray(result?.training_loss) ? result?.training_loss as unknown[] : Array.isArray(result?.history) ? result?.history as unknown[] : []
+  const progress = jobProgress(detail.data)
+  const liveHistory = !result && progress?.phase === "training" ? progress.history : []
+  const rawCurve = Array.isArray(result?.training_loss) ? result?.training_loss as unknown[] : Array.isArray(result?.history) ? result?.history as unknown[] : liveHistory
   const curve: Record<string, number>[] = rawCurve.map((row) => typeof row === "number" ? { training_loss: row } : (row && typeof row === "object" ? row as Record<string, number> : {}))
   const curveKeys = Array.from(new Set(curve.flatMap((row) => Object.keys(row)))).filter((key) => key !== "epoch")
   return <>
@@ -56,10 +59,10 @@ export default function TrainingLaboratory() {
           <span className={`job-${job.status}`}>{job.status}{job.status === "queued" || job.status === "running" ? <> · <button className="link-button" onClick={() => void cancel(job.job_id)}>cancel</button></> : null}</span></li>)}</ul>}</Loaded>
       </article>
       <article className="panel wide"><h3>Job detail</h3>
-        <Unavailable feature="live per-epoch progress" reason="The worker reports loss curves only when a job finishes; there is no streaming progress channel yet." />
         {!jobId ? <Empty>Select a job to see its result.</Empty> : <Loaded poll={detail}>{(job) => <>
           <p className="muted">{job.kind} · {job.status}{job.started_at ? ` · started ${job.started_at}` : ""}{job.finished_at ? ` · finished ${job.finished_at}` : ""}</p>
           {job.error ? <p className="errors" role="alert">{job.error}</p> : null}
+          {progress ? <ProgressBar progress={progress} live={job.status === "running"} /> : job.kind === "training" ? null : <p className="muted">Generator and predictor jobs report their loss curve when they finish.</p>}
           {curve.length ? <div className="table-scroll"><table><thead><tr><th>Epoch</th>{curveKeys.map((key) => <th key={key}>{key} (measured)</th>)}</tr></thead><tbody>{curve.map((row, index) => <tr key={index}><td className="num">{row.epoch ?? index + 1}</td>{curveKeys.map((key) => <td className="num" key={key}>{typeof row[key] === "number" ? row[key].toFixed(4) : "—"}</td>)}</tr>)}</tbody></table></div> : null}
           {result ? <pre className="readme">{JSON.stringify({ ...result, training_loss: undefined, history: undefined }, null, 1)}</pre> : <Empty>No result yet.</Empty>}
         </>}</Loaded>}

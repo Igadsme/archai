@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased (production readiness, stacked on PR #1)
+
+- `ARCHAI_ENV=production` boot validation (`archai_api/settings.py`): key required, explicit https CORS origins only, durable Postgres/Redis required, no `ARCHAI_DB_AUTO_CREATE`, `/docs` off unless `ARCHAI_DOCS_ENABLED=1`.
+- Auth on `POST /v1/architectures/generate`; optional `ARCHAI_PROTECT_READS=1`; 400 on malformed `Content-Length`.
+- Security headers on every API response (HSTS in production), `x-request-id` on every response and audit event, CORS exposes download headers.
+- `GET /v1/audit` and a Studio audit-log viewer (System Administration).
+- Live job progress (`payload.progress`) for candidate training (per epoch) and benchmark search (per evaluation), with cooperative cancellation; Studio progress bars on Training and Search pages. The Studio sends the API key on reads.
+- `archai.*` logs (including audit events) are emitted on stderr by default (`ARCHAI_LOG_LEVEL`).
+- Containers: CPU-only torch API image with a non-root data dir and health check; Studio image on Node 22 with Next standalone output, build-time API URL, CSP and security headers; Compose with `ARCHAI_ENV`, proxy headers, Redis AOF persistence, restart policies; `.env.example`.
+- Render runs with `ARCHAI_ENV=production` and proxy headers.
+- CI: least-privilege permissions, concurrency cancel, `security` job (`pip-audit`, `npm audit`, ruff flake8-bandit rules), `docker` job (build + smoke-test both images); Dependabot. pytest bumped to 9.0.3+ (PYSEC-2026-1845).
+- Dataset acquisition accepts only `https`/`http`/`file` URLs.
+- Docs: `SECURITY.md` (reporting, threat model, controls), `docs/deploy/PRODUCTION.md`, updated `ENV.md` and `API.md`.
+
 ## Unreleased (feat/complete-archai, PR #1)
 
 - Free-tier path chosen (2026-11-26, 12:46 AM America/New_York): Kaggle free GPU, Hugging Face free private hosting, Vercel Hobby + Render free web + Neon Free + Upstash Redis Free. Official limits and card/not-actually-free flags are in `docs/deploy/FREE_TIER_PLAN.md`. Surprises: Render has **no** free background workers or cron jobs (the worker is embedded in the API via `ARCHAI_EMBED_WORKER=1`); adding a payment method on Upstash converts every free database to paid; Render bills bandwidth/build overages only if a card is on file (otherwise it suspends); Render free Postgres expires in 30 days and is not used.

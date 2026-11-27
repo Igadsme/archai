@@ -24,8 +24,9 @@ function detailOf(data: unknown, fallback: string): string {
 
 /** GET with error details preserved, so pages can say why something is unavailable. */
 export async function fetchJson<T>(path: string): Promise<FetchOutcome<T>> {
+  const key = getApiKey()
   try {
-    const response = await fetch(`${apiBase}${path}`)
+    const response = await fetch(`${apiBase}${path}`, { headers: key ? { "x-api-key": key } : {} })
     const data = await response.json().catch(() => null) as unknown
     if (response.ok) return { ok: true, data: data as T }
     return { ok: false, status: response.status, detail: detailOf(data, response.statusText) }

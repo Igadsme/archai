@@ -28,11 +28,11 @@ CI because it needs the live stack and NATS-Bench archive, which GitHub-hosted r
 | 3 | Architecture Graph Explorer | `/explorer` | COMPLETE | E2E: register → SVG DAG → JSON + TorchScript export; export loaded and run without archai (TEST_REPORT) |
 | 4 | Autonomous Search Laboratory | `/search` | COMPLETE | E2E: multi_objective search launched, run on the worker, 20-step history shown; all 7 policies selectable |
 | 5 | Pareto Optimization Explorer | `/pareto` | COMPLETE | E2E: measured-suite fronts per policy/seed + live-session front and hypervolume (TS hypervolume = Python, vitest + pytest fixture) |
-| 6 | Training Laboratory | `/training` | IN PROGRESS | E2E: synthetic candidate job → measured loss table; live per-epoch progress is marked Unavailable |
+| 6 | Training Laboratory | `/training` | COMPLETE | E2E: synthetic candidate job → measured loss table; live per-epoch progress and cooperative cancel (`tests/test_job_progress.py`, recorded browser walkthrough on the production-readiness PR) |
 | 7 | Model Comparison | `/compare` | COMPLETE | E2E: 2 architectures compared (analytical metrics); policy table with CIs, regret, hypervolume, CI-overlap flag |
 | 8 | Research Results | `/results` | COMPLETE | E2E: committed result sets with config, tables, README, smoke reports; experiment leaderboard |
 | 9 | Model Registry | `/models` | COMPLETE | E2E: checkpoint inspection (tensors, parameters, metadata); tampered files refused (pytest) |
-| 10 | System Administration | `/admin` | COMPLETE | E2E: readiness, queue, live worker, failed jobs, datasets; audit-log viewer and key management marked Unavailable |
+| 10 | System Administration | `/admin` | COMPLETE | E2E: readiness, queue, live worker, failed jobs, datasets; audit-log viewer (`GET /v1/audit`); key management marked Unavailable |
 
 | Required capability | Status | Evidence / gap |
 | --- | --- | --- |
@@ -40,7 +40,7 @@ CI because it needs the live stack and NATS-Bench archive, which GitHub-hosted r
 | Architecture visualization | COMPLETE | `DagView` + `layoutDag` (vitest), E2E |
 | Real search sessions | COMPLETE | E2E on the Redis worker against the verified archive |
 | Experiment monitoring | COMPLETE | polled sessions/jobs with cancel; E2E |
-| Training progress | IN PROGRESS | final loss curve per epoch after completion; no live progress channel |
+| Training progress | COMPLETE | live `payload.progress` per epoch (candidate) / per evaluation (search); generator/predictor report on completion |
 | Search-history inspection | COMPLETE | per-step history table (worker `history`), E2E |
 | Checkpoint inspection | COMPLETE | `GET /v1/models/{id}/inspect`, E2E |
 | Benchmark comparisons | COMPLETE | Model Comparison + Pareto pages over `research/results/nasbench201_cifar10_full_suite` |
@@ -115,7 +115,7 @@ CI because it needs the live stack and NATS-Bench archive, which GitHub-hosted r
 | Frontend builds | COMPLETE | `next build` in CI (web job) |
 | E2E journeys work | IN PROGRESS | browser E2E 31/31 on the live stack; journey steps 1 and 3 not implemented; not in CI |
 | Restart / recovery tests | IN PROGRESS | lease-based recovery unit test; Postgres recovered after an unplanned box replacement (not a planned test); no scripted kill-and-recover test |
-| Security checks | IN PROGRESS | `npm audit` 0, rate limiting, audit log, checksum gates; no Python dependency audit or static analysis |
+| Security checks | COMPLETE | CI `security` job: `pip-audit`, `npm audit --audit-level=high`, ruff flake8-bandit rules; production boot validation; security headers |
 
 ## 7. Model metrics (§16)
 

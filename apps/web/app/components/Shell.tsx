@@ -3,6 +3,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { getApiKey, setApiKey } from "../lib/api"
+import { type JobProgress, progressFraction, progressLabel } from "../lib/progress"
 import { type Poll, usePoll } from "./usePoll"
 
 /** The ten Studio pages named in Imani's spec (docs/SPEC_ACCEPTANCE.md, §10). */
@@ -60,6 +61,15 @@ export function Errors({ errors }: { errors: string[] }) {
 /** A feature that is intentionally not implemented (or not available on this host), stated plainly. */
 export function Unavailable({ feature, reason }: { feature: string; reason: string }) {
   return <div className="unavailable" role="note"><strong>Unavailable: {feature}</strong><span>{reason}</span></div>
+}
+
+/** Live job progress reported by the worker; `live` is false once the job has stopped. */
+export function ProgressBar({ progress, live }: { progress: JobProgress; live: boolean }) {
+  const percent = Math.round(progressFraction(progress) * 100)
+  return <div className="progress" role="status" aria-live="polite">
+    <progress max={100} value={percent} aria-label={progressLabel(progress)} />
+    <span>{progressLabel(progress)} ({percent}%){live ? " · live" : ""}{progress.reported_at ? ` · reported ${progress.reported_at}` : ""}</span>
+  </div>
 }
 
 /** Loading / error / empty states for a polled resource; renders children only with data. */

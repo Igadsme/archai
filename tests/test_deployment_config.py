@@ -52,3 +52,64 @@ def test_docker_context_excludes_local_dependencies_and_artifacts():
     assert "**/node_modules" in dockerignore
     assert "datasets/raw" in dockerignore
     assert "*.safetensors" in dockerignore
+
+
+def test_api_image_is_cpu_torch_non_root_with_healthcheck_and_proxy_headers():
+    dockerfile = (ROOT / "apps/api/Dockerfile").read_text()
+    assert "download.pytorch.org/whl/cpu" in dockerfile
+    assert "USER 10001" in dockerfile
+    assert "chown archai:archai /var/lib/archai" in dockerfile
+    assert "HEALTHCHECK" in dockerfile
+    assert "--proxy-headers" in dockerfile
+    assert "COPY research ./research" in dockerfile
+
+
+def test_web_image_bakes_api_url_at_build_time_and_runs_standalone_as_node():
+    dockerfile = (ROOT / "apps/web/Dockerfile").read_text()
+    assert "FROM node:22-alpine" in dockerfile and "node:20" not in dockerfile
+    assert "ARG NEXT_PUBLIC_ARCHAI_API_URL" in dockerfile
+    assert "NEXT_OUTPUT=standalone" in dockerfile
+    assert "USER node" in dockerfile
+    assert 'CMD ["node", "server.js"]' in dockerfile
+    config = (ROOT / "apps/web/next.config.mjs").read_text()
+    assert 'process.env.NEXT_OUTPUT === "standalone"' in config
+    assert "Content-Security-Policy" in config and "frame-ancestors 'none'" in config
+
+
+def test_compose_wires_production_switches_and_durable_redis():
+    compose = (ROOT / "infrastructure/docker/docker-compose.yml").read_text()
+    assert "ARCHAI_ENV: ${ARCHAI_ENV:-development}" in compose
+    assert "ARCHAI_PROTECT_READS" in compose
+    assert "NEXT_PUBLIC_ARCHAI_API_URL: ${ARCHAI_PUBLIC_API_URL:-http://localhost:8000}" in compose
+    assert '"--appendonly", "yes"' in compose
+    assert "archai-redis:/data" in compose
+    assert "--proxy-headers" in compose
+    assert "restart: unless-stopped" in compose
+
+
+def test_env_example_lists_every_compose_variable_without_secrets():
+    import re
+    compose = (ROOT / "infrastructure/docker/docker-compose.yml").read_text()
+    example = (ROOT / ".env.example").read_text()
+    variables = set(re.findall(r"\$\{([A-Z0-9_]+)", compose)) - {"ARCHAI_API_PORT", "ARCHAI_WEB_PORT"}
+    documented = set(re.findall(r"^#?\s*([A-Z0-9_]+)=", example, flags=re.MULTILINE))
+    assert variables <= documented, sorted(variables - documented)
+    for line in example.splitlines():
+        if line.startswith(("POSTGRES_PASSWORD=", "ARCHAI_API_KEY_SHA256=", "ARCHAI_NATS_BENCH_SHA256=")):
+            assert line.endswith("="), line
+
+
+def test_render_runs_in_production_mode_behind_the_proxy():
+    render = (ROOT / "render.yaml").read_text()
+    assert "key: ARCHAI_ENV\n        value: production" in render
+    assert "--proxy-headers" in render
+
+
+def test_ci_is_least_privilege_and_audits_dependencies_and_images():
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+    assert "permissions:\n  contents: read" in workflow
+    assert "pip-audit" in workflow
+    assert "npm audit --audit-level=high" in workflow
+    assert "docker build -f apps/api/Dockerfile" in workflow
+    assert "docker build -f apps/web/Dockerfile" in workflow
+    assert (ROOT / ".github/dependabot.yml").is_file()

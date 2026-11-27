@@ -1,11 +1,12 @@
 "use client"
 import { useState } from "react"
-import { Empty, Errors, Loaded, PageHeader, Unavailable } from "../components/Shell"
+import { Empty, Errors, Loaded, PageHeader, ProgressBar, Unavailable } from "../components/Shell"
 import { items, usePoll } from "../components/usePoll"
 import { postJson } from "../lib/api"
 import { ConstraintFields } from "../components/ConstraintFields"
 import { SelectedProjectLabel, useSelectedProject } from "../components/ProjectPicker"
 import { buildSearchRequest, defaultSearchForm, type SearchForm } from "../lib/forms"
+import { jobProgress } from "../lib/progress"
 import { jobResult } from "../lib/results"
 import type { HistoryStep, JobDetail, SearchAlgorithm, SearchItem } from "../lib/types"
 
@@ -67,6 +68,7 @@ export default function AutonomousSearchLaboratory() {
       <article className="panel wide"><h3>Session detail</h3>
         {!selectedId ? <Empty>Select a session to see its per-step history.</Empty> : <Loaded poll={selected}>{(session) => <>
           <p className="muted">{session.algorithm} · {session.status}{session.job?.error ? ` · error: ${session.job.error}` : ""}</p>
+          {(() => { const progress = jobProgress(session.job); return progress ? <ProgressBar progress={progress} live={session.status === "running"} /> : null })()}
           {result ? <>
             <div className="table-scroll"><table><tbody>
               <tr><th>Selected cell</th><td><code>{String(result.selected_architecture_string ?? result.selected_index)}</code></td></tr>

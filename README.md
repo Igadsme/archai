@@ -26,6 +26,12 @@ Install `.[ml,benchmark]` for real model/benchmark runs and `.[platform]` for SQ
 3. Run a matched-budget matrix from `research/experiments/` (see its README): `python scripts/run_experiment_matrix.py --config research/experiments/<name>.json --benchmark-path ... --benchmark-sha256 ... --output artifacts/experiments/<name>`; use `--dry-run` to inspect the plan without data.
 4. Store raw metrics and provenance manifests; only then generate a report.
 
+## Deploying
+
+- Single host: copy `.env.example` to `.env`, then `docker compose --env-file .env -f infrastructure/docker/docker-compose.yml --profile worker up -d --build`.
+- Production: set `ARCHAI_ENV=production`; the API refuses to boot with unsafe settings. Follow [docs/deploy/PRODUCTION.md](docs/deploy/PRODUCTION.md) (checklist and post-deploy checks) and [docs/deploy/ENV.md](docs/deploy/ENV.md) (every variable).
+- Free hosted path (Render + Vercel + Neon + Upstash): [docs/deploy/HOSTING_RUNBOOK.md](docs/deploy/HOSTING_RUNBOOK.md).
+
 See [ROADMAP.md](ROADMAP.md), [RESEARCH.md](RESEARCH.md), and [SECURITY.md](SECURITY.md).
 
 Register a trained artifact with `python scripts/register_model.py --model-id ArchAI-Predictor --kind predictor --version v1 --artifact checkpoint.pt`; use [the model-card template](docs/MODEL_CARD_TEMPLATE.md) for release evidence.

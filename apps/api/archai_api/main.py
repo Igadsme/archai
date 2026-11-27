@@ -32,6 +32,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from archai_api import settings
 from archai_api.db import (
     SqlAlchemyArchitectureStore,
     SqlAlchemyDatasetStore,
@@ -43,16 +44,15 @@ from archai_api.db import (
 )
 
 
-def api_key_is_configured() -> bool:
-    return bool(os.getenv("ARCHAI_API_KEY") or os.getenv("ARCHAI_API_KEY_SHA256"))
-
-
-def enforce_required_api_key() -> None:
-    """Production boot check: ARCHAI_REQUIRE_API_KEY=1 refuses to start without a key."""
-    if os.getenv("ARCHAI_REQUIRE_API_KEY", "0") == "1" and not api_key_is_configured():
-        raise RuntimeError(
-            "ARCHAI_REQUIRE_API_KEY=1 but neither ARCHAI_API_KEY nor ARCHAI_API_KEY_SHA256 is set"
-        )
+def configure_logging() -> None:
+    """Emit `archai.*` logs (including audit events) on stderr unless the host configured handlers."""
+    logger = logging.getLogger("archai")
+    if logger.handlers:
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    logger.addHandler(handler)
+    logger.setLevel(os.getenv("ARCHAI_LOG_LEVEL", "INFO").upper())
 
 
 _embed_stop: threading.Event | None = None
@@ -108,7 +108,11 @@ def stop_embedded_worker() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    enforce_required_api_key()
+    configure_logging()
+    settings.validate_configuration()
+    logging.getLogger("archai.api").info(
+        "starting environment=%s protect_reads=%s docs=%s cors=%s", settings.environment(),
+        settings.protect_reads(), settings.docs_enabled(), ",".join(_cors_origins))
     start_embedded_worker()
     try:
         yield
@@ -116,12 +120,16 @@ async def lifespan(_: FastAPI):
         stop_embedded_worker()
 
 
-app = FastAPI(title="ArchAI API", version="v1", lifespan=lifespan)
-_cors_origins = [origin.strip() for origin in os.getenv(
-    "ARCHAI_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if origin.strip()]
+_docs = settings.docs_enabled()
+app = FastAPI(title="ArchAI API", version="v1", lifespan=lifespan,
+              docs_url="/docs" if _docs else None, redoc_url="/redoc" if _docs else None,
+              openapi_url="/openapi.json" if _docs else None)
+_cors_origins = settings.cors_origins()
 app.add_middleware(CORSMiddleware, allow_origins=_cors_origins, allow_credentials=False,
                    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
-                   allow_headers=["Authorization", "Content-Type", "x-api-key"])
+                   allow_headers=["Authorization", "Content-Type", "x-api-key", "x-request-id"],
+                   expose_headers=["content-disposition", "x-archai-sha256", "x-archai-output-shape",
+                                   "x-request-id"])
 _searches: dict[str, dict] = {}
 _experiments: dict[str, ExperimentRecord] = {}
 def _make_job_store():
@@ -303,8 +311,15 @@ def _early_response(request: Request, detail: str, status_code: int, extra_heade
 async def request_limits(request: Request, call_next):
     max_bytes = int(os.getenv("ARCHAI_MAX_REQUEST_BYTES", str(1024 * 1024)))
     content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > max_bytes:
-        return _early_response(request, "request body too large", 413)
+    if content_length:
+        try:
+            declared = int(content_length)
+        except ValueError:
+            return _early_response(request, "invalid Content-Length header", 400)
+        if declared < 0:
+            return _early_response(request, "invalid Content-Length header", 400)
+        if declared > max_bytes:
+            return _early_response(request, "request body too large", 413)
     if not content_length and request.method in {"POST", "PUT", "PATCH"}:
         body = await request.body()
         if len(body) > max_bytes:
@@ -319,6 +334,11 @@ async def request_limits(request: Request, call_next):
     if not decision.allowed:
         return _early_response(request, "rate limit exceeded", 429,
                                {"x-ratelimit-backend": decision.backend})
+    if (request.method in {"GET", "HEAD"} and settings.protect_reads()
+            and request.url.path not in settings.PUBLIC_PATHS
+            and request.url.path not in settings.DOCS_PATHS
+            and not _credential_is_valid(_supplied_credential(request.headers))):
+        return _early_response(request, "invalid API key", 401, {"www-authenticate": "Bearer"})
     return await call_next(request)
 
 
@@ -330,10 +350,7 @@ _AUDITED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 def _credential_fingerprint(request: Request) -> str | None:
     """Short SHA-256 fingerprint of the presented credential; the secret itself is never logged."""
-    supplied = request.headers.get("x-api-key")
-    authorization = request.headers.get("authorization")
-    if supplied is None and authorization and authorization.startswith("Bearer "):
-        supplied = authorization.removeprefix("Bearer ")
+    supplied = _supplied_credential(request.headers)
     if not supplied:
         return None
     return hashlib.sha256(supplied.encode()).hexdigest()[:12]
@@ -376,7 +393,38 @@ async def audit_writes(request: Request, call_next):
             "client": request.client.host if request.client else None,
             "credential_fingerprint": _credential_fingerprint(request),
             "duration_ms": round((time.monotonic() - started) * 1000, 3),
+            "request_id": getattr(request.state, "request_id", None),
         })
+
+
+_API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("x-content-type-options", "nosniff")
+    response.headers.setdefault("x-frame-options", "DENY")
+    response.headers.setdefault("referrer-policy", "no-referrer")
+    response.headers.setdefault("cache-control", "no-store")
+    if request.url.path not in settings.DOCS_PATHS:  # Swagger UI loads its assets from a CDN
+        response.headers.setdefault("content-security-policy", _API_CSP)
+    if settings.is_production():
+        response.headers.setdefault("strict-transport-security", "max-age=31536000; includeSubDomains")
+    return response
+
+
+_REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+
+
+@app.middleware("http")
+async def request_id(request: Request, call_next):
+    """Outermost middleware: every response, including early 4xx rejections, carries an id."""
+    supplied = request.headers.get("x-request-id", "")
+    request.state.request_id = supplied if _REQUEST_ID.fullmatch(supplied) else uuid4().hex
+    response = await call_next(request)
+    response.headers["x-request-id"] = request.state.request_id
+    return response
 
 class SearchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -480,15 +528,31 @@ def require_write_access(api_key: Annotated[str | None, Header(alias="x-api-key"
     supplied = api_key
     if supplied is None and authorization and authorization.startswith("Bearer "):
         supplied = authorization.removeprefix("Bearer ")
+    if not _credential_is_valid(supplied):
+        raise HTTPException(status_code=401, detail="invalid API key", headers={"www-authenticate": "Bearer"})
+
+
+def _supplied_credential(headers) -> str | None:
+    supplied = headers.get("x-api-key")
+    authorization = headers.get("authorization")
+    if supplied is None and authorization and authorization.startswith("Bearer "):
+        supplied = authorization.removeprefix("Bearer ")
+    return supplied
+
+
+def _credential_is_valid(supplied: str | None) -> bool:
+    """True when no key is configured (open local mode) or the supplied key matches."""
     configured = os.getenv("ARCHAI_API_KEY")
     configured_hash = os.getenv("ARCHAI_API_KEY_SHA256")
-    valid = False
-    if supplied and configured:
-        valid = hmac.compare_digest(supplied, configured)
-    if supplied and configured_hash:
-        valid = valid or hmac.compare_digest(hashlib.sha256(supplied.encode()).hexdigest(), configured_hash.lower())
-    if (configured or configured_hash) and not valid:
-        raise HTTPException(status_code=401, detail="invalid API key")
+    if not configured and not configured_hash:
+        return True
+    if not supplied:
+        return False
+    valid = bool(configured) and hmac.compare_digest(supplied.encode(), configured.encode())
+    if configured_hash:
+        digest = hashlib.sha256(supplied.encode()).hexdigest()
+        valid = hmac.compare_digest(digest, configured_hash.lower()) or valid
+    return valid
 
 
 def require_active_project(project_id: str | None) -> ResearchProject | None:
@@ -893,7 +957,7 @@ def get_dataset(dataset_id: str, version: str = Query(..., min_length=1, max_len
     return dataset
 
 
-@app.post("/v1/architectures/generate")
+@app.post("/v1/architectures/generate", dependencies=[Depends(require_write_access)])
 def generate_architectures(request: GenerateRequest):
     project = require_active_project(request.project_id)
     constraints = resolve_constraints(request.constraints, project.constraints if project else None)
@@ -1038,6 +1102,45 @@ def inspect_model_checkpoint(model_id: str, version: str | None = None):
             "tensor_count": len(tensors), "parameter_count": int(sum(t.numel() for _, t in tensors)),
             "tensors": [{"name": name, "shape": list(t.shape), "dtype": str(t.dtype)} for name, t in tensors[:200]],
             "checkpoint_metadata": metadata if isinstance(metadata, dict) else None}
+
+
+def _tail_lines(path: Path, limit: int, block_size: int = 64 * 1024) -> list[str]:
+    """Last `limit` lines of a file, read backwards so large audit logs stay cheap."""
+    with path.open("rb") as stream:
+        stream.seek(0, os.SEEK_END)
+        position = stream.tell()
+        data = b""
+        while position > 0 and data.count(b"\n") <= limit:
+            step = min(block_size, position)
+            position -= step
+            stream.seek(position)
+            data = stream.read(step) + data
+    lines = [line for line in data.decode("utf-8", errors="replace").splitlines() if line.strip()]
+    return lines[-limit:]
+
+
+@app.get("/v1/audit", dependencies=[Depends(require_write_access)])
+def read_audit_log(limit: int = Query(default=100, ge=1, le=1000),
+                   outcome: Literal["allowed", "rejected"] | None = None):
+    """Most recent state-changing requests, newest first. Requires the write key when one is set."""
+    destination = os.getenv("ARCHAI_AUDIT_LOG")
+    if not destination:
+        return {"available": False, "items": [],
+                "detail": "ARCHAI_AUDIT_LOG is not set; audit events go to the process log only"}
+    path = Path(destination)
+    if not path.is_file():
+        return {"available": True, "items": []}
+    events = []
+    for line in reversed(_tail_lines(path, limit if outcome is None else 1000)):
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if outcome is None or event.get("outcome") == outcome:
+            events.append(event)
+        if len(events) >= limit:
+            break
+    return {"available": True, "items": events}
 
 
 _RESULT_NAME = re.compile(r"^[a-z0-9_]{1,80}$")

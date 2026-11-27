@@ -68,6 +68,13 @@ class InMemoryJobStore:
             job.updated_at = datetime.now(UTC)
             return job
 
+    def update_progress(self, job_id: str, progress: dict) -> Job:
+        with self._lock:
+            job = self._jobs[job_id]
+            job.payload = {**job.payload, "progress": dict(progress)}
+            job.updated_at = datetime.now(UTC)
+            return job
+
     def list(self) -> list[Job]:
         with self._lock:
             return list(self._jobs.values())
@@ -131,6 +138,15 @@ class RedisJobStore:
     def update_payload(self, job_id: str, payload: dict) -> Job:
         def update(job: Job) -> Job:
             job.payload = dict(payload)
+            job.updated_at = datetime.now(UTC)
+            return job
+
+        return self._atomic_job_update(job_id, update)
+
+    def update_progress(self, job_id: str, progress: dict) -> Job:
+        """Replace only `payload.progress`, leaving status and the rest of the payload intact."""
+        def update(job: Job) -> Job:
+            job.payload = {**job.payload, "progress": dict(progress)}
             job.updated_at = datetime.now(UTC)
             return job
 

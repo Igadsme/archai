@@ -15,3 +15,13 @@ Browser clients are allowed only the origins in `ARCHAI_CORS_ORIGINS` (comma-sep
 Set `DATABASE_URL` to use the SQLAlchemy-backed architecture, search, experiment, model, and dataset registries. The API expects the Alembic schema to have been applied; set `ARCHAI_DB_AUTO_CREATE=1` only for local development or tests. Without `DATABASE_URL`, the API uses process-local registries and the JSON model manifest.
 
 Every `POST`/`PUT`/`PATCH`/`DELETE` request, including ones rejected with 401/413/429, emits one JSON audit event (UTC timestamp, method, path, status, allowed/rejected outcome, client host, a 12-hex SHA-256 fingerprint of the presented credential, and duration) to the `archai.audit` logger. Set `ARCHAI_AUDIT_LOG` to also append it to a JSONL file; Compose writes to `/var/lib/archai/audit/api-writes.jsonl`. Credentials are never written in clear text.
+
+## Production hardening
+
+`ARCHAI_ENV=production` validates configuration at boot (see `docs/deploy/PRODUCTION.md`). `POST /v1/architectures/generate` requires the write key like every other expensive route. `ARCHAI_PROTECT_READS=1` requires the key on all reads except `/health` and `/readiness`. Every response carries `x-request-id` (a valid client-supplied value is echoed, otherwise a new one is generated) plus `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, and a `default-src 'none'` CSP (HSTS in production). CORS exposes `content-disposition`, `x-archai-sha256`, `x-archai-output-shape`, and `x-request-id` so cross-origin downloads keep their file names. A malformed `Content-Length` returns 400.
+
+`GET /v1/audit?limit=100&outcome=allowed|rejected` returns the newest audit events first (key required when configured). Without `ARCHAI_AUDIT_LOG` it returns `{"available": false}`; events still go to the `archai.audit` logger on stderr. Each event includes the `request_id`.
+
+## Live job progress and cancellation
+
+Workers write advisory progress to `payload.progress` of the job (visible through `GET /v1/jobs/{id}` and `GET /v1/searches/{id}`): candidate training reports `{"phase": "training", "epochs_completed", "epochs", "history": [...]}` per epoch, and benchmark search reports `{"phase": "searching", "evaluations", "budget", "best_validation_accuracy"}`. Writes are throttled to about one per second (first and last always written), and the final result is stored next to the last progress record. Cancelling a running job is cooperative: candidate training stops after the current epoch and search stops before its next query, so a cancelled job no longer keeps consuming CPU. Generator and predictor training report only on completion.

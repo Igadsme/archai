@@ -20,11 +20,15 @@ services:
     autoDeploy: false
     buildCommand: pip install --upgrade pip && pip install '.[platform]'
     preDeployCommand: alembic upgrade head
-    startCommand: uvicorn archai_api.main:app --host 0.0.0.0 --port $PORT
+    # Render's edge proxy addresses are not fixed, so every hop is trusted for X-Forwarded-For.
+    # Per-client rate limits are therefore best-effort here; writes still require the API key.
+    startCommand: uvicorn archai_api.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.8"
+      - key: ARCHAI_ENV
+        value: production
       - key: ARCHAI_EMBED_WORKER
         value: "1"
       - key: ARCHAI_REQUIRE_API_KEY
@@ -41,6 +45,8 @@ services:
         value: fixture
       - key: ARCHAI_ALLOWED_PATHS
         value: /tmp:/opt/render/project/src
+      - key: ARCHAI_AUDIT_LOG
+        value: /tmp/archai-audit.jsonl
       - key: DATABASE_URL
         sync: false
       - key: ARCHAI_REDIS_URL
