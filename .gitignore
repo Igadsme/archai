@@ -11,3 +11,4 @@ apps/web/node_modules.failed-install-*/
 artifacts/**/*.pt
 artifacts/**/*.safetensors
 datasets/raw/
+*.egg-info/

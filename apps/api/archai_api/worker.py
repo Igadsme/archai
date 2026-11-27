@@ -8,7 +8,7 @@ from pathlib import Path
 
 from archai_shared.jobs import Job, RedisJobStore
 from archai_shared.paths import allowed_path
-from archai_shared.worker import WorkerRunner
+from archai_shared.worker import WorkerRunner, raise_if_cancelled, report_progress
 
 
 def _sha256_file(path: str | Path) -> str:
@@ -78,8 +78,19 @@ def candidate_training(job: Job) -> dict:
     checkpoint = config.get("checkpoint_path")
     if checkpoint:
         allowed_path(str(checkpoint), field="checkpoint_path")
+    live_history: list[dict[str, float]] = []
+    report_progress({"phase": "training", "epochs_completed": 0, "epochs": training_config.epochs,
+                     "history": []}, force=True)
+
+    def on_epoch_end(row: dict[str, float]) -> None:
+        live_history.append(row)
+        report_progress({"phase": "training", "epochs_completed": len(live_history),
+                         "epochs": training_config.epochs, "history": list(live_history),
+                         "evidence_type": "synthetic_training"}, force=True)
+        raise_if_cancelled(force=True)
+
     result = train_candidate(architecture, train_loader, validation_loader, training_config,
-                             checkpoint_path=checkpoint)
+                             checkpoint_path=checkpoint, on_epoch_end=on_epoch_end)
     checkpoint_sha256 = _sha256_file(result.checkpoint_path) if result.checkpoint_path else None
     return {"status": result.status, "architecture_id": architecture.content_hash(),
             "best_validation_loss": result.best_validation_loss,
@@ -276,7 +287,10 @@ def benchmark_search(job: Job) -> dict:
     policy = build_policy(adapter, indices, algorithm, int(config.get("seed", 0)), params)
     uses_cost = getattr(policy, "uses_cost", False)
     records, costs = [], []
+    best_so_far: float | None = None
+    report_progress({"phase": "searching", "evaluations": 0, "budget": budget}, force=True)
     while len(records) < budget:
+        raise_if_cancelled()
         index = policy.ask()
         if index is None:
             break
@@ -288,6 +302,11 @@ def benchmark_search(job: Job) -> dict:
             policy.tell(index, record.validation_accuracy, cost)
         elif hasattr(policy, "tell"):
             policy.tell(index, record.validation_accuracy)
+        if best_so_far is None or record.validation_accuracy > best_so_far:
+            best_so_far = record.validation_accuracy
+        report_progress({"phase": "searching", "evaluations": len(records), "budget": budget,
+                         "best_validation_accuracy": best_so_far, "evidence_type": "benchmark_lookup"},
+                        force=len(records) == budget)
     if not records:
         raise RuntimeError("benchmark search evaluated no architectures")
     history = [{"step": step, "index": record.architecture_index,
