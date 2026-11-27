@@ -50,3 +50,17 @@ Only `admin`-role users can hold `admin`-scoped keys. Without a bootstrap key, t
 | `POST /v1/architectures/{id}/latency` | write | Time forward passes of the registered architecture on the API host (`batch_size` 1–64, `warmup` 0–50, `iterations` 2–500, `device` `cpu` or `cuda`). Returns mean, p50, p90, p99, min, max, stdev and throughput with the device, hardware and torch version; `evidence_type` is `measured_latency`. Weights are seeded, not trained. Capped at `ARCHAI_LATENCY_MAX_SECONDS` (default 20); `503` without torch or when `cuda` is requested but unavailable. |
 | `GET /v1/architectures/{id}/latency` | read | Stored measurements, newest first. |
 | `POST /v1/jobs/{id}/retry` | write | Queue a new job with the same kind and inputs as a `failed` or `cancelled` one. The new job carries `retry_of`; the original gets `retried_as`. Other states return `409`. |
+
+## Deployments
+
+Deployments serve a registered architecture from the API process (CPU by default; local hosting, not a multi-tenant serving tier). Weights are either a registered checkpoint, whose SHA-256 is re-verified and which must load into the compiled architecture with `strict=True`, or seeded untrained weights. Every deployment and prediction response states which, in `weights` and `trained`. Up to 8 models stay loaded (least recently used are evicted); stop, start and delete unload them.
+
+| Method and path | Scope | Purpose |
+| --- | --- | --- |
+| `GET /v1/deployments`, `GET /v1/deployments/{id}` | read | Records with status, weights, request count, error count and last latency. |
+| `POST /v1/deployments` | write | `name`, `architecture_id`, optional `model_id` / `model_version`. `404` for an unknown architecture or model, `409` for a missing or tampered checkpoint, `422` when the checkpoint does not fit the architecture. |
+| `POST /v1/deployments/{id}/stop`, `/start` | write | Stop serving, or start again after re-verifying the checkpoint. |
+| `DELETE /v1/deployments/{id}` | write | Remove the record and unload the model. |
+| `POST /v1/deployments/{id}/predict` | read | Body: `inputs` (nested list shaped `[batch<=16, C, H, W]`) or `input` = `zeros` / `random` with `batch_size` and `seed`. Returns logits, predicted class, softmax confidence and server-side `latency_ms`. `409` when stopped. |
+
+Training-job checkpoints (`model_state`) and generator/predictor-style (`state_dict`) checkpoints are accepted. Register one with `POST /v1/models` first.
