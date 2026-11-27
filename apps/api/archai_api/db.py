@@ -138,7 +138,18 @@ def sqlalchemy_components():
         measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
         result: Mapped[dict] = mapped_column(JSON, nullable=False)
 
+    class DeploymentRow(Base):
+        __tablename__ = "deployments"
+        deployment_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        architecture_id: Mapped[str] = mapped_column(String(64), ForeignKey(
+            "architectures.architecture_id", name="fk_deployment_architecture", ondelete="CASCADE"),
+            nullable=False, index=True)
+        status: Mapped[str] = mapped_column(String(16), nullable=False)
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+        record: Mapped[dict] = mapped_column(JSON, nullable=False)
+
     Base._archai_latency_row = LatencyMeasurementRow
+    Base._archai_deployment_row = DeploymentRow
     Base._archai_model_checkpoint_row = ModelCheckpointRow
     Base._archai_dataset_row = DatasetRow
     Base._archai_project_row = ResearchProjectRow
@@ -763,5 +774,72 @@ class SqlAlchemyLatencyStore:
             rows = session.scalars(select(self._row).where(self._row.architecture_id == architecture_id)
                                    .order_by(self._row.measured_at.desc()).limit(limit)).all()
             return [dict(row.result) for row in rows]
+        finally:
+            session.close()
+
+
+class SqlAlchemyDeploymentStore:
+    """Persist deployment records; serving state lives in the API process."""
+
+    def __init__(self, session_factory, row):
+        self._session_factory = session_factory
+        self._row = row
+
+    @classmethod
+    def from_url(cls, url: str, *, initialize: bool = False) -> SqlAlchemyDeploymentStore:
+        Base, _a, _s, _e, make_engine, make_session_factory = sqlalchemy_components()
+        engine = make_engine(url)
+        if initialize:
+            Base.metadata.create_all(engine)
+        return cls(make_session_factory(url, engine), Base._archai_deployment_row)
+
+    def put(self, deployment: dict) -> dict:
+        session = self._session_factory()
+        try:
+            row = session.get(self._row, deployment["deployment_id"])
+            values = {"architecture_id": deployment["architecture_id"], "status": deployment["status"],
+                      "created_at": datetime.fromisoformat(deployment["created_at"]), "record": dict(deployment)}
+            if row is None:
+                session.add(self._row(deployment_id=deployment["deployment_id"], **values))
+            else:
+                for key, value in values.items():
+                    setattr(row, key, value)
+            session.commit()
+            return deployment
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def get(self, deployment_id: str) -> dict | None:
+        session = self._session_factory()
+        try:
+            row = session.get(self._row, deployment_id)
+            return dict(row.record) if row is not None else None
+        finally:
+            session.close()
+
+    def list(self) -> list[dict]:
+        from sqlalchemy import select
+        session = self._session_factory()
+        try:
+            return [dict(row.record) for row in
+                    session.scalars(select(self._row).order_by(self._row.created_at.desc())).all()]
+        finally:
+            session.close()
+
+    def delete(self, deployment_id: str) -> bool:
+        session = self._session_factory()
+        try:
+            row = session.get(self._row, deployment_id)
+            if row is None:
+                return False
+            session.delete(row)
+            session.commit()
+            return True
+        except Exception:
+            session.rollback()
+            raise
         finally:
             session.close()

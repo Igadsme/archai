@@ -159,7 +159,16 @@ if (await inspectButtons.count()) {
   check("registry: architecture detail opens; checkpoint inspection lists tensors", archDetail && inspected, `tensors=${await desk.locator('table[aria-label="Checkpoint tensors"] tbody tr').count()}`)
 } else check("registry: architecture detail opens; checkpoint inspection lists tensors", false, "no registered checkpoints")
 await desk.getByRole("tab", { name: /DEPLOYMENTS/ }).click()
-check("registry: deployments tab states there is no deployment endpoint", (await desk.getByText("No deployment endpoint").count()) > 0)
+const deployForm = desk.locator('form[aria-label="Create deployment"]')
+await deployForm.getByLabel("Name").fill(`e2e-deploy-${Date.now()}`)
+await deployForm.getByLabel("Architecture").selectOption({ index: 1 })
+await deployForm.getByRole("button", { name: "Deploy" }).click()
+const deployed = await until(async () => (await desk.getByText(/^Deployed e2e-deploy-/).count()) > 0, 60000, 500)
+const untrainedBadge = deployed && (await desk.locator('table[aria-label="Deployments"]').getByText("UNTRAINED WEIGHTS").count()) > 0
+if (deployed) await desk.getByRole("button", { name: "Send test request" }).click()
+const predicted = deployed && await until(async () => (await desk.getByLabel("Prediction result").count()) > 0, 60000, 500)
+const predictionText = predicted ? await desk.getByLabel("Prediction result").innerText() : ""
+check("registry: deploy an architecture, send a test request, and see untrained weights labelled", deployed && untrainedBadge && predicted && /Server latency/.test(predictionText) && /untrained/i.test(predictionText), `deployed=${deployed} badge=${untrainedBadge} predicted=${predicted}`)
 
 // Training: queue the default synthetic candidate job and read its measured curve.
 await visit(desk, "/training")

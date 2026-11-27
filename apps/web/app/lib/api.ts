@@ -48,7 +48,7 @@ export type ApiResult<T> = { ok: true; data: T; status: number; headers: Headers
 export type Validator = (value: unknown) => string | null
 
 export type RequestOptions = {
-  method?: "GET" | "POST" | "PATCH"
+  method?: "GET" | "POST" | "PATCH" | "DELETE"
   body?: unknown
   signal?: AbortSignal
   timeoutMs?: number

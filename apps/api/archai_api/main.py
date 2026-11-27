@@ -127,7 +127,7 @@ app = FastAPI(title="ArchAI API", version="v1", lifespan=lifespan,
               openapi_url="/openapi.json" if _docs else None)
 _cors_origins = settings.cors_origins()
 app.add_middleware(CORSMiddleware, allow_origins=_cors_origins, allow_credentials=False,
-                   allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+                   allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
                    allow_headers=["Authorization", "Content-Type", "x-api-key", "x-request-id"],
                    expose_headers=["content-disposition", "x-archai-sha256", "x-archai-output-shape",
                                    "x-request-id"])
@@ -305,6 +305,19 @@ def _make_latency_store():
 
 
 _latency_store = _make_latency_store()
+
+
+def _make_deployment_store():
+    from archai_api.deployments import InMemoryDeploymentStore
+    url = os.getenv("DATABASE_URL")
+    if not url:
+        return InMemoryDeploymentStore()
+    from archai_api.db import SqlAlchemyDeploymentStore
+    return SqlAlchemyDeploymentStore.from_url(url, initialize=os.getenv("ARCHAI_DB_AUTO_CREATE", "0") == "1")
+
+
+_deployment_store = _make_deployment_store()
+_deployment_stats_lock = threading.Lock()
 
 
 def _redis_is_ready() -> bool:
@@ -1256,6 +1269,209 @@ def list_architecture_latency(architecture_id: str, limit: int = Query(default=2
     if _architecture_store.get(architecture_id) is None:
         raise HTTPException(status_code=404, detail="architecture not found")
     return {"items": _latency_store.list(architecture_id, limit)}
+
+
+class DeploymentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=120)
+    architecture_id: str = Field(min_length=1, max_length=64)
+    model_id: str | None = Field(default=None, min_length=1, max_length=128)
+    model_version: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+class PredictRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    inputs: list | None = None
+    input: Literal["zeros", "random"] | None = None
+    batch_size: int = Field(default=1, ge=1, le=16)
+    seed: int = Field(default=0, ge=0, le=2**31 - 1)
+
+
+_MAX_PREDICT_ELEMENTS = 2_000_000
+
+
+def _require_torch(what: str):
+    try:
+        import torch
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail=f"{what} is unavailable: torch is not installed") from exc
+    return torch
+
+
+def _verified_artifact(model_id: str, version: str | None):
+    artifact = _model_registry.get(model_id, version)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="model not found")
+    response = _model_response(artifact)
+    if not response["artifact_exists"]:
+        raise HTTPException(status_code=409, detail="checkpoint file is missing")
+    if not response["integrity_verified"]:
+        raise HTTPException(status_code=409, detail="checkpoint SHA-256 does not match the registry; refusing to load it")
+    return artifact
+
+
+def _deployment_loader(deployment: dict):
+    from archai_api.deployments import build_model
+    architecture = _architecture_store.get(deployment["architecture_id"])
+    if architecture is None:
+        raise HTTPException(status_code=409, detail="the deployed architecture is no longer registered")
+    model = deployment.get("model")
+    path = None
+    if model:
+        artifact = _verified_artifact(model["model_id"], model["version"])
+        if artifact.sha256 != model["sha256"]:
+            raise HTTPException(status_code=409, detail="the registered checkpoint changed since deployment")
+        path = artifact.path
+    return lambda: build_model(architecture, path)
+
+
+def _deployment_response(deployment: dict) -> dict:
+    from archai_api.deployments import weights_label
+    return {**deployment, "weights": weights_label(deployment), "trained": bool(deployment.get("model")),
+            "loaded": _deployment_runtime().loaded(deployment["deployment_id"]),
+            "predict_path": f"/v1/deployments/{deployment['deployment_id']}/predict"}
+
+
+_runtime = None
+
+
+def _deployment_runtime():
+    global _runtime
+    if _runtime is None:
+        from archai_api.deployments import DeploymentRuntime
+        _runtime = DeploymentRuntime()
+    return _runtime
+
+
+def _get_deployment(deployment_id: str) -> dict:
+    deployment = _deployment_store.get(deployment_id)
+    if deployment is None:
+        raise HTTPException(status_code=404, detail="deployment not found")
+    return deployment
+
+
+@app.get("/v1/deployments")
+def list_deployments():
+    return {"items": [_deployment_response(item) for item in _deployment_store.list()]}
+
+
+@app.post("/v1/deployments", dependencies=[Depends(require_write_access)])
+def create_deployment(request: DeploymentRequest, http_request: Request):
+    """Deploy a registered architecture (optionally with verified checkpoint weights) on this API host."""
+    architecture = _architecture_store.get(request.architecture_id)
+    if architecture is None:
+        raise HTTPException(status_code=404, detail="architecture not found")
+    if request.model_version and not request.model_id:
+        raise HTTPException(status_code=422, detail="model_version requires model_id")
+    _require_torch("model serving")
+    model = None
+    path = None
+    if request.model_id:
+        artifact = _verified_artifact(request.model_id, request.model_version)
+        model = {"model_id": artifact.model_id, "version": artifact.version, "sha256": artifact.sha256,
+                 "kind": artifact.kind}
+        path = artifact.path
+    from archai_api.deployments import build_model
+    try:
+        build_model(architecture, path)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    now = datetime.now(UTC).isoformat()
+    deployment = {"deployment_id": uuid4().hex, "name": request.name.strip(),
+                  "architecture_id": request.architecture_id,
+                  "input_shape": [architecture.input_spec.channels, architecture.input_spec.height,
+                                  architecture.input_spec.width],
+                  "output_classes": architecture.output_classes, "model": model, "status": "active",
+                  "created_at": now, "updated_at": now,
+                  "created_by": getattr(http_request.state, "principal_id", None),
+                  "stats": {"request_count": 0, "error_count": 0, "last_request_at": None,
+                            "last_latency_ms": None}}
+    return _deployment_response(_deployment_store.put(deployment))
+
+
+@app.get("/v1/deployments/{deployment_id}")
+def get_deployment(deployment_id: str):
+    return _deployment_response(_get_deployment(deployment_id))
+
+
+def _set_deployment_status(deployment_id: str, status: str) -> dict:
+    deployment = _get_deployment(deployment_id)
+    if status == "active" and deployment.get("model"):
+        model = deployment["model"]
+        if _verified_artifact(model["model_id"], model["version"]).sha256 != model["sha256"]:
+            raise HTTPException(status_code=409, detail="the registered checkpoint changed since deployment")
+    _deployment_runtime().unload(deployment_id)
+    deployment.update(status=status, updated_at=datetime.now(UTC).isoformat())
+    return _deployment_response(_deployment_store.put(deployment))
+
+
+@app.post("/v1/deployments/{deployment_id}/stop", dependencies=[Depends(require_write_access)])
+def stop_deployment(deployment_id: str):
+    return _set_deployment_status(deployment_id, "stopped")
+
+
+@app.post("/v1/deployments/{deployment_id}/start", dependencies=[Depends(require_write_access)])
+def start_deployment(deployment_id: str):
+    return _set_deployment_status(deployment_id, "active")
+
+
+@app.delete("/v1/deployments/{deployment_id}", dependencies=[Depends(require_write_access)])
+def delete_deployment(deployment_id: str):
+    _get_deployment(deployment_id)
+    _deployment_runtime().unload(deployment_id)
+    _deployment_store.delete(deployment_id)
+    return {"deleted": deployment_id}
+
+
+@app.post("/v1/deployments/{deployment_id}/predict", dependencies=[Depends(require_scope("read"))])
+def predict(deployment_id: str, request: PredictRequest):
+    """Run inference on an active deployment; read-scoped keys may call it."""
+    deployment = _get_deployment(deployment_id)
+    if deployment["status"] != "active":
+        raise HTTPException(status_code=409, detail="deployment is stopped")
+    torch = _require_torch("model serving")
+    if (request.inputs is None) == (request.input is None):
+        raise HTTPException(status_code=422, detail="provide exactly one of inputs or input")
+    channels, height, width = deployment["input_shape"]
+    if request.inputs is not None:
+        try:
+            tensor = torch.tensor(request.inputs, dtype=torch.float32)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=f"inputs must be a numeric nested list: {exc}") from exc
+        if tensor.dim() == 3:
+            tensor = tensor.unsqueeze(0)
+        if tensor.dim() != 4 or list(tensor.shape[1:]) != [channels, height, width] or tensor.shape[0] > 16:
+            raise HTTPException(status_code=422, detail=(
+                f"inputs must have shape [batch<=16, {channels}, {height}, {width}]; got {list(tensor.shape)}"))
+        source = "caller"
+    else:
+        shape = (request.batch_size, channels, height, width)
+        tensor = (torch.zeros(shape) if request.input == "zeros"
+                  else torch.randn(shape, generator=torch.Generator().manual_seed(request.seed)))
+        source = "zeros" if request.input == "zeros" else f"random normal (seed={request.seed})"
+    if tensor.numel() > _MAX_PREDICT_ELEMENTS:
+        raise HTTPException(status_code=422, detail="inputs are too large")
+    loader = _deployment_loader(deployment)
+    from archai_api.deployments import weights_label
+    try:
+        result = _deployment_runtime().predict(deployment_id, loader, tensor)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        with _deployment_stats_lock:
+            current = _get_deployment(deployment_id)
+            current["stats"]["error_count"] += 1
+            _deployment_store.put(current)
+        raise HTTPException(status_code=422, detail=f"inference failed: {str(exc).splitlines()[0]}") from exc
+    now = datetime.now(UTC).isoformat()
+    with _deployment_stats_lock:
+        current = _get_deployment(deployment_id)
+        current["stats"].update(request_count=current["stats"]["request_count"] + 1, last_request_at=now,
+                                last_latency_ms=result["latency_ms"])
+        _deployment_store.put(current)
+    return {"deployment_id": deployment_id, "architecture_id": deployment["architecture_id"],
+            "weights": weights_label(deployment), "trained": bool(deployment.get("model")),
+            "input_source": source, "batch_size": int(tensor.shape[0]), "served_at": now, **result}
 
 
 _RETRY_DROP_KEYS = {"result", "progress", "retried_as"}

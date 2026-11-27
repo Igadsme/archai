@@ -5,6 +5,7 @@ import { describeFailure, downloadFile, fetchJson } from "../lib/api"
 import type { ArchitectureDetail, ArchitectureItem, ModelInspection, ModelItem } from "../lib/types"
 import { architectureDetailResponse, itemsResponse } from "../lib/validators"
 import { useGo } from "../studio/hooks"
+import { Deployments } from "./Deployments"
 import { Icon } from "../studio/Icon"
 import { MiniGraph } from "../studio/MiniGraph"
 import { EmptyState, ErrorList, formatBytes, formatCompact, formatCount, Loaded, PageHeader, Panel, shortId, Status } from "../studio/ui"
@@ -23,6 +24,7 @@ export function Registry() {
   const [query, setQuery] = useState("")
   const architectures = usePoll<{ items: ArchitectureItem[] }>("/v1/architectures?limit=200", 15_000, itemsResponse)
   const models = usePoll<{ items: ModelItem[] }>("/v1/models", 15_000, itemsResponse)
+  const deploymentCount = usePoll<{ items: unknown[] }>("/v1/deployments", 15_000, itemsResponse)
   const [archId, setArchId] = useState<string | null>(null)
   const archDetail = usePoll<ArchitectureDetail>(archId ? `/v1/architectures/${encodeURIComponent(archId)}` : null, 0, architectureDetailResponse)
   const [inspection, setInspection] = useState<ModelInspection | null>(null)
@@ -49,7 +51,7 @@ export function Registry() {
       <button className="button" onClick={() => go("generator")}><Icon name="generator" /> Generate architectures</button>
     </PageHeader>
     <div className="registry-tabs" role="tablist" aria-label="Registry sections">
-      {([["architectures", `ARCHITECTURES ${items(architectures.data).length}`], ["checkpoints", `CHECKPOINTS ${items(models.data).length}`], ["deployments", "DEPLOYMENTS 0"]] as [Tab, string][]).map(([value, label]) => <button key={value} role="tab" aria-selected={tab === value} className={tab === value ? "active" : ""} onClick={() => setTab(value)}>{label}</button>)}
+      {([["architectures", `ARCHITECTURES ${items(architectures.data).length}`], ["checkpoints", `CHECKPOINTS ${items(models.data).length}`], ["deployments", `DEPLOYMENTS ${items(deploymentCount.data).length}`]] as [Tab, string][]).map(([value, label]) => <button key={value} role="tab" aria-selected={tab === value} className={tab === value ? "active" : ""} onClick={() => setTab(value)}>{label}</button>)}
       <div className="list-search registry-search"><Icon name="search" size={13} /><input aria-label="Search registry" placeholder="Search id, kind or search space" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
     </div>
     {tab === "architectures" ? <div className="registry-workspace">
@@ -94,8 +96,6 @@ export function Registry() {
         </div>}
       </Panel>
     </div> : null}
-    {tab === "deployments" ? <Panel title="Deployments" meta="NOT AVAILABLE">
-      <EmptyState icon="registry" title="No deployment endpoint" tall><p>The ArchAI API has no deployment or serving endpoints, so there is nothing to list. Export a registered architecture as JSON or TorchScript from the Architectures tab and deploy it with your own tooling.</p></EmptyState>
-    </Panel> : null}
+    {tab === "deployments" ? <Deployments architectures={items(architectures.data)} models={items(models.data)} /> : null}
   </div>
 }

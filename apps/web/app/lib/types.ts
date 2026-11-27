@@ -45,3 +45,15 @@ export type HostTelemetry = { hostname: string; platform: string; python: string
 export type TelemetrySnapshot = { measured_at: string; host: HostTelemetry; gpu: GpuTelemetry }
 export type TelemetryResponse = { api: TelemetrySnapshot; workers: { worker_id: string; hostname: string; last_seen: string; telemetry: TelemetrySnapshot | null }[] }
 export type LatencyMeasurement = { measurement_id: string; architecture_id: string; evidence_type: "measured_latency"; device: string; hardware: string; platform: string; torch_version: string; threads: number; batch_size: number; iterations: number; truncated_by_time_limit: boolean; mean_ms: number; p50_ms: number; p90_ms: number; p99_ms: number; min_ms: number; max_ms: number; throughput_samples_per_s: number; measured_at: string }
+
+export type DeploymentItem = {
+  deployment_id: string; name: string; architecture_id: string; input_shape: [number, number, number]; output_classes: number
+  model: { model_id: string; version: string; sha256: string; kind: string } | null
+  status: "active" | "stopped"; created_at: string; updated_at: string; created_by: string | null
+  stats: { request_count: number; error_count: number; last_request_at: string | null; last_latency_ms: number | null }
+  weights: string; trained: boolean; loaded: boolean; predict_path: string
+}
+export type PredictionResult = {
+  deployment_id: string; weights: string; trained: boolean; input_source: string; batch_size: number; served_at: string
+  output_shape: number[]; logits: number[][]; predicted_class: number[]; confidence: number[]; latency_ms: number
+}
