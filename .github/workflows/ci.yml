@@ -90,6 +90,17 @@ jobs:
       - name: Container logs
         if: always()
         run: docker logs api; docker logs web
+      - name: Boot the local compose stack from a clean checkout and smoke-test it
+        run: |
+          docker rm -f api web
+          docker tag archai-api:ci archai-api:local
+          docker tag archai-web:ci archai-studio:local
+          python3 scripts/local/init_env.py
+          docker compose --env-file .env -f infrastructure/docker/docker-compose.yml up -d --no-build --wait --wait-timeout 600
+          scripts/local/archai.sh smoke
+      - name: Compose logs
+        if: failure()
+        run: docker compose --env-file .env -f infrastructure/docker/docker-compose.yml logs --tail 150
   python-torch:
     runs-on: ubuntu-latest
     steps:

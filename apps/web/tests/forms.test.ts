@@ -45,7 +45,7 @@ describe("buildTrainingRequest", () => {
   it("rejects bad JSON, relative paths, short checksums and tiny predictor pools", () => {
     expect(buildTrainingRequest({ ...defaultTrainingForm, architectureJson: "{" }).ok).toBe(false)
     expect(buildTrainingRequest({ ...defaultTrainingForm, kind: "generator", corpusPath: "corpus.jsonl" }).ok).toBe(false)
-    const predictor = buildTrainingRequest({ ...defaultTrainingForm, kind: "predictor", benchmarkPath: "/tmp/nats", benchmarkSha256: "abc", indices: "1,2" })
+    const predictor = buildTrainingRequest({ ...defaultTrainingForm, kind: "predictor", benchmarkPath: "/tmp/nats", checkpointPath: "/tmp/predictor.pt", benchmarkSha256: "abc", indices: "1,2" })
     expect(predictor.ok).toBe(false)
     if (!predictor.ok) expect(predictor.errors).toEqual(["benchmark SHA-256 must be 64 hex characters", "predictor training needs at least three indices"])
     expect(buildTrainingRequest({ ...defaultTrainingForm, epochs: "1001" }).ok).toBe(false)

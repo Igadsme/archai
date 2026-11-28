@@ -15,3 +15,4 @@ datasets/raw/
 
 # Local Redis snapshots
 dump.rdb
+.archai/

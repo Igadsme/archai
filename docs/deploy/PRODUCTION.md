@@ -31,11 +31,12 @@ Also needed: a Postgres URL (`DATABASE_URL`, `postgresql+psycopg://…`), a Redi
 ```bash
 cp .env.example .env    # set ARCHAI_ENV=production, POSTGRES_PASSWORD, ARCHAI_API_KEY_SHA256,
                         # ARCHAI_CORS_ORIGINS, ARCHAI_PUBLIC_API_URL (baked into the Studio build)
-docker compose --env-file .env -f infrastructure/docker/docker-compose.yml --profile worker up -d --build
+docker compose --env-file .env -f infrastructure/docker/docker-compose.yml up -d --build --wait
 ```
 
-Put a TLS-terminating reverse proxy (Caddy, nginx, a cloud load balancer) in front of ports 3000
-and 8000 and set `FORWARDED_ALLOW_IPS` to its address. Postgres and Redis are not published.
+Migrations (`migrate`) and the worker start automatically. Put a TLS-terminating reverse proxy (Caddy, nginx, a cloud
+load balancer) in front of ports 3000 and 8000 and set `FORWARDED_ALLOW_IPS` to its address. The ports bind to
+`127.0.0.1` unless `ARCHAI_BIND_ADDRESS` says otherwise, which suits a proxy on the same host. Postgres and Redis are not published.
 Volumes: `archai-postgres`, `archai-redis` (append-only job queue), `archai-artifacts`
 (checkpoints, audit log). Back up `archai-postgres` and `archai-artifacts`.
 

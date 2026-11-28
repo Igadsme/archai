@@ -39,7 +39,7 @@ def test_postgres_schema_has_no_duplicate_experiment_columns_and_named_model_uni
 def test_worker_compose_mounts_benchmark_data_and_uses_container_path():
     compose = (ROOT / "infrastructure/docker/docker-compose.yml").read_text()
     assert "../../datasets/raw:/var/lib/archai/datasets:ro" in compose
-    assert "/var/lib/archai/datasets/natsbench.tfrecord" in compose
+    assert "${ARCHAI_NATS_BENCH_PATH:-/opt/archai/datasets/fixtures/natsbench-tss-cifar10-256/cells.jsonl}" in compose
 
 
 def test_api_compose_passes_hashed_auth_configuration():
@@ -113,3 +113,39 @@ def test_ci_is_least_privilege_and_audits_dependencies_and_images():
     assert "docker build -f apps/api/Dockerfile" in workflow
     assert "docker build -f apps/web/Dockerfile" in workflow
     assert (ROOT / ".github/dependabot.yml").is_file()
+
+
+def test_compose_runs_migrations_and_generator_training_before_the_api():
+    compose = (ROOT / "infrastructure/docker/docker-compose.yml").read_text()
+    assert 'command: ["alembic", "upgrade", "head"]' in compose
+    assert "migrate: {condition: service_completed_successfully}" in compose
+    assert "generator-init: {condition: service_completed_successfully}" in compose
+    assert "scripts/train_generator_local.py" in compose
+    assert "ARCHAI_CHECKPOINT_DIR: /var/lib/archai/checkpoints" in compose
+
+
+def test_init_env_creates_secrets_without_printing_them(tmp_path, capsys):
+    import hashlib
+    import importlib.util
+    import stat
+
+    spec = importlib.util.spec_from_file_location("init_env", ROOT / "scripts/local/init_env.py")
+    init_env = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(init_env)
+    (tmp_path / ".env.example").write_text((ROOT / ".env.example").read_text())
+    assert init_env.main(["--root", str(tmp_path)]) == 0
+    env = init_env.parse((tmp_path / ".env").read_text())
+    key = (tmp_path / ".archai/bootstrap-api-key").read_text().strip()
+    assert len(env["POSTGRES_PASSWORD"]) == 48 and env["ARCHAI_REQUIRE_API_KEY"] == "1"
+    assert env["ARCHAI_API_KEY_SHA256"] == hashlib.sha256(key.encode()).hexdigest()
+    assert stat.S_IMODE((tmp_path / ".env").stat().st_mode) == 0o600
+    assert stat.S_IMODE((tmp_path / ".archai/bootstrap-api-key").stat().st_mode) == 0o600
+    printed = capsys.readouterr().out
+    assert key not in printed and env["POSTGRES_PASSWORD"] not in printed
+    first = dict(env)
+    assert init_env.main(["--root", str(tmp_path)]) == 0
+    assert init_env.parse((tmp_path / ".env").read_text()) == first
+    assert init_env.main(["--root", str(tmp_path), "--rotate-key"]) == 0
+    rotated = init_env.parse((tmp_path / ".env").read_text())
+    assert rotated["ARCHAI_API_KEY_SHA256"] != first["ARCHAI_API_KEY_SHA256"]
+    assert rotated["POSTGRES_PASSWORD"] == first["POSTGRES_PASSWORD"]

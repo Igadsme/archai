@@ -108,7 +108,7 @@ export function Training() {
             <label className="field"><span>Epochs</span><input inputMode="numeric" value={form.epochs} onChange={update("epochs")} /></label>
             <label className="field"><span>Seed</span><input inputMode="numeric" value={form.seed} onChange={update("seed")} /></label>
           </div>
-          <label className="field"><span>Checkpoint path <em>UNDER ALLOWED DATA ROOT</em></span><input value={form.checkpointPath} onChange={update("checkpointPath")} /></label>
+          <label className="field"><span>Checkpoint path <em>UNDER ALLOWED DATA ROOT</em></span><input value={form.checkpointPath} onChange={update("checkpointPath")} placeholder={form.kind === "candidate" ? "empty: the worker's ARCHAI_CHECKPOINT_DIR, if set" : "/absolute/path.pt"} /></label>
           {form.kind === "candidate" ? <label className="field"><span>Architecture JSON</span><textarea rows={4} value={form.architectureJson} onChange={update("architectureJson")} /></label> : null}
           {form.kind === "generator" ? <label className="field"><span>Corpus path (JSONL)</span><input value={form.corpusPath} onChange={update("corpusPath")} /></label> : null}
           {form.kind === "predictor" ? <><label className="field"><span>Benchmark path</span><input value={form.benchmarkPath} onChange={update("benchmarkPath")} /></label><label className="field"><span>Benchmark SHA-256</span><input value={form.benchmarkSha256} onChange={update("benchmarkSha256")} /></label><label className="field"><span>Indices</span><input value={form.indices} onChange={update("indices")} /></label></> : null}

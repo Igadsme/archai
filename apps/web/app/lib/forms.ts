@@ -67,7 +67,7 @@ export const defaultCandidateArchitecture = {
 }
 
 export const defaultTrainingForm: TrainingForm = {
-  kind: "candidate", epochs: "1", seed: "0", checkpointPath: "/tmp/archai-candidate.pt",
+  kind: "candidate", epochs: "1", seed: "0", checkpointPath: "",
   architectureJson: JSON.stringify(defaultCandidateArchitecture), corpusPath: "", benchmarkPath: "", benchmarkSha256: "", indices: "0:64",
 }
 

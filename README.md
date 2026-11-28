@@ -28,7 +28,7 @@ Install `.[ml,benchmark]` for real model/benchmark runs and `.[platform]` for SQ
 
 ## Deploying
 
-- Single host: copy `.env.example` to `.env`, then `docker compose --env-file .env -f infrastructure/docker/docker-compose.yml --profile worker up -d --build`.
+- Local, one command: `scripts/local/archai.sh up` (Docker; Postgres, Redis, migrations, API, worker, Studio at http://localhost:3000). It creates `.env` and a bootstrap key on first run. macOS guide: [docs/deploy/LOCAL.md](docs/deploy/LOCAL.md). Generator checkpoints: [docs/GENERATOR.md](docs/GENERATOR.md).
 - Production: set `ARCHAI_ENV=production`; the API refuses to boot with unsafe settings. Follow [docs/deploy/PRODUCTION.md](docs/deploy/PRODUCTION.md) (checklist and post-deploy checks) and [docs/deploy/ENV.md](docs/deploy/ENV.md) (every variable).
 - Free hosted path (Render + Vercel + Neon + Upstash): [docs/deploy/HOSTING_RUNBOOK.md](docs/deploy/HOSTING_RUNBOOK.md).
 

@@ -76,6 +76,8 @@ def candidate_training(job: Job) -> dict:
         device=str(config.get("device", "cpu")),
     )
     checkpoint = config.get("checkpoint_path")
+    if not checkpoint and os.getenv("ARCHAI_CHECKPOINT_DIR"):
+        checkpoint = str(Path(os.environ["ARCHAI_CHECKPOINT_DIR"]) / f"candidate-{job.job_id}.pt")
     if checkpoint:
         allowed_path(str(checkpoint), field="checkpoint_path")
     live_history: list[dict[str, float]] = []
