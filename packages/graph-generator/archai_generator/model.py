@@ -72,6 +72,8 @@ class ArchitectureGenerator:
             start = torch.zeros(teacher_tokens.shape[0], 1, dtype=torch.long, device=teacher_tokens.device)
             shifted = torch.cat([start, teacher_tokens[:, :-1]], dim=1)
             sequence = F.one_hot(shifted, num_classes=self.vocab_size).float()
+            sequence[:, 0] = 0.0  # sampling starts from an all-zero input, not token 0
+
         decoded, _ = self.decoder_rnn(sequence, context)
         return self.decoder(decoded)
 

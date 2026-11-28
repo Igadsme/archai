@@ -57,21 +57,11 @@ export SCREENS="${SCREENS:-$WORKDIR/screens}"
 
 python -m alembic upgrade head
 
-# Save a tiny default-vocabulary generator. /v1/architectures/generate uses sample(),
-# which only builds graphs from GENERATABLE_OPS (not NAS-Bench-201 tokens). This
-# checkpoint is fixture-only and is not a research result.
-python - <<'PY'
-from pathlib import Path
-import os
-from archai_generator.model import ArchitectureGenerator, GeneratorConfig
-from archai_generator.training import save_checkpoint
-
-path = Path(os.environ["ARCHAI_GENERATOR_CHECKPOINT"])
-model = ArchitectureGenerator(GeneratorConfig(latent_dim=8, hidden_dim=64, max_nodes=6, condition_dim=8))
-save_checkpoint(model, path, {"model": "ArchAI-V1", "kind": "generator", "scale": "ci_fixture",
-                              "label": "fixture-only", "not_a_research_result": True})
-print(f"wrote CI generator checkpoint ({path.stat().st_size} bytes)")
-PY
+# Train a small budget-conditioned generator on CPU (a few seconds). /v1/architectures/generate uses
+# sample(), which builds graphs from GENERATABLE_OPS; this checkpoint is labelled local_cpu in its metadata.
+python "$ROOT/scripts/train_generator_local.py" --checkpoint "$ARCHAI_GENERATOR_CHECKPOINT" \
+  --report "$WORKDIR/generator-ci-report.json" --corpus-size 1024 --epochs 150 --eval-samples 64 >/dev/null
+echo "trained CI generator checkpoint ($(wc -c <"$ARCHAI_GENERATOR_CHECKPOINT") bytes)"
 
 cleanup() {
   for pidfile in "$LOG_DIR"/api.pid "$LOG_DIR"/worker.pid "$LOG_DIR"/studio.pid; do

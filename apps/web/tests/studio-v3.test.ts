@@ -228,3 +228,12 @@ describe("screen helpers use only measured values", () => {
     expect(rows.map((row) => row.ok)).toEqual([true, false, true, true])
   })
 })
+
+describe("generator checkpoint label", () => {
+  it("reports the checkpoint's own label or scale and nothing more", async () => {
+    const { checkpointLabel } = await import("../app/screens/Generator")
+    expect(checkpointLabel({ label: "fixture-only", scale: "ci_fixture" })).toBe("fixture-only")
+    expect(checkpointLabel({ scale: "local_cpu" })).toBe("scale: local_cpu")
+    expect(checkpointLabel({})).toBe("no label in checkpoint metadata")
+  })
+})

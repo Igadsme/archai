@@ -1010,13 +1010,22 @@ def generate_architectures(request: GenerateRequest):
         config = GeneratorConfig(**saved_config) if saved_config else GeneratorConfig()
         model = ArchitectureGenerator(config)
         metadata = load_checkpoint(model, checkpoint)
+        spec = TensorSpec.model_validate(request.input_spec)
+        condition, condition_source = tuple(request.condition), "request"
+        encoding = (metadata or {}).get("condition_encoding") or {}
+        if not any(condition):
+            condition_source = "none"
+            if encoding.get("name") == "analytical_flops_budget_v1" and constraints.max_flops is not None:
+                from archai_generator.local_corpus import encode_budget, reference_flops
+                reference = reference_flops(config.max_nodes, spec, request.output_classes)
+                condition = encode_budget(constraints.max_flops / reference)
+                condition_source = f"max_flops ({constraints.max_flops} of {reference} reference FLOPs)"
         generated = []
         rejected = 0
         attempts = 0
         limit = request.count if constraints.is_empty() else max(request.count * 32, 32)
         for offset in range(limit):
-            candidates = model.sample(seed=request.seed + offset, condition=tuple(request.condition),
-                                      input_spec=TensorSpec.model_validate(request.input_spec),
+            candidates = model.sample(seed=request.seed + offset, condition=condition, input_spec=spec,
                                       output_classes=request.output_classes)
             if not candidates:
                 raise RuntimeError("generator returned no candidates")
@@ -1050,7 +1059,8 @@ def generate_architectures(request: GenerateRequest):
     return {"items": [{"architecture": candidate.model_dump(),
                        "architecture_id": candidate.content_hash()} for candidate in generated],
             "count": len(generated), "checkpoint": checkpoint, "metadata": metadata,
-            "constraints": constraints.model_dump(), "attempts": attempts, "rejected": rejected}
+            "constraints": constraints.model_dump(), "attempts": attempts, "rejected": rejected,
+            "condition": list(condition), "condition_source": condition_source}
 
 
 @app.get("/v1/search/algorithms")

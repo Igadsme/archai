@@ -19,7 +19,7 @@ export const GENERATABLE_OPS = [
   { op: "skip", label: "Skip", detail: "Identity path" },
 ] as const
 
-type Generated = { items: { architecture_id: string; architecture: FullArchitecture }[]; count: number; checkpoint: string; metadata: Record<string, unknown>; attempts?: number; rejected?: number }
+type Generated = { items: { architecture_id: string; architecture: FullArchitecture }[]; count: number; checkpoint: string; metadata: Record<string, unknown>; attempts?: number; rejected?: number; condition_source?: string }
 type Form = { count: string; seed: string; channels: string; height: string; width: string; classes: string } & ConstraintForm
 const defaultForm: Form = { count: "4", seed: "0", channels: "3", height: "32", width: "32", classes: "10", ...defaultConstraintForm }
 
@@ -48,6 +48,13 @@ export function buildGenerateRequest(form: Form, ops: string[], projectId?: stri
 }
 
 type Check = { detail?: ArchitectureDetail; error?: string; saved?: "saving" | "saved" | string }
+
+/** What the checkpoint says about itself; never upgraded to "trained for accuracy". */
+export function checkpointLabel(metadata: Record<string, unknown> | null | undefined): string {
+  const label = typeof metadata?.label === "string" ? metadata.label : null
+  const scale = typeof metadata?.scale === "string" ? metadata.scale : null
+  return label ?? (scale ? `scale: ${scale}` : "no label in checkpoint metadata")
+}
 
 export function Generator() {
   const go = useGo()
@@ -154,6 +161,8 @@ export function Generator() {
               <div><Icon name={check?.detail ? "check" : "alert"} /><span>Schema and DAG validation (POST /v1/architectures/validate)</span><b>{check?.detail ? "PASS" : check?.error ? "FAIL" : "…"}</b></div>
               <div><Icon name={check?.detail?.hash === current.architecture_id ? "check" : "alert"} /><span>Canonical hash matches candidate id</span><b>{check?.detail ? (check.detail.hash === current.architecture_id ? "PASS" : "MISMATCH") : "…"}</b></div>
               <div><Icon name="database" /><span>Checkpoint</span><b className="mono">{result.checkpoint.split("/").pop()}</b></div>
+              <div><Icon name="database" /><span>Checkpoint label</span><b>{checkpointLabel(result.metadata)}</b></div>
+              {result.condition_source ? <div><Icon name="filter" /><span>Conditioning</span><b>{result.condition_source === "none" ? "unconditioned" : result.condition_source}</b></div> : null}
               {typeof result.rejected === "number" ? <div><Icon name="filter" /><span>Rejected by constraints / attempts</span><b>{result.rejected} / {result.attempts ?? "—"}</b></div> : null}
             </div>
             {check?.error ? <ErrorList errors={[check.error]} /> : null}
